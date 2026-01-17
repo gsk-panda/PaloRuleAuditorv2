@@ -130,107 +130,216 @@ export async function auditPanoramaRules(
     const deviceGroupsSet = new Set<string>();
 
     if (deviceGroupNames.length > 0) {
-      console.log(`Querying rule-hit-count for ${deviceGroupNames.length} device groups...`);
+      console.log(`Querying rules and hit counts for ${deviceGroupNames.length} device groups...`);
       for (const dgName of deviceGroupNames) {
         deviceGroupsSet.add(dgName);
         try {
-          const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase><post-rulebase><entry name="security"><rules><all/></rules></entry></post-rulebase></entry></device-group></rule-hit-count></show>`;
-          const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
-          console.log(`API Call - Device Group "${dgName}":`, apiUrl);
-          console.log(`  XML Command:`, xmlCmd);
+          console.log(`\n=== Processing Device Group: ${dgName} ===`);
           
-          const response = await fetch(apiUrl, {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/xml',
-            },
-          });
-
-          if (!response.ok) {
-            console.log(`Failed to get rules for device group ${dgName}: ${response.status}`);
-            continue;
-          }
-
-          const xmlText = await response.text();
-          console.log(`Device Group "${dgName}" API Response length: ${xmlText.length} chars`);
-          console.log(`Device Group "${dgName}" API Response (first 2000 chars): ${xmlText.substring(0, 2000)}`);
-          
-          if (xmlText.includes('<response status="error"')) {
-            console.error(`Device Group "${dgName}" API returned an error response`);
-            console.error(`Full error response: ${xmlText}`);
-            continue;
-          }
-          
-          const data: PanoramaResponse = parser.parse(xmlText);
-          console.log(`Device Group "${dgName}" Parsed structure:`, JSON.stringify(data.response?.result, null, 2));
-          
-          const ruleHitCount = data.response?.result?.['rule-hit-count'];
-          console.log(`Device Group "${dgName}" ruleHitCount structure:`, JSON.stringify(ruleHitCount, null, 2));
-          
-          if (!ruleHitCount) {
-            console.log(`Device Group "${dgName}" - No rule-hit-count data in response`);
-            continue;
-          }
-          
-          if (ruleHitCount?.['device-group']?.entry) {
-            const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
-              ? ruleHitCount['device-group'].entry
-              : [ruleHitCount['device-group'].entry];
+          const ruleNames: string[] = [];
+          try {
+            const configUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules&key=${apiKey}`;
+            console.log(`Fetching rule list for device group "${dgName}"...`);
+            const configResponse = await fetch(configUrl);
+            if (configResponse.ok) {
+              const configXml = await configResponse.text();
+              const configData = parser.parse(configXml);
+              if (configData.response?.result?.entry?.rules?.entry) {
+                const rules = Array.isArray(configData.response.result.entry.rules.entry)
+                  ? configData.response.result.entry.rules.entry
+                  : [configData.response.result.entry.rules.entry];
+                ruleNames.push(...rules.map((r: any) => r.name || r['@_name']).filter(Boolean));
+                console.log(`Found ${ruleNames.length} rules in pre-rulebase for "${dgName}"`);
+              }
+            }
             
-            deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
-              const rulebases: PanoramaRuleBaseEntry[] = [];
-              
-              if (dg['pre-rulebase']?.entry) {
-                const preEntries = Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry];
-                rulebases.push(...preEntries);
+            const postConfigUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry/device-group/entry[@name='${dgName}']/post-rulebase/security/rules&key=${apiKey}`;
+            const postConfigResponse = await fetch(postConfigUrl);
+            if (postConfigResponse.ok) {
+              const postConfigXml = await postConfigResponse.text();
+              const postConfigData = parser.parse(postConfigXml);
+              if (postConfigData.response?.result?.entry?.rules?.entry) {
+                const rules = Array.isArray(postConfigData.response.result.entry.rules.entry)
+                  ? postConfigData.response.result.entry.rules.entry
+                  : [postConfigData.response.result.entry.rules.entry];
+                ruleNames.push(...rules.map((r: any) => r.name || r['@_name']).filter(Boolean));
+                console.log(`Found ${ruleNames.length} total rules (including post-rulebase) for "${dgName}"`);
               }
-              
-              if (dg['post-rulebase']?.entry) {
-                const postEntries = Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry];
-                rulebases.push(...postEntries);
-              }
-              
-              if (dg['rule-base']?.entry) {
-                const ruleBaseEntries = Array.isArray(dg['rule-base'].entry) ? dg['rule-base'].entry : [dg['rule-base'].entry];
-                rulebases.push(...ruleBaseEntries);
-              }
-              
-              rulebases.forEach((rb: PanoramaRuleBaseEntry) => {
-                if (rb.rules?.entry) {
-                  const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
-                  console.log(`Device Group "${dg.name}" - Found ${ruleEntries.length} rules in rulebase "${rb.name || 'security'}"`);
-                  ruleEntries.forEach((ruleEntry: any) => {
-                    if (ruleEntry && dg.name) {
-                      const ruleName = ruleEntry.name || ruleEntry['@_name'];
-                      if (!ruleName) {
-                        console.log(`Skipping rule entry without name in device group ${dg.name}`);
-                        return;
-                      }
-                      
-                      const modTimestamp = ruleEntry['rule-modification-timestamp'];
-                      const lastUsedDate = modTimestamp 
-                        ? new Date(parseInt(modTimestamp) * 1000).toISOString()
-                        : undefined;
-                      
-                      const rule: PanoramaRuleUseEntry = {
-                        devicegroup: dg.name,
-                        rulebase: rb.name || 'security',
-                        rulename: ruleName,
-                        lastused: lastUsedDate,
-                        hitcnt: '0',
-                        target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined
-                      };
-                      
-                      console.log(`  Rule: "${ruleName}" - State: ${ruleEntry['rule-state']}, Mod Timestamp: ${modTimestamp}, Last Modified: ${lastUsedDate} (Note: No actual hit count data available)`);
-                      entries.push(rule);
-                    }
-                  });
-                } else {
-                  console.log(`Device Group "${dg.name}" - No rules found in rulebase "${rb.name || 'security'}"`);
-                }
-              });
-            });
+            }
+          } catch (error) {
+            console.log(`Could not fetch rule list for ${dgName}, trying all rules query...`);
           }
+
+          if (ruleNames.length > 0) {
+            console.log(`Querying hit counts for ${ruleNames.length} individual rules...`);
+            for (const ruleName of ruleNames) {
+              try {
+                const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><rule-name><entry name="${ruleName}"/></rule-name></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`;
+                const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+                console.log(`  Querying rule "${ruleName}" in device group "${dgName}"...`);
+                
+                const response = await fetch(apiUrl);
+                if (response.ok) {
+                  const xmlText = await response.text();
+                  if (!xmlText.includes('<response status="error"')) {
+                    const data: PanoramaResponse = parser.parse(xmlText);
+                    const ruleHitCount = data.response?.result?.['rule-hit-count'];
+                    if (ruleHitCount?.['device-group']?.entry) {
+                      const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
+                        ? ruleHitCount['device-group'].entry
+                        : [ruleHitCount['device-group'].entry];
+                      
+                      deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
+                        const rulebases: PanoramaRuleBaseEntry[] = [];
+                        if (dg['pre-rulebase']?.entry) {
+                          const preEntries = Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry];
+                          rulebases.push(...preEntries);
+                        }
+                        if (dg['post-rulebase']?.entry) {
+                          const postEntries = Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry];
+                          rulebases.push(...postEntries);
+                        }
+                        if (dg['rule-base']?.entry) {
+                          const ruleBaseEntries = Array.isArray(dg['rule-base'].entry) ? dg['rule-base'].entry : [dg['rule-base'].entry];
+                          rulebases.push(...ruleBaseEntries);
+                        }
+                        
+                        rulebases.forEach((rb: PanoramaRuleBaseEntry) => {
+                          if (rb.rules?.entry) {
+                            const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
+                            ruleEntries.forEach((ruleEntry: any) => {
+                              if (ruleEntry && dg.name && (ruleEntry.name === ruleName || ruleEntry['@_name'] === ruleName)) {
+                                const modTimestamp = ruleEntry['rule-modification-timestamp'];
+                                const lastUsedDate = modTimestamp 
+                                  ? new Date(parseInt(modTimestamp) * 1000).toISOString()
+                                  : undefined;
+                                
+                                console.log(`    Rule "${ruleName}" response:`, JSON.stringify(ruleEntry, null, 2));
+                                
+                                const rule: PanoramaRuleUseEntry = {
+                                  devicegroup: dg.name,
+                                  rulebase: rb.name || 'security',
+                                  rulename: ruleName,
+                                  lastused: lastUsedDate,
+                                  hitcnt: '0',
+                                  target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined
+                                };
+                                
+                                console.log(`    Rule "${ruleName}": Mod Timestamp: ${modTimestamp}, Last Modified: ${lastUsedDate}, Full entry:`, JSON.stringify(ruleEntry, null, 2));
+                                entries.push(rule);
+                              }
+                            });
+                          }
+                        });
+                      });
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`Error querying rule "${ruleName}":`, error);
+              }
+            }
+          }
+          
+          if (entries.length === 0 || ruleNames.length === 0) {
+            console.log(`Falling back to all-rules query for device group "${dgName}"...`);
+            const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase><post-rulebase><entry name="security"><rules><all/></rules></entry></post-rulebase></entry></device-group></rule-hit-count></show>`;
+            const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+            console.log(`API Call - Device Group "${dgName}" (all rules fallback):`, apiUrl);
+            console.log(`  XML Command:`, xmlCmd);
+          
+            const response = await fetch(apiUrl, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/xml',
+              },
+            });
+
+            if (!response.ok) {
+              console.log(`Failed to get rules for device group ${dgName}: ${response.status}`);
+              continue;
+            }
+
+            const xmlText = await response.text();
+            console.log(`Device Group "${dgName}" API Response length: ${xmlText.length} chars`);
+            console.log(`Device Group "${dgName}" API Response (first 2000 chars): ${xmlText.substring(0, 2000)}`);
+            
+            if (xmlText.includes('<response status="error"')) {
+              console.error(`Device Group "${dgName}" API returned an error response`);
+              console.error(`Full error response: ${xmlText}`);
+              continue;
+            }
+            
+            const data: PanoramaResponse = parser.parse(xmlText);
+            console.log(`Device Group "${dgName}" Parsed structure:`, JSON.stringify(data.response?.result, null, 2));
+            
+            const ruleHitCount = data.response?.result?.['rule-hit-count'];
+            console.log(`Device Group "${dgName}" ruleHitCount structure:`, JSON.stringify(ruleHitCount, null, 2));
+            
+            if (!ruleHitCount) {
+              console.log(`Device Group "${dgName}" - No rule-hit-count data in response`);
+              continue;
+            }
+            
+            if (ruleHitCount?.['device-group']?.entry) {
+              const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
+                ? ruleHitCount['device-group'].entry
+                : [ruleHitCount['device-group'].entry];
+              
+              deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
+                const rulebases: PanoramaRuleBaseEntry[] = [];
+                
+                if (dg['pre-rulebase']?.entry) {
+                  const preEntries = Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry];
+                  rulebases.push(...preEntries);
+                }
+                
+                if (dg['post-rulebase']?.entry) {
+                  const postEntries = Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry];
+                  rulebases.push(...postEntries);
+                }
+                
+                if (dg['rule-base']?.entry) {
+                  const ruleBaseEntries = Array.isArray(dg['rule-base'].entry) ? dg['rule-base'].entry : [dg['rule-base'].entry];
+                  rulebases.push(...ruleBaseEntries);
+                }
+                
+                rulebases.forEach((rb: PanoramaRuleBaseEntry) => {
+                  if (rb.rules?.entry) {
+                    const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
+                    console.log(`Device Group "${dg.name}" - Found ${ruleEntries.length} rules in rulebase "${rb.name || 'security'}"`);
+                    ruleEntries.forEach((ruleEntry: any) => {
+                      if (ruleEntry && dg.name) {
+                        const ruleName = ruleEntry.name || ruleEntry['@_name'];
+                        if (!ruleName) {
+                          console.log(`Skipping rule entry without name in device group ${dg.name}`);
+                          return;
+                        }
+                        
+                        const modTimestamp = ruleEntry['rule-modification-timestamp'];
+                        const lastUsedDate = modTimestamp 
+                          ? new Date(parseInt(modTimestamp) * 1000).toISOString()
+                          : undefined;
+                        
+                        const rule: PanoramaRuleUseEntry = {
+                          devicegroup: dg.name,
+                          rulebase: rb.name || 'security',
+                          rulename: ruleName,
+                          lastused: lastUsedDate,
+                          hitcnt: '0',
+                          target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined
+                        };
+                        
+                        console.log(`  Rule: "${ruleName}" - State: ${ruleEntry['rule-state']}, Mod Timestamp: ${modTimestamp}, Last Modified: ${lastUsedDate} (Note: No actual hit count data available)`);
+                        entries.push(rule);
+                      }
+                    });
+                  } else {
+                    console.log(`Device Group "${dg.name}" - No rules found in rulebase "${rb.name || 'security'}"`);
+                  }
+                });
+              });
+            }
         } catch (error) {
           console.error(`Error querying device group ${dgName}:`, error);
         }
