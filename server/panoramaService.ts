@@ -49,6 +49,14 @@ interface PanoramaRuleBaseEntry {
   };
 }
 
+interface PanoramaDeviceVsysEntry {
+  name?: string;
+  'hit-count'?: string;
+  'last-hit-timestamp'?: string;
+  'rule-modification-timestamp'?: string;
+  'all-connected'?: string;
+}
+
 interface PanoramaRuleHitCountEntry {
   name?: string;
   'rule-state'?: string;
@@ -219,30 +227,73 @@ export async function auditPanoramaRules(
                     const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
                     ruleEntries.forEach((ruleEntry: any) => {
                       if (ruleEntry && (ruleEntry.name === ruleName || ruleEntry['@_name'] === ruleName)) {
-                        const lastHitTimestamp = ruleEntry['last-hit-timestamp'];
-                        const modificationTimestamp = ruleEntry['rule-modification-timestamp'];
-                        const hitCount = ruleEntry['hit-count'] || ruleEntry['hitcount'] || '0';
+                        let totalHitCount = 0;
+                        let latestLastHitTimestamp: string | undefined;
+                        let latestModificationTimestamp: string | undefined;
+                        let allConnected = false;
+                        const targets: string[] = [];
+                        
+                        if (ruleEntry['device-vsys']?.entry) {
+                          const deviceVsysEntries = Array.isArray(ruleEntry['device-vsys'].entry) 
+                            ? ruleEntry['device-vsys'].entry 
+                            : [ruleEntry['device-vsys'].entry];
+                          
+                          deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
+                            const hitCount = parseInt(vsysEntry['hit-count'] || '0', 10);
+                            totalHitCount += hitCount;
+                            
+                            const lastHitTs = vsysEntry['last-hit-timestamp'];
+                            const modTs = vsysEntry['rule-modification-timestamp'];
+                            
+                            if (lastHitTs && (!latestLastHitTimestamp || parseInt(lastHitTs) > parseInt(latestLastHitTimestamp))) {
+                              latestLastHitTimestamp = lastHitTs;
+                            }
+                            
+                            if (modTs && (!latestModificationTimestamp || parseInt(modTs) > parseInt(latestModificationTimestamp))) {
+                              latestModificationTimestamp = modTs;
+                            }
+                            
+                            if (vsysEntry['all-connected'] === 'yes') {
+                              allConnected = true;
+                            } else if (vsysEntry.name) {
+                              const deviceName = vsysEntry.name.split('/')[0];
+                              if (deviceName && !targets.includes(deviceName)) {
+                                targets.push(deviceName);
+                              }
+                            }
+                          });
+                        } else {
+                          const lastHitTimestamp = ruleEntry['last-hit-timestamp'];
+                          const modificationTimestamp = ruleEntry['rule-modification-timestamp'];
+                          const hitCount = ruleEntry['hit-count'] || ruleEntry['hitcount'] || '0';
+                          totalHitCount = parseInt(hitCount, 10);
+                          latestLastHitTimestamp = lastHitTimestamp;
+                          latestModificationTimestamp = modificationTimestamp;
+                          if (ruleEntry['all-connected'] === 'yes') {
+                            allConnected = true;
+                          }
+                        }
                         
                         let lastUsedDate: string | undefined;
                         let useModificationTimestamp = false;
                         
-                        if (lastHitTimestamp && parseInt(lastHitTimestamp) !== 0) {
-                          lastUsedDate = new Date(parseInt(lastHitTimestamp) * 1000).toISOString();
-                        } else if (modificationTimestamp) {
-                          lastUsedDate = new Date(parseInt(modificationTimestamp) * 1000).toISOString();
+                        if (latestLastHitTimestamp && parseInt(latestLastHitTimestamp) !== 0) {
+                          lastUsedDate = new Date(parseInt(latestLastHitTimestamp) * 1000).toISOString();
+                        } else if (latestModificationTimestamp) {
+                          lastUsedDate = new Date(parseInt(latestModificationTimestamp) * 1000).toISOString();
                           useModificationTimestamp = true;
                         }
                         
-                        console.log(`    Rule "${ruleName}": Last Hit Timestamp: ${lastHitTimestamp}, Modification Timestamp: ${modificationTimestamp}, Hit Count: ${hitCount}, Last Used: ${lastUsedDate}${useModificationTimestamp ? ' (using modification timestamp)' : ''}`);
+                        console.log(`    Rule "${ruleName}": Last Hit Timestamp: ${latestLastHitTimestamp}, Modification Timestamp: ${latestModificationTimestamp}, Total Hit Count: ${totalHitCount}, Last Used: ${lastUsedDate}${useModificationTimestamp ? ' (using modification timestamp)' : ''}`);
                         
                         const rule: PanoramaRuleUseEntry = {
                           devicegroup: dgName,
                           rulebase: rulebaseType,
                           rulename: ruleName,
                           lastused: lastUsedDate,
-                          hitcnt: hitCount,
-                          target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined,
-                          modificationTimestamp: modificationTimestamp
+                          hitcnt: totalHitCount.toString(),
+                          target: allConnected ? 'all' : (targets.length > 0 ? targets : undefined),
+                          modificationTimestamp: latestModificationTimestamp
                         };
                         
                         entries.push(rule);
