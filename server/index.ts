@@ -312,6 +312,34 @@ app.post('/api/remediate', async (req, res) => {
       console.error('Remediation errors:', errors);
     }
 
+    if (disabledCount > 0) {
+      console.log('Committing configuration changes to Panorama...');
+      const commitDescription = `Disabled ${disabledCount} unused firewall rules and added tag ${tag}`;
+      const commitCmd = `<commit><description>${commitDescription}</description></commit>`;
+      const commitUrl = `${url}/api/?type=commit&cmd=${encodeURIComponent(commitCmd)}&key=${apiKey}`;
+      
+      try {
+        const commitResponse = await fetch(commitUrl);
+        if (!commitResponse.ok) {
+          const errorText = await commitResponse.text();
+          console.error(`Commit failed: ${errorText}`);
+          errors.push(`Failed to commit changes: ${errorText.substring(0, 200)}`);
+        } else {
+          const commitResult = await commitResponse.text();
+          if (commitResult.includes('<response status="error"')) {
+            console.error(`Commit error: ${commitResult}`);
+            errors.push(`Error committing changes: ${commitResult.substring(0, 200)}`);
+          } else {
+            console.log('Successfully committed configuration changes');
+          }
+        }
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error(`Commit error: ${errorMsg}`);
+        errors.push(`Error committing changes: ${errorMsg}`);
+      }
+    }
+
     res.json({ 
       disabledCount,
       totalRules: rules.length,
