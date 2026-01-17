@@ -69,31 +69,32 @@ export async function auditPanoramaRules(
     haMap.set(pair.fw2, pair.fw1);
   });
 
-  console.log('Fetching device groups list...');
-  const deviceGroupsUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry/device-group&key=${apiKey}`;
-  
-  let deviceGroupNames: string[] = [];
   try {
-    const dgResponse = await fetch(deviceGroupsUrl);
-    if (dgResponse.ok) {
-      const dgXml = await dgResponse.text();
-      const dgData = parser.parse(dgXml);
-      if (dgData.response?.result?.entry) {
-        const entries = Array.isArray(dgData.response.result.entry) 
-          ? dgData.response.result.entry 
-          : [dgData.response.result.entry];
-        deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
-        console.log(`Found ${deviceGroupNames.length} device groups:`, deviceGroupNames);
+    console.log('Fetching device groups list...');
+    const deviceGroupsUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry/device-group&key=${apiKey}`;
+    
+    let deviceGroupNames: string[] = [];
+    try {
+      const dgResponse = await fetch(deviceGroupsUrl);
+      if (dgResponse.ok) {
+        const dgXml = await dgResponse.text();
+        const dgData = parser.parse(dgXml);
+        if (dgData.response?.result?.entry) {
+          const entries = Array.isArray(dgData.response.result.entry) 
+            ? dgData.response.result.entry 
+            : [dgData.response.result.entry];
+          deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
+          console.log(`Found ${deviceGroupNames.length} device groups:`, deviceGroupNames);
+        }
       }
+    } catch (error) {
+      console.log('Could not fetch device groups list, will try alternative method');
     }
-  } catch (error) {
-    console.log('Could not fetch device groups list, will try alternative method');
-  }
 
-  let entries: PanoramaRuleUseEntry[] = [];
-  const deviceGroupsSet = new Set<string>();
+    let entries: PanoramaRuleUseEntry[] = [];
+    const deviceGroupsSet = new Set<string>();
 
-  if (deviceGroupNames.length > 0) {
+    if (deviceGroupNames.length > 0) {
     console.log(`Querying rule-hit-count for ${deviceGroupNames.length} device groups...`);
     for (const dgName of deviceGroupNames) {
       try {
@@ -211,7 +212,6 @@ export async function auditPanoramaRules(
         ? ruleUseData.entry
         : [ruleUseData.entry];
     }
-  }
     
     if (entries.length === 0) {
       console.log('No entries found in response');
