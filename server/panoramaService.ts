@@ -141,9 +141,13 @@ export async function auditPanoramaRules(
           }
 
           const xmlText = await response.text();
+          console.log(`Device Group "${dgName}" API Response length: ${xmlText.length} chars`);
+          console.log(`Device Group "${dgName}" API Response (first 1000 chars): ${xmlText.substring(0, 1000)}`);
           const data: PanoramaResponse = parser.parse(xmlText);
+          console.log(`Device Group "${dgName}" Parsed structure:`, JSON.stringify(data.response?.result, null, 2));
           
           const ruleHitCount = data.response?.result?.['rule-hit-count'];
+          console.log(`Device Group "${dgName}" ruleHitCount structure:`, JSON.stringify(ruleHitCount, null, 2));
           if (ruleHitCount?.['device-group']?.entry) {
             const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
               ? ruleHitCount['device-group'].entry
