@@ -112,28 +112,31 @@ find_source_directory() {
 }
 
 clone_repository() {
-    log "Cloning repository from $REPO_URL..."
+    {
+        log "Cloning repository from $REPO_URL..."
+        
+        if [[ -d "$CLONE_DIR" ]]; then
+            log "Removing existing clone directory..."
+            rm -rf "$CLONE_DIR"
+        fi
+        
+        mkdir -p "$(dirname "$CLONE_DIR")"
+        
+        if ! command -v git &> /dev/null; then
+            error "git is not installed. Please install git first."
+        fi
+        
+        if ! git clone "$REPO_URL" "$CLONE_DIR"; then
+            error "Failed to clone repository from $REPO_URL"
+        fi
+        
+        if [[ ! -f "$CLONE_DIR/package.json" ]]; then
+            error "Cloned repository does not contain package.json. Repository may be incorrect."
+        fi
+        
+        log "Repository cloned successfully to $CLONE_DIR"
+    } >&2
     
-    if [[ -d "$CLONE_DIR" ]]; then
-        log "Removing existing clone directory..."
-        rm -rf "$CLONE_DIR"
-    fi
-    
-    mkdir -p "$(dirname "$CLONE_DIR")"
-    
-    if ! command -v git &> /dev/null; then
-        error "git is not installed. Please install git first."
-    fi
-    
-    if ! git clone "$REPO_URL" "$CLONE_DIR"; then
-        error "Failed to clone repository from $REPO_URL"
-    fi
-    
-    if [[ ! -f "$CLONE_DIR/package.json" ]]; then
-        error "Cloned repository does not contain package.json. Repository may be incorrect."
-    fi
-    
-    log "Repository cloned successfully to $CLONE_DIR"
     echo "$CLONE_DIR"
 }
 
