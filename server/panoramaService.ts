@@ -207,7 +207,6 @@ export async function auditPanoramaRules(
                         return;
                       }
                       
-                      const isUsed = ruleEntry['rule-state'] === 'Used';
                       const modTimestamp = ruleEntry['rule-modification-timestamp'];
                       const lastUsedDate = modTimestamp 
                         ? new Date(parseInt(modTimestamp) * 1000).toISOString()
@@ -218,11 +217,11 @@ export async function auditPanoramaRules(
                         rulebase: rb.name || 'security',
                         rulename: ruleName,
                         lastused: lastUsedDate,
-                        hitcnt: isUsed ? '1' : '0',
+                        hitcnt: '0',
                         target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined
                       };
                       
-                      console.log(`  Rule: "${ruleName}" - State: ${ruleEntry['rule-state']}, Mod Timestamp: ${modTimestamp}, Last Used (proxy): ${lastUsedDate}`);
+                      console.log(`  Rule: "${ruleName}" - State: ${ruleEntry['rule-state']}, Mod Timestamp: ${modTimestamp}, Last Modified: ${lastUsedDate} (Note: No actual hit count data available)`);
                       entries.push(rule);
                     }
                   });
@@ -310,7 +309,7 @@ export async function auditPanoramaRules(
                     lastused: ruleEntry['rule-modification-timestamp'] 
                       ? new Date(parseInt(ruleEntry['rule-modification-timestamp']) * 1000).toISOString()
                       : undefined,
-                    hitcnt: ruleEntry['rule-state'] === 'Used' ? '1' : '0',
+                    hitcnt: '0',
                     target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined
                   };
                   entries.push(rule);
@@ -339,8 +338,8 @@ export async function auditPanoramaRules(
       console.log(`Sample entries (first 3):`, entries.slice(0, 3).map(e => ({
         name: e.rulename,
         deviceGroup: e.devicegroup,
-        state: e.hitcnt === '1' ? 'Used' : 'Unused',
-        lastUsed: e.lastused
+        lastModified: e.lastused,
+        note: 'No actual hit count data available from API'
       })));
     }
 
@@ -360,14 +359,11 @@ export async function auditPanoramaRules(
 
       const ruleKey = `${entry.devicegroup}:${entry.rulename}`;
       const isShared = entry.devicegroup === 'Shared';
-      const hitCount = parseInt(entry.hitcnt || '0', 10);
-      const isUsed = hitCount > 0;
+      const hitCount = 0;
       
       let lastUsed: Date | null = null;
       if (entry.lastused) {
         lastUsed = new Date(entry.lastused);
-      } else if (isUsed) {
-        lastUsed = new Date();
       } else {
         lastUsed = new Date(0);
       }
@@ -413,12 +409,12 @@ export async function auditPanoramaRules(
         const existingTarget = rule.targets.find(t => t.name === targetName);
         if (existingTarget) {
           existingTarget.hitCount += hitCount;
-          existingTarget.hasHits = existingTarget.hitCount > 0 || isUsed;
+          existingTarget.hasHits = existingTarget.hitCount > 0;
         } else {
           rule.targets.push({
             name: targetName,
-            hasHits: isUsed,
-            hitCount: hitCount,
+            hasHits: false,
+            hitCount: 0,
             haPartner: haMap.get(targetName) || undefined,
           });
         }
