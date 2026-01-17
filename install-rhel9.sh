@@ -136,9 +136,21 @@ setup_application() {
         if [[ -n "$SOURCE_DIR" ]]; then
             log "Specified source directory: $SOURCE_DIR"
         fi
+        log ""
+        log "The project files (including package.json) were not found."
+        log ""
+        log "To fix this, you have two options:"
+        log "1. Clone the repository first, then run the script from that directory:"
+        log "   git clone <repository-url>"
+        log "   cd PaloRuleAuditor"
+        log "   sudo ./install-rhel9.sh"
+        log ""
+        log "2. Or specify the project directory as an argument:"
+        log "   sudo ./install-rhel9.sh /path/to/PaloRuleAuditor"
+        log ""
         log "Contents of current directory:"
         ls -la "$(pwd)" 2>&1 | head -20 || true
-        error "package.json not found. Please run this script from the project root, or specify the source directory: $0 /path/to/project"
+        error "package.json not found. Please ensure the project files are available."
     fi
     
     log "Using source directory: $source_dir"
