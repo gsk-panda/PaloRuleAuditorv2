@@ -304,6 +304,7 @@ EOF
 
     systemctl daemon-reload
     log "Systemd service created: ${SERVICE_NAME}.service"
+    log "Note: The service runs both frontend (Vite) and backend (Express) servers"
 }
 
 configure_firewall() {
