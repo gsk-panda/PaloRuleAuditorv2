@@ -147,10 +147,14 @@ export async function auditPanoramaRules(
             console.log(`Fetching full rule list for device group "${dgName}"...`);
             
             const preConfigUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules&key=${apiKey}`;
+            console.log(`  Pre-rulebase config URL: ${preConfigUrl}`);
             const preConfigResponse = await fetch(preConfigUrl);
+            console.log(`  Pre-rulebase response status: ${preConfigResponse.status} ${preConfigResponse.statusText}`);
             if (preConfigResponse.ok) {
               const preConfigXml = await preConfigResponse.text();
+              console.log(`  Pre-rulebase XML length: ${preConfigXml.length} chars`);
               const preConfigData = parser.parse(preConfigXml);
+              console.log(`  Pre-rulebase parsed structure:`, JSON.stringify(preConfigData.response?.result, null, 2));
               if (preConfigData.response?.result?.entry?.rules?.entry) {
                 const rules = Array.isArray(preConfigData.response.result.entry.rules.entry)
                   ? preConfigData.response.result.entry.rules.entry
@@ -160,15 +164,24 @@ export async function auditPanoramaRules(
                   rulebase: 'pre-rulebase' as const
                 })).filter((r: RuleInfo) => r.name);
                 rulesToQuery.push(...preRules);
-                console.log(`Found ${preRules.length} rules in pre-rulebase for "${dgName}"`);
+                console.log(`Found ${preRules.length} rules in pre-rulebase for "${dgName}":`, preRules.map(r => r.name));
+              } else {
+                console.log(`  No rules found in pre-rulebase structure`);
               }
+            } else {
+              const errorText = await preConfigResponse.text();
+              console.error(`  Pre-rulebase fetch failed: ${errorText.substring(0, 500)}`);
             }
             
             const postConfigUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry/device-group/entry[@name='${dgName}']/post-rulebase/security/rules&key=${apiKey}`;
+            console.log(`  Post-rulebase config URL: ${postConfigUrl}`);
             const postConfigResponse = await fetch(postConfigUrl);
+            console.log(`  Post-rulebase response status: ${postConfigResponse.status} ${postConfigResponse.statusText}`);
             if (postConfigResponse.ok) {
               const postConfigXml = await postConfigResponse.text();
+              console.log(`  Post-rulebase XML length: ${postConfigXml.length} chars`);
               const postConfigData = parser.parse(postConfigXml);
+              console.log(`  Post-rulebase parsed structure:`, JSON.stringify(postConfigData.response?.result, null, 2));
               if (postConfigData.response?.result?.entry?.rules?.entry) {
                 const rules = Array.isArray(postConfigData.response.result.entry.rules.entry)
                   ? postConfigData.response.result.entry.rules.entry
@@ -178,18 +191,32 @@ export async function auditPanoramaRules(
                   rulebase: 'post-rulebase' as const
                 })).filter((r: RuleInfo) => r.name);
                 rulesToQuery.push(...postRules);
-                console.log(`Found ${postRules.length} rules in post-rulebase for "${dgName}"`);
+                console.log(`Found ${postRules.length} rules in post-rulebase for "${dgName}":`, postRules.map(r => r.name));
+              } else {
+                console.log(`  No rules found in post-rulebase structure`);
               }
+            } else {
+              const errorText = await postConfigResponse.text();
+              console.error(`  Post-rulebase fetch failed: ${errorText.substring(0, 500)}`);
             }
             
             console.log(`Total rules to query: ${rulesToQuery.length} (${rulesToQuery.filter(r => r.rulebase === 'pre-rulebase').length} pre, ${rulesToQuery.filter(r => r.rulebase === 'post-rulebase').length} post)`);
+            if (rulesToQuery.length === 0) {
+              console.warn(`WARNING: No rules found for device group "${dgName}" - will fall back to all-rules query`);
+            }
           } catch (error) {
             console.error(`Could not fetch rule list for ${dgName}:`, error);
+            if (error instanceof Error) {
+              console.error(`  Error message: ${error.message}`);
+              console.error(`  Error stack: ${error.stack}`);
+            }
           }
 
           if (rulesToQuery.length > 0) {
-            console.log(`Querying hit counts for ${rulesToQuery.length} individual rules...`);
-            for (const ruleInfo of rulesToQuery) {
+            console.log(`\n=== Starting individual rule queries for ${rulesToQuery.length} rules ===`);
+            for (let i = 0; i < rulesToQuery.length; i++) {
+              const ruleInfo = rulesToQuery[i];
+              console.log(`\n[${i + 1}/${rulesToQuery.length}] Processing rule: "${ruleInfo.name}" (${ruleInfo.rulebase})`);
               try {
                 const rulebaseXml = ruleInfo.rulebase === 'pre-rulebase' 
                   ? `<pre-rulebase><entry name="security"><rules><rule-name><entry name="${ruleInfo.name}"/></rule-name></rules></entry></pre-rulebase>`
@@ -263,11 +290,17 @@ export async function auditPanoramaRules(
                 }
               } catch (error) {
                 console.error(`Error querying rule "${ruleInfo.name}":`, error);
+                if (error instanceof Error) {
+                  console.error(`  Error details: ${error.message}`);
+                }
               }
             }
+            console.log(`\n=== Completed individual rule queries. Total entries collected: ${entries.length} ===`);
+          } else {
+            console.log(`No rules found to query individually for device group "${dgName}"`);
           }
           
-          if (entries.length === 0 || rulesToQuery.length === 0) {
+          if (rulesToQuery.length === 0) {
             console.log(`Falling back to all-rules query for device group "${dgName}"...`);
             const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase><post-rulebase><entry name="security"><rules><all/></rules></entry></post-rulebase></entry></device-group></rule-hit-count></show>`;
             const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
