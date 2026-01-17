@@ -2,7 +2,11 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+if [[ -L "$SCRIPT_PATH" ]]; then
+    SCRIPT_PATH="$(readlink -f "$SCRIPT_PATH")"
+fi
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 APP_NAME="PaloRuleAuditor"
 APP_USER="panoruleauditor"
 APP_DIR="/opt/${APP_NAME}"
@@ -91,7 +95,32 @@ setup_application() {
     log "Copying application files from $SCRIPT_DIR to $APP_DIR..."
     
     if ! [[ -f "$SCRIPT_DIR/package.json" ]]; then
-        error "package.json not found in source directory $SCRIPT_DIR. Please run this script from the project root."
+        log "package.json not found in $SCRIPT_DIR"
+        log "Searching for package.json in parent directories..."
+        
+        SEARCH_DIR="$SCRIPT_DIR"
+        FOUND_DIR=""
+        for i in {1..5}; do
+            if [[ -f "$SEARCH_DIR/package.json" ]]; then
+                FOUND_DIR="$SEARCH_DIR"
+                break
+            fi
+            SEARCH_DIR="$(dirname "$SEARCH_DIR")"
+            if [[ "$SEARCH_DIR" == "/" ]]; then
+                break
+            fi
+        done
+        
+        if [[ -n "$FOUND_DIR" ]]; then
+            log "Found package.json in $FOUND_DIR, using that as source directory"
+            SCRIPT_DIR="$FOUND_DIR"
+        else
+            log "Current working directory: $(pwd)"
+            log "Script location: $SCRIPT_DIR"
+            log "Contents of script directory:"
+            ls -la "$SCRIPT_DIR" 2>&1 || true
+            error "package.json not found. Please ensure the script is in the project root directory, or run it from the project root."
+        fi
     fi
     
     if command -v rsync &> /dev/null; then
