@@ -340,6 +340,7 @@ export async function auditPanoramaRules(
                 });
               });
             }
+          }
         } catch (error) {
           console.error(`Error querying device group ${dgName}:`, error);
         }
