@@ -2,6 +2,16 @@ import express from 'express';
 import cors from 'cors';
 import { auditPanoramaRules } from './panoramaService.js';
 
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -10,19 +20,25 @@ app.use(express.json());
 
 app.post('/api/audit', async (req, res) => {
   try {
+    console.log('Received audit request');
     const { url, apiKey, unusedDays, haPairs } = req.body;
 
     if (!url || !apiKey) {
+      console.log('Missing required parameters');
       return res.status(400).json({ error: 'Panorama URL and API key are required' });
     }
 
+    console.log('Calling auditPanoramaRules...');
     const result = await auditPanoramaRules(url, apiKey, unusedDays || 90, haPairs || []);
+    console.log(`Audit completed: ${result.rules.length} rules, ${result.deviceGroups.length} device groups`);
     
     res.json({ rules: result.rules, deviceGroups: result.deviceGroups });
   } catch (error) {
     console.error('Audit error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to perform audit';
+    console.error('Error details:', errorMessage);
     res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Failed to perform audit' 
+      error: errorMessage
     });
   }
 });
