@@ -18,6 +18,8 @@ const App: React.FC = () => {
   const [showReport, setShowReport] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isProductionMode, setIsProductionMode] = useState(false);
+  const [isApplyingRemediation, setIsApplyingRemediation] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const summary: AuditSummary = useMemo(() => {
@@ -101,6 +103,55 @@ const App: React.FC = () => {
     return `disabled-${d.getFullYear()}${(d.getMonth() + 1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
   };
 
+  const handleApplyRemediation = async () => {
+    if (!isProductionMode) {
+      alert('Production mode must be enabled to apply remediation');
+      return;
+    }
+
+    const rulesToDisable = rules.filter(r => r.action === 'DISABLE');
+    if (rulesToDisable.length === 0) {
+      alert('No rules to disable');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to disable ${rulesToDisable.length} rules and add tags? This action cannot be undone.`)) {
+      return;
+    }
+
+    setIsApplyingRemediation(true);
+    try {
+      const response = await fetch('/api/remediate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: config.url,
+          apiKey: config.apiKey,
+          rules: rulesToDisable.map(r => ({
+            name: r.name,
+            deviceGroup: r.deviceGroup
+          })),
+          tag: getDisabledDateTag()
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `API error: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      alert(`Successfully disabled ${result.disabledCount} rules and added tags.`);
+    } catch (error) {
+      console.error('Remediation failed:', error);
+      alert(`Failed to apply remediation: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsApplyingRemediation(false);
+    }
+  };
+
 
   return (
     <div className="min-h-screen pb-20">
@@ -162,6 +213,24 @@ const App: React.FC = () => {
                   min="1"
                   required
                 />
+              </div>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-600 flex items-center gap-2">
+                  <input 
+                    type="checkbox" 
+                    checked={isProductionMode}
+                    onChange={e => setIsProductionMode(e.target.checked)}
+                    className="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500"
+                  />
+                  <span className={isProductionMode ? 'text-red-600 font-semibold' : ''}>
+                    Production Mode {isProductionMode && '(⚠️ Will modify Panorama)'}
+                  </span>
+                </label>
+                <p className="text-xs text-slate-400">
+                  {isProductionMode 
+                    ? 'Rules will be disabled and tagged when remediation is applied'
+                    : 'Dry-run mode: Only shows report, no changes will be made'}
+                </p>
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-600">HA Pairs Definition (.txt)</label>
@@ -361,14 +430,27 @@ const App: React.FC = () => {
       </main>
 
       {/* Floating Action Button */}
-      {showReport && (
+      {showReport && summary.toDisable > 0 && (
         <div className="fixed bottom-8 right-8 z-40">
           <button 
-            className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transform hover:scale-105 transition-all"
-            onClick={() => alert("This would update Panorama configuration. Not available in dry run mode.")}
+            className={`${isProductionMode ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'} text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transform hover:scale-105 transition-all disabled:transform-none`}
+            onClick={handleApplyRemediation}
+            disabled={!isProductionMode || isApplyingRemediation}
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            Apply Remediation (Production)
+            {isApplyingRemediation ? (
+              <>
+                <svg className="animate-spin h-6 w-6 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Applying...
+              </>
+            ) : (
+              <>
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                {isProductionMode ? `Apply Remediation (${summary.toDisable} rules)` : 'Enable Production Mode to Apply'}
+              </>
+            )}
           </button>
         </div>
       )}

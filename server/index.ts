@@ -146,6 +146,128 @@ app.post('/api/audit', async (req, res) => {
   }
 });
 
+app.post('/api/remediate', async (req, res) => {
+  try {
+    console.log('Received remediation request');
+    const { url, apiKey, rules, tag } = req.body;
+
+    if (!url || !apiKey || !rules || !Array.isArray(rules) || !tag) {
+      return res.status(400).json({ error: 'Panorama URL, API key, rules array, and tag are required' });
+    }
+
+    const panoramaDeviceName = 'localhost.localdomain';
+    let disabledCount = 0;
+    const errors: string[] = [];
+
+    for (const rule of rules) {
+      try {
+        const ruleName = encodeURIComponent(rule.name);
+        const deviceGroup = encodeURIComponent(rule.deviceGroup);
+        
+        const xpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${rule.deviceGroup}']/pre-rulebase/security/rules/entry[@name='${rule.name}']`;
+        
+        const getCurrentRuleUrl = `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(xpath)}&key=${apiKey}`;
+        const getResponse = await fetch(getCurrentRuleUrl);
+        
+        if (!getResponse.ok) {
+          errors.push(`Failed to fetch rule "${rule.name}": ${getResponse.statusText}`);
+          continue;
+        }
+
+        const ruleXml = await getResponse.text();
+        const { XMLParser, XMLBuilder } = await import('fast-xml-parser');
+        const parser = new XMLParser({
+          ignoreAttributes: false,
+          attributeNamePrefix: '',
+          textNodeName: '_text',
+          parseAttributeValue: true,
+        });
+        const builder = new XMLBuilder({
+          ignoreAttributes: false,
+          attributeNamePrefix: '@_',
+          textNodeName: '_text',
+          format: false,
+        });
+
+        const ruleData = parser.parse(ruleXml);
+        const ruleEntry = ruleData.response?.result?.entry;
+        
+        if (!ruleEntry) {
+          errors.push(`Rule "${rule.name}" not found in response`);
+          continue;
+        }
+
+        const existingTags: string[] = [];
+        if (ruleEntry.tag?.member) {
+          const members = Array.isArray(ruleEntry.tag.member) 
+            ? ruleEntry.tag.member 
+            : [ruleEntry.tag.member];
+          existingTags.push(...members.map((m: any) => {
+            if (typeof m === 'string') return m;
+            if (m['_text']) return m['_text'];
+            if (m['#text']) return m['#text'];
+            return String(m);
+          }).filter(Boolean));
+        }
+
+        if (!existingTags.includes(tag)) {
+          existingTags.push(tag);
+        }
+
+        const updatedEntry: any = {
+          '@_name': rule.name,
+          disabled: 'yes'
+        };
+
+        if (existingTags.length > 0) {
+          updatedEntry.tag = {
+            member: existingTags.length === 1 ? existingTags[0] : existingTags
+          };
+        }
+
+        const updatedXml = builder.build({ entry: updatedEntry });
+        const editUrl = `${url}/api/?type=config&action=edit&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(updatedXml)}&key=${apiKey}`;
+        
+        const editResponse = await fetch(editUrl);
+        if (!editResponse.ok) {
+          const errorText = await editResponse.text();
+          errors.push(`Failed to disable rule "${rule.name}": ${errorText.substring(0, 200)}`);
+          continue;
+        }
+
+        const editResult = await editResponse.text();
+        if (editResult.includes('<response status="error"')) {
+          errors.push(`Error disabling rule "${rule.name}": ${editResult.substring(0, 200)}`);
+          continue;
+        }
+
+        disabledCount++;
+        console.log(`Successfully disabled rule "${rule.name}" in device group "${rule.deviceGroup}"`);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        errors.push(`Error processing rule "${rule.name}": ${errorMsg}`);
+        console.error(`Error processing rule "${rule.name}":`, error);
+      }
+    }
+
+    if (errors.length > 0) {
+      console.error('Remediation errors:', errors);
+    }
+
+    res.json({ 
+      disabledCount,
+      totalRules: rules.length,
+      errors: errors.length > 0 ? errors : undefined
+    });
+  } catch (error) {
+    console.error('Remediation error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to apply remediation';
+    res.status(500).json({ 
+      error: errorMessage
+    });
+  }
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
