@@ -173,8 +173,7 @@ app.post('/api/remediate', async (req, res) => {
       format: false,
     });
 
-    const tagXpath = `/config/shared/tag/entry[@name='${tag}']`;
-    const checkTagUrl = `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(tagXpath)}&key=${apiKey}`;
+    const checkTagUrl = `${url}/api/?type=config&action=get&xpath=/config/shared/tag&key=${apiKey}`;
     const tagCheckResponse = await fetch(checkTagUrl);
     
     let tagExists = false;
@@ -182,25 +181,24 @@ app.post('/api/remediate', async (req, res) => {
       const tagCheckXml = await tagCheckResponse.text();
       const tagCheckData = parser.parse(tagCheckXml);
       
-      if (tagCheckData.response?.status === 'success' && tagCheckData.response?.result?.entry) {
-        const entry = tagCheckData.response.result.entry;
-        const entryName = entry.name || entry['@_name'];
-        if (entryName === tag) {
-          tagExists = true;
-        }
+      if (tagCheckData.response?.status === 'success' && tagCheckData.response?.result?.tag?.entry) {
+        const entries = Array.isArray(tagCheckData.response.result.tag.entry)
+          ? tagCheckData.response.result.tag.entry
+          : [tagCheckData.response.result.tag.entry];
+        
+        tagExists = entries.some((entry: any) => {
+          const entryName = entry.name || entry['@_name'];
+          return entryName === tag;
+        });
       }
     }
     
     if (!tagExists) {
       console.log(`Tag "${tag}" does not exist, creating it...`);
-      const tagEntry = {
-        '@_name': tag,
-        'color': 'color1',
-        'comments': `Auto-generated tag for disabled rules on ${new Date().toISOString().split('T')[0]}`
-      };
-      const tagXml = builder.build({ entry: tagEntry });
-      console.log(`Creating tag with XML: ${tagXml}`);
-      const createTagUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(tagXpath)}&element=${encodeURIComponent(tagXml)}&key=${apiKey}`;
+      const tagElement = `<color>color1</color><comments>Auto-generated tag for disabled rules on ${new Date().toISOString().split('T')[0]}</comments>`;
+      const tagXpath = `/config/shared/tag/entry[@name='${tag}']`;
+      const createTagUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(tagXpath)}&element=${encodeURIComponent(tagElement)}&key=${apiKey}`;
+      console.log(`Creating tag with URL: ${createTagUrl}`);
       const createTagResponse = await fetch(createTagUrl);
       
       if (!createTagResponse.ok) {
