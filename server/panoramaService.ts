@@ -212,9 +212,9 @@ export async function auditPanoramaRules(
                 const preRules = rules.map((r: any) => ({
                   name: r.name || r['@_name'],
                   rulebase: 'pre-rulebase' as const
-                })).filter((r: RuleInfo) => r.name);
+                })).filter((r: RuleInfo) => r.name && !sharedRulesSet.has(r.name));
                 rulesToQuery.push(...preRules);
-                console.log(`Found ${preRules.length} rules in pre-rulebase for "${dgName}":`, preRules.map(r => r.name));
+                console.log(`Found ${preRules.length} rules in pre-rulebase for "${dgName}" (excluding ${rules.length - preRules.length} Shared rules):`, preRules.map(r => r.name));
               } else {
                 console.log(`  No rules found in pre-rulebase structure`);
               }
@@ -239,9 +239,9 @@ export async function auditPanoramaRules(
                 const postRules = rules.map((r: any) => ({
                   name: r.name || r['@_name'],
                   rulebase: 'post-rulebase' as const
-                })).filter((r: RuleInfo) => r.name);
+                })).filter((r: RuleInfo) => r.name && !sharedRulesSet.has(r.name));
                 rulesToQuery.push(...postRules);
-                console.log(`Found ${postRules.length} rules in post-rulebase for "${dgName}":`, postRules.map(r => r.name));
+                console.log(`Found ${postRules.length} rules in post-rulebase for "${dgName}" (excluding ${rules.length - postRules.length} Shared rules):`, postRules.map(r => r.name));
               } else {
                 console.log(`  No rules found in post-rulebase structure`);
               }
