@@ -159,6 +159,54 @@ app.post('/api/remediate', async (req, res) => {
     let disabledCount = 0;
     const errors: string[] = [];
 
+    const { XMLParser, XMLBuilder } = await import('fast-xml-parser');
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '',
+      textNodeName: '_text',
+      parseAttributeValue: true,
+    });
+    const builder = new XMLBuilder({
+      ignoreAttributes: false,
+      attributeNamePrefix: '@_',
+      textNodeName: '_text',
+      format: false,
+    });
+
+    const tagXpath = `/config/shared/tag/entry[@name='${tag}']`;
+    const checkTagUrl = `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(tagXpath)}&key=${apiKey}`;
+    const tagCheckResponse = await fetch(checkTagUrl);
+    
+    if (!tagCheckResponse.ok || tagCheckResponse.status === 404) {
+      console.log(`Tag "${tag}" does not exist, creating it...`);
+      const tagEntry = {
+        '@_name': tag,
+        'color': 'color1',
+        'comments': `Auto-generated tag for disabled rules on ${new Date().toISOString().split('T')[0]}`
+      };
+      const tagXml = builder.build({ entry: tagEntry });
+      const createTagUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(tagXpath)}&element=${encodeURIComponent(tagXml)}&key=${apiKey}`;
+      const createTagResponse = await fetch(createTagUrl);
+      
+      if (!createTagResponse.ok) {
+        const errorText = await createTagResponse.text();
+        return res.status(500).json({ 
+          error: `Failed to create tag "${tag}": ${errorText.substring(0, 500)}`
+        });
+      }
+      
+      const createTagResult = await createTagResponse.text();
+      if (createTagResult.includes('<response status="error"')) {
+        return res.status(500).json({ 
+          error: `Error creating tag "${tag}": ${createTagResult.substring(0, 500)}`
+        });
+      }
+      
+      console.log(`Successfully created tag "${tag}"`);
+    } else {
+      console.log(`Tag "${tag}" already exists`);
+    }
+
     for (const rule of rules) {
       try {
         const ruleName = encodeURIComponent(rule.name);
@@ -175,20 +223,6 @@ app.post('/api/remediate', async (req, res) => {
         }
 
         const ruleXml = await getResponse.text();
-        const { XMLParser, XMLBuilder } = await import('fast-xml-parser');
-        const parser = new XMLParser({
-          ignoreAttributes: false,
-          attributeNamePrefix: '',
-          textNodeName: '_text',
-          parseAttributeValue: true,
-        });
-        const builder = new XMLBuilder({
-          ignoreAttributes: false,
-          attributeNamePrefix: '@_',
-          textNodeName: '_text',
-          format: false,
-        });
-
         const ruleData = parser.parse(ruleXml);
         const ruleEntry = ruleData.response?.result?.entry;
         
