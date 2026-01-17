@@ -1,7 +1,6 @@
 
 import React, { useState, useMemo, useRef } from 'react';
 import { PanoramaConfig, PanoramaRule, AuditSummary, HAPair } from './types';
-import { generateMockRules } from './services/mockPanorama';
 import { analyzeRulesWithAI } from './services/geminiService';
 import { RuleRow } from './components/RuleRow';
 
@@ -56,13 +55,33 @@ const App: React.FC = () => {
     setIsAuditing(true);
     setAiAnalysis(null);
     
-    // Simulate API delay
-    setTimeout(() => {
-      const mockData = generateMockRules(config.unusedDays, haPairs);
-      setRules(mockData);
-      setIsAuditing(false);
+    try {
+      const response = await fetch('/api/audit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: config.url,
+          apiKey: config.apiKey,
+          unusedDays: config.unusedDays,
+          haPairs: haPairs
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setRules(data.rules || []);
       setShowReport(true);
-    }, 1500);
+    } catch (error) {
+      console.error('Audit failed:', error);
+      alert(`Failed to perform audit: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsAuditing(false);
+    }
   };
 
   const runAiAnalysis = async () => {
