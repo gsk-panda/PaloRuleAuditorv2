@@ -224,16 +224,32 @@ app.post('/api/remediate', async (req, res) => {
 
     for (const rule of rules) {
       try {
-        const ruleName = encodeURIComponent(rule.name);
-        const deviceGroup = encodeURIComponent(rule.deviceGroup);
-        
         const xpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${rule.deviceGroup}']/pre-rulebase/security/rules/entry[@name='${rule.name}']`;
         
+        const disableElement = '<disabled>yes</disabled>';
+        const disableUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(disableElement)}&key=${apiKey}`;
+        
+        console.log(`Disabling rule "${rule.name}" in device group "${rule.deviceGroup}"`);
+        const disableResponse = await fetch(disableUrl);
+        
+        if (!disableResponse.ok) {
+          const errorText = await disableResponse.text();
+          errors.push(`Failed to disable rule "${rule.name}": ${errorText.substring(0, 200)}`);
+          continue;
+        }
+
+        const disableResult = await disableResponse.text();
+        if (disableResult.includes('<response status="error"')) {
+          errors.push(`Error disabling rule "${rule.name}": ${disableResult.substring(0, 200)}`);
+          continue;
+        }
+
         const getCurrentRuleUrl = `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(xpath)}&key=${apiKey}`;
         const getResponse = await fetch(getCurrentRuleUrl);
         
         if (!getResponse.ok) {
-          errors.push(`Failed to fetch rule "${rule.name}": ${getResponse.statusText}`);
+          console.log(`Warning: Could not fetch rule "${rule.name}" to add tag, but rule was disabled`);
+          disabledCount++;
           continue;
         }
 
@@ -242,7 +258,8 @@ app.post('/api/remediate', async (req, res) => {
         const ruleEntry = ruleData.response?.result?.entry;
         
         if (!ruleEntry) {
-          errors.push(`Rule "${rule.name}" not found in response`);
+          console.log(`Warning: Rule "${rule.name}" not found in response, but rule was disabled`);
+          disabledCount++;
           continue;
         }
 
@@ -261,33 +278,25 @@ app.post('/api/remediate', async (req, res) => {
 
         if (!existingTags.includes(tag)) {
           existingTags.push(tag);
-        }
-
-        const updatedEntry: any = {
-          '@_name': rule.name,
-          disabled: 'yes'
-        };
-
-        if (existingTags.length > 0) {
-          updatedEntry.tag = {
-            member: existingTags.length === 1 ? existingTags[0] : existingTags
-          };
-        }
-
-        const updatedXml = builder.build({ entry: updatedEntry });
-        const editUrl = `${url}/api/?type=config&action=edit&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(updatedXml)}&key=${apiKey}`;
-        
-        const editResponse = await fetch(editUrl);
-        if (!editResponse.ok) {
-          const errorText = await editResponse.text();
-          errors.push(`Failed to disable rule "${rule.name}": ${errorText.substring(0, 200)}`);
-          continue;
-        }
-
-        const editResult = await editResponse.text();
-        if (editResult.includes('<response status="error"')) {
-          errors.push(`Error disabling rule "${rule.name}": ${editResult.substring(0, 200)}`);
-          continue;
+          
+          const tagElement = existingTags.length === 1 
+            ? `<tag><member>${existingTags[0]}</member></tag>`
+            : `<tag>${existingTags.map(t => `<member>${t}</member>`).join('')}</tag>`;
+          
+          const tagUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(tagElement)}&key=${apiKey}`;
+          
+          console.log(`Adding tag to rule "${rule.name}"`);
+          const tagResponse = await fetch(tagUrl);
+          
+          if (!tagResponse.ok) {
+            const errorText = await tagResponse.text();
+            console.error(`Warning: Failed to add tag to rule "${rule.name}": ${errorText.substring(0, 200)}`);
+          } else {
+            const tagResult = await tagResponse.text();
+            if (tagResult.includes('<response status="error"')) {
+              console.error(`Warning: Error adding tag to rule "${rule.name}": ${tagResult.substring(0, 200)}`);
+            }
+          }
         }
 
         disabledCount++;
