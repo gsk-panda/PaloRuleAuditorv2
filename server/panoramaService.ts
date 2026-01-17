@@ -198,6 +198,7 @@ export async function auditPanoramaRules(
               rulebases.forEach((rb: PanoramaRuleBaseEntry) => {
                 if (rb.rules?.entry) {
                   const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
+                  console.log(`Device Group "${dg.name}" - Found ${ruleEntries.length} rules in rulebase "${rb.name || 'security'}"`);
                   ruleEntries.forEach((ruleEntry: any) => {
                     if (ruleEntry && dg.name) {
                       const ruleName = ruleEntry.name || ruleEntry['@_name'];
@@ -208,22 +209,25 @@ export async function auditPanoramaRules(
                       
                       const isUsed = ruleEntry['rule-state'] === 'Used';
                       const modTimestamp = ruleEntry['rule-modification-timestamp'];
+                      const lastUsedDate = modTimestamp 
+                        ? new Date(parseInt(modTimestamp) * 1000).toISOString()
+                        : undefined;
                       
                       const rule: PanoramaRuleUseEntry = {
                         devicegroup: dg.name,
                         rulebase: rb.name || 'security',
                         rulename: ruleName,
-                        lastused: modTimestamp 
-                          ? new Date(parseInt(modTimestamp) * 1000).toISOString()
-                          : undefined,
+                        lastused: lastUsedDate,
                         hitcnt: isUsed ? '1' : '0',
                         target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined
                       };
                       
-                      console.log(`Parsed rule: ${ruleName}, state: ${ruleEntry['rule-state']}, mod: ${modTimestamp}, lastused: ${rule.lastused}`);
+                      console.log(`  Rule: "${ruleName}" - State: ${ruleEntry['rule-state']}, Mod Timestamp: ${modTimestamp}, Last Used (proxy): ${lastUsedDate}`);
                       entries.push(rule);
                     }
                   });
+                } else {
+                  console.log(`Device Group "${dg.name}" - No rules found in rulebase "${rb.name || 'security'}"`);
                 }
               });
             });
@@ -330,7 +334,15 @@ export async function auditPanoramaRules(
       return { rules: [], deviceGroups: deviceGroups };
     }
     
-    console.log(`Found ${entries.length} entries`);
+    console.log(`Found ${entries.length} rule entries to process`);
+    if (entries.length > 0) {
+      console.log(`Sample entries (first 3):`, entries.slice(0, 3).map(e => ({
+        name: e.rulename,
+        deviceGroup: e.devicegroup,
+        state: e.hitcnt === '1' ? 'Used' : 'Unused',
+        lastUsed: e.lastused
+      })));
+    }
 
     const rules: PanoramaRule[] = [];
     const ruleMap = new Map<string, PanoramaRule>();
