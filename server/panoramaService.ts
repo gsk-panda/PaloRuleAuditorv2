@@ -13,6 +13,11 @@ interface PanoramaRuleUseEntry {
 interface PanoramaResponse {
   response?: {
     result?: {
+      'rule-hit-count'?: {
+        'device-group'?: {
+          entry?: PanoramaDeviceGroupEntry | PanoramaDeviceGroupEntry[];
+        };
+      };
       'rule-use'?: {
         entry?: PanoramaRuleUseEntry | PanoramaRuleUseEntry[];
       };
@@ -20,6 +25,23 @@ interface PanoramaResponse {
         entry?: PanoramaRuleUseEntry | PanoramaRuleUseEntry[];
       };
     };
+  };
+}
+
+interface PanoramaDeviceGroupEntry {
+  name?: string;
+  'pre-rulebase'?: {
+    entry?: PanoramaRuleBaseEntry | PanoramaRuleBaseEntry[];
+  };
+  'post-rulebase'?: {
+    entry?: PanoramaRuleBaseEntry | PanoramaRuleBaseEntry[];
+  };
+}
+
+interface PanoramaRuleBaseEntry {
+  name?: string;
+  rules?: {
+    entry?: PanoramaRuleUseEntry | PanoramaRuleUseEntry[];
   };
 }
 
@@ -47,7 +69,7 @@ export async function auditPanoramaRules(
     haMap.set(pair.fw2, pair.fw1);
   });
 
-  const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent('<show><rule-use><type>unused</type></rule-use></show>')}&key=${apiKey}`;
+  const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent('<show><rule-hit-count><device-group><all/></device-group></rule-hit-count></show>')}&key=${apiKey}`;
 
   try {
     const response = await fetch(apiUrl, {
@@ -66,16 +88,50 @@ export async function auditPanoramaRules(
     const data: PanoramaResponse = parser.parse(xmlText);
     console.log('Parsed data:', JSON.stringify(data, null, 2).substring(0, 2000));
 
+    const ruleHitCount = data.response?.result?.['rule-hit-count'];
     const ruleUseData = data.response?.result?.['rule-use'] || data.response?.result?.['panorama-rule-use'];
     
-    if (!ruleUseData?.entry) {
-      console.log('No entries found in response');
-      return { rules: [], deviceGroups: [] };
+    let entries: PanoramaRuleUseEntry[] = [];
+    const deviceGroupsSet = new Set<string>();
+    
+    if (ruleHitCount?.['device-group']?.entry) {
+      const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
+        ? ruleHitCount['device-group'].entry
+        : [ruleHitCount['device-group'].entry];
+      
+      deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
+        if (dg.name) {
+          deviceGroupsSet.add(dg.name);
+        }
+        
+        const rulebases = [
+          ...(dg['pre-rulebase']?.entry ? (Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry]) : []),
+          ...(dg['post-rulebase']?.entry ? (Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry]) : [])
+        ];
+        
+        rulebases.forEach((rb: PanoramaRuleBaseEntry) => {
+          if (rb.rules?.entry) {
+            const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
+            ruleEntries.forEach((rule: PanoramaRuleUseEntry) => {
+              if (rule && dg.name) {
+                rule.devicegroup = dg.name;
+                rule.rulebase = rb.name;
+                entries.push(rule);
+              }
+            });
+          }
+        });
+      });
+    } else if (ruleUseData?.entry) {
+      entries = Array.isArray(ruleUseData.entry)
+        ? ruleUseData.entry
+        : [ruleUseData.entry];
     }
-
-    const entries = Array.isArray(ruleUseData.entry)
-      ? ruleUseData.entry
-      : [ruleUseData.entry];
+    
+    if (entries.length === 0) {
+      console.log('No entries found in response');
+      return { rules: [], deviceGroups: Array.from(deviceGroupsSet).sort() };
+    }
     
     console.log(`Found ${entries.length} entries`);
 
