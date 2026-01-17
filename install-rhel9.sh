@@ -13,6 +13,8 @@ APP_DIR="/opt/${APP_NAME}"
 SERVICE_NAME="panoruleauditor"
 NODE_VERSION="20"
 SOURCE_DIR=""
+REPO_URL="https://github.com/gsk-panda/PaloRuleAuditorv2.git"
+CLONE_DIR="/tmp/${APP_NAME}_clone"
 
 log() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
@@ -109,18 +111,48 @@ find_source_directory() {
     return 1
 }
 
+clone_repository() {
+    log "Cloning repository from $REPO_URL..."
+    
+    if [[ -d "$CLONE_DIR" ]]; then
+        log "Removing existing clone directory..."
+        rm -rf "$CLONE_DIR"
+    fi
+    
+    mkdir -p "$(dirname "$CLONE_DIR")"
+    
+    if ! command -v git &> /dev/null; then
+        error "git is not installed. Please install git first."
+    fi
+    
+    if ! git clone "$REPO_URL" "$CLONE_DIR"; then
+        error "Failed to clone repository from $REPO_URL"
+    fi
+    
+    if [[ ! -f "$CLONE_DIR/package.json" ]]; then
+        error "Cloned repository does not contain package.json. Repository may be incorrect."
+    fi
+    
+    log "Repository cloned successfully to $CLONE_DIR"
+    echo "$CLONE_DIR"
+}
+
 setup_application() {
     log "Setting up application directory..."
     
-    if [[ -d "$APP_DIR" && "$(ls -A $APP_DIR)" ]]; then
-        log "Application directory already exists with content"
-        read -p "Do you want to overwrite existing installation? (y/N): " -n 1 -r
+    if [[ -d "$APP_DIR" && "$(ls -A $APP_DIR 2>/dev/null)" ]]; then
+        log "Previous installation detected in $APP_DIR"
+        read -p "Do you want to remove the existing installation and reinstall? (y/N): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Yy]$ ]]; then
             log "Installation cancelled"
             exit 0
         fi
-        rm -rf "$APP_DIR"/*
+        log "Removing existing installation..."
+        systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+        systemctl disable "$SERVICE_NAME" 2>/dev/null || true
+        rm -rf "$APP_DIR"
+        log "Previous installation removed"
     fi
 
     mkdir -p "$APP_DIR"
@@ -131,26 +163,14 @@ setup_application() {
     
     local source_dir
     if ! source_dir=$(find_source_directory); then
-        log "Current working directory: $(pwd)"
-        log "Script location: $SCRIPT_DIR"
+        log "Project files not found locally"
         if [[ -n "$SOURCE_DIR" ]]; then
-            log "Specified source directory: $SOURCE_DIR"
+            log "Specified source directory $SOURCE_DIR does not contain package.json"
+            error "Invalid source directory specified"
         fi
-        log ""
-        log "The project files (including package.json) were not found."
-        log ""
-        log "To fix this, you have two options:"
-        log "1. Clone the repository first, then run the script from that directory:"
-        log "   git clone <repository-url>"
-        log "   cd PaloRuleAuditor"
-        log "   sudo ./install-rhel9.sh"
-        log ""
-        log "2. Or specify the project directory as an argument:"
-        log "   sudo ./install-rhel9.sh /path/to/PaloRuleAuditor"
-        log ""
-        log "Contents of current directory:"
-        ls -la "$(pwd)" 2>&1 | head -20 || true
-        error "package.json not found. Please ensure the project files are available."
+        
+        log "Attempting to clone repository from $REPO_URL..."
+        source_dir=$(clone_repository)
     fi
     
     log "Using source directory: $source_dir"
@@ -212,6 +232,12 @@ setup_application() {
     log "Ownership set to $APP_USER:$APP_USER"
     
     log "Application files copied to $APP_DIR"
+    
+    if [[ -d "$CLONE_DIR" && "$source_dir" == "$CLONE_DIR" ]]; then
+        log "Cleaning up temporary clone directory..."
+        rm -rf "$CLONE_DIR"
+        log "Temporary files removed"
+    fi
 }
 
 install_npm_dependencies() {
@@ -326,7 +352,7 @@ print_summary() {
 main() {
     if [[ $# -gt 0 ]]; then
         if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-            echo "Usage: $0 [SOURCE_DIRECTORY]"
+            echo "Usage: $0 [SOURCE_DIRECTORY|--repo REPO_URL]"
             echo ""
             echo "Install PaloRuleAuditor application"
             echo ""
@@ -334,17 +360,27 @@ main() {
             echo "  SOURCE_DIRECTORY    Path to the project root directory (optional)"
             echo "                      If not specified, script will search for package.json"
             echo "                      in current directory, script directory, and parent directories"
+            echo "                      If not found, will clone from default repository"
+            echo ""
+            echo "  --repo REPO_URL     Git repository URL to clone (default: $REPO_URL)"
             echo ""
             exit 0
+        elif [[ "$1" == "--repo" ]]; then
+            if [[ -z "$2" ]]; then
+                error "Repository URL required after --repo"
+            fi
+            REPO_URL="$2"
+            log "Using repository URL: $REPO_URL"
+        else
+            SOURCE_DIR="$(cd "$1" && pwd)"
+            if [[ ! -d "$SOURCE_DIR" ]]; then
+                error "Source directory does not exist: $1"
+            fi
+            if [[ ! -f "$SOURCE_DIR/package.json" ]]; then
+                error "package.json not found in specified directory: $SOURCE_DIR"
+            fi
+            log "Using specified source directory: $SOURCE_DIR"
         fi
-        SOURCE_DIR="$(cd "$1" && pwd)"
-        if [[ ! -d "$SOURCE_DIR" ]]; then
-            error "Source directory does not exist: $1"
-        fi
-        if [[ ! -f "$SOURCE_DIR/package.json" ]]; then
-            error "package.json not found in specified directory: $SOURCE_DIR"
-        fi
-        log "Using specified source directory: $SOURCE_DIR"
     fi
     
     log "Starting installation of $APP_NAME for RHEL 9.7"
