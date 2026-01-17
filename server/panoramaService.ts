@@ -97,55 +97,55 @@ export async function auditPanoramaRules(
     if (deviceGroupNames.length > 0) {
       console.log(`Querying rule-hit-count for ${deviceGroupNames.length} device groups...`);
       for (const dgName of deviceGroupNames) {
-      try {
-        const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(`<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`)}&key=${apiKey}`;
-        
-        const response = await fetch(apiUrl, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/xml',
-          },
-        });
-
-        if (!response.ok) {
-          console.log(`Failed to get rules for device group ${dgName}: ${response.status}`);
-          continue;
-        }
-
-        const xmlText = await response.text();
-        const data: PanoramaResponse = parser.parse(xmlText);
-        
-        deviceGroupsSet.add(dgName);
-        
-        const ruleHitCount = data.response?.result?.['rule-hit-count'];
-        if (ruleHitCount?.['device-group']?.entry) {
-          const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
-            ? ruleHitCount['device-group'].entry
-            : [ruleHitCount['device-group'].entry];
+        try {
+          const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(`<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`)}&key=${apiKey}`;
           
-          deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
-            const rulebases = [
-              ...(dg['pre-rulebase']?.entry ? (Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry]) : []),
-              ...(dg['post-rulebase']?.entry ? (Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry]) : [])
-            ];
-            
-            rulebases.forEach((rb: PanoramaRuleBaseEntry) => {
-              if (rb.rules?.entry) {
-                const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
-                ruleEntries.forEach((rule: PanoramaRuleUseEntry) => {
-                  if (rule && dg.name) {
-                    rule.devicegroup = dg.name;
-                    rule.rulebase = rb.name;
-                    entries.push(rule);
-                  }
-                });
-              }
-            });
+          const response = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/xml',
+            },
           });
+
+          if (!response.ok) {
+            console.log(`Failed to get rules for device group ${dgName}: ${response.status}`);
+            continue;
+          }
+
+          const xmlText = await response.text();
+          const data: PanoramaResponse = parser.parse(xmlText);
+          
+          deviceGroupsSet.add(dgName);
+          
+          const ruleHitCount = data.response?.result?.['rule-hit-count'];
+          if (ruleHitCount?.['device-group']?.entry) {
+            const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
+              ? ruleHitCount['device-group'].entry
+              : [ruleHitCount['device-group'].entry];
+            
+            deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
+              const rulebases = [
+                ...(dg['pre-rulebase']?.entry ? (Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry]) : []),
+                ...(dg['post-rulebase']?.entry ? (Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry]) : [])
+              ];
+              
+              rulebases.forEach((rb: PanoramaRuleBaseEntry) => {
+                if (rb.rules?.entry) {
+                  const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
+                  ruleEntries.forEach((rule: PanoramaRuleUseEntry) => {
+                    if (rule && dg.name) {
+                      rule.devicegroup = dg.name;
+                      rule.rulebase = rb.name;
+                      entries.push(rule);
+                    }
+                  });
+                }
+              });
+            });
+          }
+        } catch (error) {
+          console.error(`Error querying device group ${dgName}:`, error);
         }
-      } catch (error) {
-        console.error(`Error querying device group ${dgName}:`, error);
-      }
       }
     }
   } else {
