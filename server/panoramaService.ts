@@ -13,6 +13,9 @@ interface PanoramaRuleUseEntry {
 interface PanoramaResponse {
   response?: {
     result?: {
+      'rule-use'?: {
+        entry?: PanoramaRuleUseEntry | PanoramaRuleUseEntry[];
+      };
       'panorama-rule-use'?: {
         entry?: PanoramaRuleUseEntry | PanoramaRuleUseEntry[];
       };
@@ -44,7 +47,7 @@ export async function auditPanoramaRules(
     haMap.set(pair.fw2, pair.fw1);
   });
 
-  const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent('<show><panorama-rule-use></panorama-rule-use></show>')}&key=${apiKey}`;
+  const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent('<show><rule-use><type>unused</type></rule-use></show>')}&key=${apiKey}`;
 
   try {
     const response = await fetch(apiUrl, {
@@ -63,14 +66,16 @@ export async function auditPanoramaRules(
     const data: PanoramaResponse = parser.parse(xmlText);
     console.log('Parsed data:', JSON.stringify(data, null, 2).substring(0, 2000));
 
-    if (!data.response?.result?.['panorama-rule-use']?.entry) {
+    const ruleUseData = data.response?.result?.['rule-use'] || data.response?.result?.['panorama-rule-use'];
+    
+    if (!ruleUseData?.entry) {
       console.log('No entries found in response');
       return { rules: [], deviceGroups: [] };
     }
 
-    const entries = Array.isArray(data.response.result['panorama-rule-use'].entry)
-      ? data.response.result['panorama-rule-use'].entry
-      : [data.response.result['panorama-rule-use'].entry];
+    const entries = Array.isArray(ruleUseData.entry)
+      ? ruleUseData.entry
+      : [ruleUseData.entry];
     
     console.log(`Found ${entries.length} entries`);
 
