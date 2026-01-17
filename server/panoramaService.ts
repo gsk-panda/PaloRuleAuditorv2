@@ -8,6 +8,7 @@ interface PanoramaRuleUseEntry {
   lastused?: string;
   hitcnt?: string;
   target?: string | Array<{ entry?: string }>;
+  modificationTimestamp?: string;
 }
 
 interface PanoramaResponse {
@@ -222,12 +223,20 @@ export async function auditPanoramaRules(
                     ruleEntries.forEach((ruleEntry: any) => {
                       if (ruleEntry && (ruleEntry.name === ruleName || ruleEntry['@_name'] === ruleName)) {
                         const lastHitTimestamp = ruleEntry['last-hit-timestamp'];
+                        const modificationTimestamp = ruleEntry['rule-modification-timestamp'];
                         const hitCount = ruleEntry['hit-count'] || ruleEntry['hitcount'] || '0';
-                        const lastUsedDate = lastHitTimestamp 
-                          ? new Date(parseInt(lastHitTimestamp) * 1000).toISOString()
-                          : undefined;
                         
-                        console.log(`    Rule "${ruleName}": Last Hit Timestamp: ${lastHitTimestamp}, Hit Count: ${hitCount}, Last Used: ${lastUsedDate}`);
+                        let lastUsedDate: string | undefined;
+                        let useModificationTimestamp = false;
+                        
+                        if (lastHitTimestamp && parseInt(lastHitTimestamp) !== 0) {
+                          lastUsedDate = new Date(parseInt(lastHitTimestamp) * 1000).toISOString();
+                        } else if (modificationTimestamp) {
+                          lastUsedDate = new Date(parseInt(modificationTimestamp) * 1000).toISOString();
+                          useModificationTimestamp = true;
+                        }
+                        
+                        console.log(`    Rule "${ruleName}": Last Hit Timestamp: ${lastHitTimestamp}, Modification Timestamp: ${modificationTimestamp}, Hit Count: ${hitCount}, Last Used: ${lastUsedDate}${useModificationTimestamp ? ' (using modification timestamp)' : ''}`);
                         
                         const rule: PanoramaRuleUseEntry = {
                           devicegroup: dgName,
@@ -235,7 +244,8 @@ export async function auditPanoramaRules(
                           rulename: ruleName,
                           lastused: lastUsedDate,
                           hitcnt: hitCount,
-                          target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined
+                          target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined,
+                          modificationTimestamp: modificationTimestamp
                         };
                         
                         entries.push(rule);
