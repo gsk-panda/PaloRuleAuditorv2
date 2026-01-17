@@ -103,6 +103,125 @@ const App: React.FC = () => {
     return `disabled-${d.getFullYear()}${(d.getMonth() + 1).toString().padStart(2, '0')}${d.getDate().toString().padStart(2, '0')}`;
   };
 
+  const handleExportPDF = async () => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF();
+      
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 20;
+      let yPos = margin;
+      
+      doc.setFontSize(18);
+      doc.text('Panorama Rule Auditor - Audit Report', margin, yPos);
+      yPos += 15;
+      
+      doc.setFontSize(12);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, margin, yPos);
+      yPos += 10;
+      doc.text(`Panorama URL: ${config.url}`, margin, yPos);
+      yPos += 10;
+      doc.text(`Unused Threshold: ${config.unusedDays} days`, margin, yPos);
+      yPos += 15;
+      
+      doc.setFontSize(14);
+      doc.text('Summary', margin, yPos);
+      yPos += 10;
+      
+      doc.setFontSize(11);
+      doc.text(`Total Rules: ${summary.totalRules}`, margin, yPos);
+      yPos += 7;
+      doc.setTextColor(220, 53, 69);
+      doc.text(`To Disable: ${summary.toDisable}`, margin, yPos);
+      yPos += 7;
+      doc.setTextColor(255, 193, 7);
+      doc.text(`To Untarget: ${summary.toUntarget}`, margin, yPos);
+      yPos += 7;
+      doc.setTextColor(108, 117, 125);
+      doc.text(`Ignored (Shared): ${summary.ignoredShared}`, margin, yPos);
+      yPos += 7;
+      doc.setTextColor(40, 167, 69);
+      doc.text(`Keep Active: ${summary.toKeep}`, margin, yPos);
+      yPos += 10;
+      doc.setTextColor(0, 0, 0);
+      
+      if (deviceGroups.length > 0) {
+        doc.setFontSize(14);
+        doc.text('Device Groups', margin, yPos);
+        yPos += 10;
+        doc.setFontSize(11);
+        doc.text(deviceGroups.join(', '), margin, yPos);
+        yPos += 15;
+      }
+      
+      if (rules.length > 0) {
+        doc.setFontSize(14);
+        doc.text('Audit Results', margin, yPos);
+        yPos += 10;
+        
+        doc.setFontSize(10);
+        const tableHeaders = ['Rule Name', 'Device Group', 'Hits', 'Last Hit', 'Action'];
+        const colWidths = [60, 40, 20, 30, 30];
+        let xPos = margin;
+        
+        doc.setFillColor(240, 240, 240);
+        doc.rect(margin, yPos - 5, pageWidth - 2 * margin, 8, 'F');
+        
+        tableHeaders.forEach((header, i) => {
+          doc.text(header, xPos, yPos);
+          xPos += colWidths[i];
+        });
+        yPos += 10;
+        
+        rules.forEach((rule, index) => {
+          if (yPos > doc.internal.pageSize.getHeight() - 30) {
+            doc.addPage();
+            yPos = margin;
+          }
+          
+          xPos = margin;
+          doc.text(rule.name.substring(0, 25), xPos, yPos);
+          xPos += colWidths[0];
+          doc.text(rule.deviceGroup.substring(0, 15), xPos, yPos);
+          xPos += colWidths[1];
+          doc.text(rule.totalHits.toString(), xPos, yPos);
+          xPos += colWidths[2];
+          const lastHit = new Date(rule.lastHitDate).toLocaleDateString();
+          doc.text(lastHit.substring(0, 12), xPos, yPos);
+          xPos += colWidths[3];
+          doc.text(rule.action, xPos, yPos);
+          yPos += 7;
+        });
+      }
+      
+      if (aiAnalysis) {
+        if (yPos > doc.internal.pageSize.getHeight() - 50) {
+          doc.addPage();
+          yPos = margin;
+        }
+        doc.setFontSize(14);
+        doc.text('AI Security Commentary', margin, yPos);
+        yPos += 10;
+        doc.setFontSize(10);
+        const lines = doc.splitTextToSize(aiAnalysis, pageWidth - 2 * margin);
+        lines.forEach((line: string) => {
+          if (yPos > doc.internal.pageSize.getHeight() - 20) {
+            doc.addPage();
+            yPos = margin;
+          }
+          doc.text(line, margin, yPos);
+          yPos += 6;
+        });
+      }
+      
+      const fileName = `panorama-audit-${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert(`Failed to export PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const handleApplyRemediation = async () => {
     if (!isProductionMode) {
       alert('Production mode must be enabled to apply remediation');
@@ -349,9 +468,12 @@ const App: React.FC = () => {
                   >
                     {isAiLoading ? 'Analyzing...' : 'AI Security Commentary'}
                   </button>
-                  <button className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-md transition-colors">
+                  <button 
+                    onClick={handleExportPDF}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-md transition-colors"
+                  >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    Export
+                    Export PDF
                   </button>
                 </div>
               </div>
