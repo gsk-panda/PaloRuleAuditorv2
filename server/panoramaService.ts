@@ -148,69 +148,70 @@ export async function auditPanoramaRules(
         }
       }
     } else {
-    console.log('Trying alternative API command...');
-    const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent('<show><rule-hit-count></rule-hit-count></show>')}&key=${apiKey}`;
-    
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/xml',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Panorama API error: ${response.status} ${response.statusText}`);
-    }
-
-    const xmlText = await response.text();
-    console.log('Panorama API Response length:', xmlText.length);
-    console.log('Panorama API Response (first 2000 chars):', xmlText.substring(0, 2000));
-    
-    let data: PanoramaResponse;
-    try {
-      data = parser.parse(xmlText);
-      console.log('Parsed data structure:', Object.keys(data.response?.result || {}));
-    } catch (parseError) {
-      console.error('XML Parse error:', parseError);
-      console.error('XML text that failed to parse:', xmlText.substring(0, 500));
-      throw new Error(`Failed to parse Panorama API response: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
-    }
-
-    const ruleHitCount = data.response?.result?.['rule-hit-count'];
-    const ruleUseData = data.response?.result?.['rule-use'] || data.response?.result?.['panorama-rule-use'];
-    
-    if (ruleHitCount?.['device-group']?.entry) {
-      const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
-        ? ruleHitCount['device-group'].entry
-        : [ruleHitCount['device-group'].entry];
+      console.log('Trying alternative API command...');
+      const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent('<show><rule-hit-count></rule-hit-count></show>')}&key=${apiKey}`;
       
-      deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
-        if (dg.name) {
-          deviceGroupsSet.add(dg.name);
-        }
-        
-        const rulebases = [
-          ...(dg['pre-rulebase']?.entry ? (Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry]) : []),
-          ...(dg['post-rulebase']?.entry ? (Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry]) : [])
-        ];
-        
-        rulebases.forEach((rb: PanoramaRuleBaseEntry) => {
-          if (rb.rules?.entry) {
-            const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
-            ruleEntries.forEach((rule: PanoramaRuleUseEntry) => {
-              if (rule && dg.name) {
-                rule.devicegroup = dg.name;
-                rule.rulebase = rb.name;
-                entries.push(rule);
-              }
-            });
-          }
-        });
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/xml',
+        },
       });
-    } else if (ruleUseData?.entry) {
-      entries = Array.isArray(ruleUseData.entry)
-        ? ruleUseData.entry
-        : [ruleUseData.entry];
+
+      if (!response.ok) {
+        throw new Error(`Panorama API error: ${response.status} ${response.statusText}`);
+      }
+
+      const xmlText = await response.text();
+      console.log('Panorama API Response length:', xmlText.length);
+      console.log('Panorama API Response (first 2000 chars):', xmlText.substring(0, 2000));
+      
+      let data: PanoramaResponse;
+      try {
+        data = parser.parse(xmlText);
+        console.log('Parsed data structure:', Object.keys(data.response?.result || {}));
+      } catch (parseError) {
+        console.error('XML Parse error:', parseError);
+        console.error('XML text that failed to parse:', xmlText.substring(0, 500));
+        throw new Error(`Failed to parse Panorama API response: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+      }
+
+      const ruleHitCount = data.response?.result?.['rule-hit-count'];
+      const ruleUseData = data.response?.result?.['rule-use'] || data.response?.result?.['panorama-rule-use'];
+      
+      if (ruleHitCount?.['device-group']?.entry) {
+        const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
+          ? ruleHitCount['device-group'].entry
+          : [ruleHitCount['device-group'].entry];
+        
+        deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
+          if (dg.name) {
+            deviceGroupsSet.add(dg.name);
+          }
+          
+          const rulebases = [
+            ...(dg['pre-rulebase']?.entry ? (Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry]) : []),
+            ...(dg['post-rulebase']?.entry ? (Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry]) : [])
+          ];
+          
+          rulebases.forEach((rb: PanoramaRuleBaseEntry) => {
+            if (rb.rules?.entry) {
+              const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
+              ruleEntries.forEach((rule: PanoramaRuleUseEntry) => {
+                if (rule && dg.name) {
+                  rule.devicegroup = dg.name;
+                  rule.rulebase = rb.name;
+                  entries.push(rule);
+                }
+              });
+            }
+          });
+        });
+      } else if (ruleUseData?.entry) {
+        entries = Array.isArray(ruleUseData.entry)
+          ? ruleUseData.entry
+          : [ruleUseData.entry];
+      }
     }
     
     if (entries.length === 0) {
