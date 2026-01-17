@@ -1,9 +1,15 @@
+console.log('Starting server...');
 import express from 'express';
 import cors from 'cors';
+console.log('Imports loaded, importing panoramaService...');
 import { auditPanoramaRules } from './panoramaService.js';
+console.log('panoramaService imported successfully');
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
+  if (error instanceof Error) {
+    console.error('Error stack:', error.stack);
+  }
   process.exit(1);
 });
 
