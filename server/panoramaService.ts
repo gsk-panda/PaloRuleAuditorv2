@@ -200,16 +200,27 @@ export async function auditPanoramaRules(
                   const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
                   ruleEntries.forEach((ruleEntry: any) => {
                     if (ruleEntry && dg.name) {
+                      const ruleName = ruleEntry.name || ruleEntry['@_name'];
+                      if (!ruleName) {
+                        console.log(`Skipping rule entry without name in device group ${dg.name}`);
+                        return;
+                      }
+                      
+                      const isUsed = ruleEntry['rule-state'] === 'Used';
+                      const modTimestamp = ruleEntry['rule-modification-timestamp'];
+                      
                       const rule: PanoramaRuleUseEntry = {
                         devicegroup: dg.name,
                         rulebase: rb.name || 'security',
-                        rulename: ruleEntry.name || ruleEntry['@_name'],
-                        lastused: ruleEntry['rule-modification-timestamp'] 
-                          ? new Date(parseInt(ruleEntry['rule-modification-timestamp']) * 1000).toISOString()
+                        rulename: ruleName,
+                        lastused: modTimestamp 
+                          ? new Date(parseInt(modTimestamp) * 1000).toISOString()
                           : undefined,
-                        hitcnt: ruleEntry['rule-state'] === 'Used' ? '1' : '0',
+                        hitcnt: isUsed ? '1' : '0',
                         target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined
                       };
+                      
+                      console.log(`Parsed rule: ${ruleName}, state: ${ruleEntry['rule-state']}, mod: ${modTimestamp}, lastused: ${rule.lastused}`);
                       entries.push(rule);
                     }
                   });
@@ -337,18 +348,33 @@ export async function auditPanoramaRules(
 
       const ruleKey = `${entry.devicegroup}:${entry.rulename}`;
       const isShared = entry.devicegroup === 'Shared';
-      const lastUsed = entry.lastused ? new Date(entry.lastused) : null;
       const hitCount = parseInt(entry.hitcnt || '0', 10);
+      const isUsed = hitCount > 0;
+      
+      let lastUsed: Date | null = null;
+      if (entry.lastused) {
+        lastUsed = new Date(entry.lastused);
+      } else if (isUsed) {
+        lastUsed = new Date();
+      } else {
+        lastUsed = new Date(0);
+      }
       
       const targets: string[] = [];
       if (entry.target) {
         if (typeof entry.target === 'string') {
-          targets.push(entry.target);
+          if (entry.target !== 'all') {
+            targets.push(entry.target);
+          }
         } else if (Array.isArray(entry.target)) {
           entry.target.forEach(t => {
-            if (t.entry) targets.push(t.entry);
+            if (t.entry && t.entry !== 'all') targets.push(t.entry);
           });
         }
+      }
+      
+      if (entry.target === 'all' || (targets.length === 0 && entry.target === 'all')) {
+        targets.push('all');
       }
 
       if (!ruleMap.has(ruleKey)) {
@@ -356,8 +382,8 @@ export async function auditPanoramaRules(
           id: `rule-${index}`,
           name: entry.rulename,
           deviceGroup: entry.devicegroup,
-          totalHits: 0,
-          lastHitDate: lastUsed?.toISOString() || new Date().toISOString(),
+          totalHits: hitCount,
+          lastHitDate: lastUsed.toISOString(),
           targets: [],
           action: 'KEEP',
           isShared,
@@ -367,22 +393,26 @@ export async function auditPanoramaRules(
 
       const rule = ruleMap.get(ruleKey)!;
       
+      if (targets.length === 0) {
+        targets.push('all');
+      }
+      
       targets.forEach(targetName => {
         const existingTarget = rule.targets.find(t => t.name === targetName);
         if (existingTarget) {
           existingTarget.hitCount += hitCount;
-          existingTarget.hasHits = existingTarget.hitCount > 0;
+          existingTarget.hasHits = existingTarget.hitCount > 0 || isUsed;
         } else {
           rule.targets.push({
             name: targetName,
-            hasHits: hitCount > 0,
+            hasHits: isUsed,
             hitCount: hitCount,
             haPartner: haMap.get(targetName) || undefined,
           });
         }
       });
 
-      rule.totalHits += hitCount;
+      rule.totalHits = Math.max(rule.totalHits, hitCount);
       if (lastUsed && (!rule.lastHitDate || new Date(rule.lastHitDate) < lastUsed)) {
         rule.lastHitDate = lastUsed.toISOString();
       }
