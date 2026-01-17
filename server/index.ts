@@ -33,6 +33,14 @@ app.get('/health', (req, res) => {
 
 const server = app.listen(PORT, () => {
   console.log(`API server running on port ${PORT}`);
+}).on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please stop the existing process or use a different port.`);
+    console.error(`To find and kill the process: lsof -ti:${PORT} | xargs kill -9`);
+    process.exit(1);
+  } else {
+    throw err;
+  }
 });
 
 process.on('SIGTERM', () => {
