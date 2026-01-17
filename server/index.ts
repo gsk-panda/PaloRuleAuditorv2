@@ -180,9 +180,12 @@ app.post('/api/remediate', async (req, res) => {
     let tagExists = false;
     if (tagCheckResponse.ok) {
       const tagCheckXml = await tagCheckResponse.text();
-      if (!tagCheckXml.includes('<response status="error"')) {
-        const tagCheckData = parser.parse(tagCheckXml);
-        if (tagCheckData.response?.result?.entry) {
+      const tagCheckData = parser.parse(tagCheckXml);
+      
+      if (tagCheckData.response?.status === 'success' && tagCheckData.response?.result?.entry) {
+        const entry = tagCheckData.response.result.entry;
+        const entryName = entry.name || entry['@_name'];
+        if (entryName === tag) {
           tagExists = true;
         }
       }
@@ -196,17 +199,20 @@ app.post('/api/remediate', async (req, res) => {
         'comments': `Auto-generated tag for disabled rules on ${new Date().toISOString().split('T')[0]}`
       };
       const tagXml = builder.build({ entry: tagEntry });
+      console.log(`Creating tag with XML: ${tagXml}`);
       const createTagUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(tagXpath)}&element=${encodeURIComponent(tagXml)}&key=${apiKey}`;
       const createTagResponse = await fetch(createTagUrl);
       
       if (!createTagResponse.ok) {
         const errorText = await createTagResponse.text();
+        console.error(`Tag creation failed: ${errorText}`);
         return res.status(500).json({ 
           error: `Failed to create tag "${tag}": ${errorText.substring(0, 500)}`
         });
       }
       
       const createTagResult = await createTagResponse.text();
+      console.log(`Tag creation response: ${createTagResult.substring(0, 500)}`);
       if (createTagResult.includes('<response status="error"')) {
         return res.status(500).json({ 
           error: `Error creating tag "${tag}": ${createTagResult.substring(0, 500)}`
