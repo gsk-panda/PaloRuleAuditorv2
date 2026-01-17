@@ -179,14 +179,14 @@ setup_application() {
     
     if command -v rsync &> /dev/null; then
         log "Using rsync to copy files..."
-        if ! rsync -av --exclude='.git' "$source_dir/" "$APP_DIR/"; then
+        if ! rsync -av "$source_dir/" "$APP_DIR/"; then
             error "Failed to copy application files using rsync"
         fi
         log "rsync completed"
     elif command -v tar &> /dev/null; then
         log "Using tar to copy files..."
         cd "$source_dir"
-        if ! tar --exclude='.git' -cf - . | (cd "$APP_DIR" && tar -xf -); then
+        if ! tar -cf - . | (cd "$APP_DIR" && tar -xf -); then
             error "Failed to copy application files using tar"
         fi
         log "tar completed"
@@ -195,7 +195,7 @@ setup_application() {
         shopt -s dotglob nullglob
         files_copied=0
         for file in "$source_dir"/* "$source_dir"/.[!.]* "$source_dir"/..?*; do
-            if [[ -e "$file" && "$(basename "$file")" != ".git" ]]; then
+            if [[ -e "$file" ]]; then
                 log "Copying: $(basename "$file")"
                 cp -r "$file" "$APP_DIR/" || error "Failed to copy $file"
                 files_copied=1
