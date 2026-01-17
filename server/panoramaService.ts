@@ -228,7 +228,6 @@ export async function auditPanoramaRules(
               loopExecuted = true;
               const ruleInfo = rulesToQuery[i];
               console.log(`DEBUG: Loop iteration ${i + 1}/${rulesToQuery.length}, ruleInfo =`, JSON.stringify(ruleInfo));
-              const ruleInfo = rulesToQuery[i];
               console.log(`\n[${i + 1}/${rulesToQuery.length}] Processing rule: "${ruleInfo.name}" (${ruleInfo.rulebase})`);
               try {
                 const rulebaseXml = ruleInfo.rulebase === 'pre-rulebase' 
