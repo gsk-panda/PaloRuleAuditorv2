@@ -212,9 +212,14 @@ export async function auditPanoramaRules(
             }
           }
 
+          console.log(`\nDEBUG: After rule list fetch - rulesToQuery.length = ${rulesToQuery.length}`);
+          console.log(`DEBUG: rulesToQuery contents:`, JSON.stringify(rulesToQuery.slice(0, 5), null, 2), rulesToQuery.length > 5 ? '...' : '');
+
           if (rulesToQuery.length > 0) {
             console.log(`\n=== Starting individual rule queries for ${rulesToQuery.length} rules ===`);
+            console.log(`DEBUG: Entering loop, will iterate ${rulesToQuery.length} times`);
             for (let i = 0; i < rulesToQuery.length; i++) {
+              console.log(`DEBUG: Loop iteration ${i + 1}, ruleInfo =`, JSON.stringify(rulesToQuery[i]));
               const ruleInfo = rulesToQuery[i];
               console.log(`\n[${i + 1}/${rulesToQuery.length}] Processing rule: "${ruleInfo.name}" (${ruleInfo.rulebase})`);
               try {
@@ -297,10 +302,12 @@ export async function auditPanoramaRules(
             }
             console.log(`\n=== Completed individual rule queries. Total entries collected: ${entries.length} ===`);
           } else {
-            console.log(`No rules found to query individually for device group "${dgName}"`);
+            console.log(`\nWARNING: No rules found to query individually for device group "${dgName}"`);
+            console.log(`DEBUG: rulesToQuery.length = ${rulesToQuery.length}, entries.length = ${entries.length}`);
           }
           
           if (rulesToQuery.length === 0) {
+            console.log(`\nDEBUG: Fallback condition met - rulesToQuery.length === 0`);
             console.log(`Falling back to all-rules query for device group "${dgName}"...`);
             const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase><post-rulebase><entry name="security"><rules><all/></rules></entry></post-rulebase></entry></device-group></rule-hit-count></show>`;
             const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
