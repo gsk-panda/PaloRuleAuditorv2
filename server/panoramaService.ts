@@ -82,12 +82,21 @@ export async function auditPanoramaRules(
       console.log(`Device Groups API Response length: ${dgXml.length} chars`);
       console.log(`Device Groups API Response (first 500 chars): ${dgXml.substring(0, 500)}`);
       const dgData = parser.parse(dgXml);
-      if (dgData.response?.result?.entry) {
+      console.log('Parsed device groups data structure:', JSON.stringify(dgData.response?.result, null, 2));
+      
+      const deviceGroupResult = dgData.response?.result?.['device-group'];
+      if (deviceGroupResult?.entry) {
+        const entries = Array.isArray(deviceGroupResult.entry) 
+          ? deviceGroupResult.entry 
+          : [deviceGroupResult.entry];
+        deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
+        console.log(`Found ${deviceGroupNames.length} device groups:`, deviceGroupNames);
+      } else if (dgData.response?.result?.entry) {
         const entries = Array.isArray(dgData.response.result.entry) 
           ? dgData.response.result.entry 
           : [dgData.response.result.entry];
         deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
-        console.log(`Found ${deviceGroupNames.length} device groups:`, deviceGroupNames);
+        console.log(`Found ${deviceGroupNames.length} device groups (fallback path):`, deviceGroupNames);
       } else {
         console.log('Device Groups API response structure:', JSON.stringify(dgData.response, null, 2));
       }
