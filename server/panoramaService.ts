@@ -213,13 +213,21 @@ export async function auditPanoramaRules(
           }
 
           console.log(`\nDEBUG: After rule list fetch - rulesToQuery.length = ${rulesToQuery.length}`);
-          console.log(`DEBUG: rulesToQuery contents:`, JSON.stringify(rulesToQuery.slice(0, 5), null, 2), rulesToQuery.length > 5 ? '...' : '');
+          if (rulesToQuery.length > 0) {
+            console.log(`DEBUG: First 5 rules:`, JSON.stringify(rulesToQuery.slice(0, 5).map(r => ({ name: r.name, rulebase: r.rulebase })), null, 2));
+          } else {
+            console.log(`DEBUG: rulesToQuery is EMPTY - this is why the loop is not executing!`);
+            console.log(`DEBUG: Checking if rules were found but not added to array...`);
+          }
 
           if (rulesToQuery.length > 0) {
             console.log(`\n=== Starting individual rule queries for ${rulesToQuery.length} rules ===`);
             console.log(`DEBUG: Entering loop, will iterate ${rulesToQuery.length} times`);
+            let loopExecuted = false;
             for (let i = 0; i < rulesToQuery.length; i++) {
-              console.log(`DEBUG: Loop iteration ${i + 1}, ruleInfo =`, JSON.stringify(rulesToQuery[i]));
+              loopExecuted = true;
+              const ruleInfo = rulesToQuery[i];
+              console.log(`DEBUG: Loop iteration ${i + 1}/${rulesToQuery.length}, ruleInfo =`, JSON.stringify(ruleInfo));
               const ruleInfo = rulesToQuery[i];
               console.log(`\n[${i + 1}/${rulesToQuery.length}] Processing rule: "${ruleInfo.name}" (${ruleInfo.rulebase})`);
               try {
@@ -300,10 +308,14 @@ export async function auditPanoramaRules(
                 }
               }
             }
+            if (!loopExecuted) {
+              console.error(`\nERROR: Loop did not execute even though rulesToQuery.length = ${rulesToQuery.length}!`);
+            }
             console.log(`\n=== Completed individual rule queries. Total entries collected: ${entries.length} ===`);
           } else {
             console.log(`\nWARNING: No rules found to query individually for device group "${dgName}"`);
             console.log(`DEBUG: rulesToQuery.length = ${rulesToQuery.length}, entries.length = ${entries.length}`);
+            console.log(`DEBUG: This means the individual rule query loop will be SKIPPED`);
           }
           
           if (rulesToQuery.length === 0) {
