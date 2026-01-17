@@ -95,8 +95,8 @@ export async function auditPanoramaRules(
     const deviceGroupsSet = new Set<string>();
 
     if (deviceGroupNames.length > 0) {
-    console.log(`Querying rule-hit-count for ${deviceGroupNames.length} device groups...`);
-    for (const dgName of deviceGroupNames) {
+      console.log(`Querying rule-hit-count for ${deviceGroupNames.length} device groups...`);
+      for (const dgName of deviceGroupNames) {
       try {
         const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(`<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`)}&key=${apiKey}`;
         
@@ -145,6 +145,7 @@ export async function auditPanoramaRules(
         }
       } catch (error) {
         console.error(`Error querying device group ${dgName}:`, error);
+      }
       }
     }
   } else {
