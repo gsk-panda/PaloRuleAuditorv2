@@ -76,8 +76,11 @@ export async function auditPanoramaRules(
   let deviceGroupNames: string[] = [];
   try {
     const dgResponse = await fetch(deviceGroupsUrl);
+    console.log(`Device Groups API Response Status: ${dgResponse.status} ${dgResponse.statusText}`);
     if (dgResponse.ok) {
       const dgXml = await dgResponse.text();
+      console.log(`Device Groups API Response length: ${dgXml.length} chars`);
+      console.log(`Device Groups API Response (first 500 chars): ${dgXml.substring(0, 500)}`);
       const dgData = parser.parse(dgXml);
       if (dgData.response?.result?.entry) {
         const entries = Array.isArray(dgData.response.result.entry) 
@@ -85,10 +88,20 @@ export async function auditPanoramaRules(
           : [dgData.response.result.entry];
         deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
         console.log(`Found ${deviceGroupNames.length} device groups:`, deviceGroupNames);
+      } else {
+        console.log('Device Groups API response structure:', JSON.stringify(dgData.response, null, 2));
       }
+    } else {
+      const errorText = await dgResponse.text();
+      console.error(`Device Groups API error: ${dgResponse.status} ${dgResponse.statusText}`);
+      console.error(`Error response: ${errorText.substring(0, 500)}`);
     }
   } catch (error) {
-    console.log('Could not fetch device groups list, will try alternative method');
+    console.error('Could not fetch device groups list:', error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
   }
 
   try {
