@@ -429,11 +429,8 @@ export async function auditPanoramaRules(
         }
       }
     } else {
-      console.log('Trying alternative API command...');
-      const xmlCmd = '<show><rule-hit-count></rule-hit-count></show>';
-      const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
-      console.log('API Call - Alternative:', apiUrl);
-      console.log('  XML Command:', xmlCmd);
+      console.log('No device groups found, skipping audit');
+      return { rules: [], deviceGroups: [] };
       
       const response = await fetch(apiUrl, {
         method: 'GET',
@@ -541,17 +538,24 @@ export async function auditPanoramaRules(
 
     entries.forEach((entry, index) => {
       console.log(`Entry ${index}:`, JSON.stringify(entry, null, 2));
-      if (entry.devicegroup) {
-        deviceGroupsSet.add(entry.devicegroup);
-        console.log(`Added device group: ${entry.devicegroup}`);
-      }
+      
       if (!entry.rulename || !entry.devicegroup) {
         console.log(`Skipping entry ${index}: missing rulename or devicegroup`);
         return;
       }
 
+      if (entry.devicegroup === 'Shared') {
+        console.log(`Skipping entry ${index}: Shared device group rules are excluded`);
+        return;
+      }
+
+      if (entry.devicegroup) {
+        deviceGroupsSet.add(entry.devicegroup);
+        console.log(`Added device group: ${entry.devicegroup}`);
+      }
+
       const ruleKey = `${entry.devicegroup}:${entry.rulename}`;
-      const isShared = entry.devicegroup === 'Shared';
+      const isShared = false;
       const hitCount = parseInt(entry.hitcnt || '0', 10);
       
       let lastUsed: Date | null = null;
