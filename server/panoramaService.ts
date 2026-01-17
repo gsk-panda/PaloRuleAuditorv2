@@ -71,6 +71,7 @@ export async function auditPanoramaRules(
 
   console.log('Fetching device groups list...');
   const deviceGroupsUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry/device-group&key=${apiKey}`;
+  console.log('API Call 1 - Device Groups:', deviceGroupsUrl);
   
   let deviceGroupNames: string[] = [];
   try {
@@ -99,7 +100,10 @@ export async function auditPanoramaRules(
       console.log(`Querying rule-hit-count for ${deviceGroupNames.length} device groups...`);
       for (const dgName of deviceGroupNames) {
         try {
-          const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(`<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`)}&key=${apiKey}`;
+          const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`;
+          const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+          console.log(`API Call - Device Group "${dgName}":`, apiUrl);
+          console.log(`  XML Command:`, xmlCmd);
           
           const response = await fetch(apiUrl, {
             method: 'GET',
@@ -150,7 +154,10 @@ export async function auditPanoramaRules(
       }
     } else {
       console.log('Trying alternative API command...');
-      const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent('<show><rule-hit-count></rule-hit-count></show>')}&key=${apiKey}`;
+      const xmlCmd = '<show><rule-hit-count></rule-hit-count></show>';
+      const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+      console.log('API Call - Alternative:', apiUrl);
+      console.log('  XML Command:', xmlCmd);
       
       const response = await fetch(apiUrl, {
         method: 'GET',
