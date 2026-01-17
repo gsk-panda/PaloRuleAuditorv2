@@ -393,6 +393,11 @@ export async function auditPanoramaRules(
                     console.log(`Device Group "${dg.name}" - Found ${ruleEntries.length} rules in rulebase "${rb.name || 'security'}"`);
                     ruleEntries.forEach((ruleEntry: any) => {
                       if (ruleEntry && dg.name) {
+                        if (dg.name === 'Shared') {
+                          console.log(`Skipping Shared device group rule: ${ruleEntry.name || ruleEntry['@_name']}`);
+                          return;
+                        }
+                        
                         const ruleName = ruleEntry.name || ruleEntry['@_name'];
                         if (!ruleName) {
                           console.log(`Skipping rule entry without name in device group ${dg.name}`);
@@ -466,6 +471,11 @@ export async function auditPanoramaRules(
           : [ruleHitCount['device-group'].entry];
         
         deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
+          if (dg.name === 'Shared') {
+            console.log('Skipping Shared device group in alternative API path');
+            return;
+          }
+          
           if (dg.name) {
             deviceGroupsSet.add(dg.name);
           }
@@ -491,7 +501,7 @@ export async function auditPanoramaRules(
             if (rb.rules?.entry) {
               const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
               ruleEntries.forEach((ruleEntry: any) => {
-                if (ruleEntry && dg.name) {
+                if (ruleEntry && dg.name && dg.name !== 'Shared') {
                   const rule: PanoramaRuleUseEntry = {
                     devicegroup: dg.name,
                     rulebase: rb.name || 'security',
@@ -515,15 +525,18 @@ export async function auditPanoramaRules(
       }
     }
     
-    const deviceGroups = Array.from(deviceGroupsSet).sort();
-    console.log(`Collected ${deviceGroups.length} device groups:`, deviceGroups);
+    const deviceGroups = Array.from(deviceGroupsSet).filter(dg => dg !== 'Shared').sort();
+    console.log(`Collected ${deviceGroups.length} device groups (excluding Shared):`, deviceGroups);
+    
+    entries = entries.filter(entry => entry.devicegroup !== 'Shared');
+    console.log(`Filtered out Shared rules. Remaining entries: ${entries.length}`);
     
     if (entries.length === 0) {
-      console.log('No entries found in response');
+      console.log('No entries found in response (after filtering Shared)');
       return { rules: [], deviceGroups: deviceGroups };
     }
     
-    console.log(`Found ${entries.length} rule entries to process`);
+    console.log(`Found ${entries.length} rule entries to process (Shared rules excluded)`);
     if (entries.length > 0) {
       console.log(`Sample entries (first 3):`, entries.slice(0, 3).map(e => ({
         name: e.rulename,
