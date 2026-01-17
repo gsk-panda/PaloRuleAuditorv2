@@ -112,6 +112,7 @@ export async function auditPanoramaRules(
     if (deviceGroupNames.length > 0) {
       console.log(`Querying rule-hit-count for ${deviceGroupNames.length} device groups...`);
       for (const dgName of deviceGroupNames) {
+        deviceGroupsSet.add(dgName);
         try {
           const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`;
           const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
@@ -132,8 +133,6 @@ export async function auditPanoramaRules(
 
           const xmlText = await response.text();
           const data: PanoramaResponse = parser.parse(xmlText);
-          
-          deviceGroupsSet.add(dgName);
           
           const ruleHitCount = data.response?.result?.['rule-hit-count'];
           if (ruleHitCount?.['device-group']?.entry) {
@@ -235,9 +234,12 @@ export async function auditPanoramaRules(
       }
     }
     
+    const deviceGroups = Array.from(deviceGroupsSet).sort();
+    console.log(`Collected ${deviceGroups.length} device groups:`, deviceGroups);
+    
     if (entries.length === 0) {
       console.log('No entries found in response');
-      return { rules: [], deviceGroups: Array.from(deviceGroupsSet).sort() };
+      return { rules: [], deviceGroups: deviceGroups };
     }
     
     console.log(`Found ${entries.length} entries`);
@@ -360,12 +362,12 @@ export async function auditPanoramaRules(
       }
     });
 
-    const deviceGroups = Array.from(deviceGroupsSet).sort();
-    console.log(`Returning ${processedRules.length} rules and ${deviceGroups.length} device groups:`, deviceGroups);
+    const finalDeviceGroups = Array.from(deviceGroupsSet).sort();
+    console.log(`Returning ${processedRules.length} rules and ${finalDeviceGroups.length} device groups:`, finalDeviceGroups);
     
     return {
       rules: processedRules,
-      deviceGroups: deviceGroups
+      deviceGroups: finalDeviceGroups
     };
   } catch (error) {
     console.error('Panorama API error:', error);
