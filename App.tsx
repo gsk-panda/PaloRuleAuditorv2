@@ -10,6 +10,8 @@ const App: React.FC = () => {
     apiKey: 'LUFRPT1LQWx1dUk4RVVqODQrQkN3TDZtRlBYd0dHUkk9dzczNHg3T0VsRS9yYmFMcEpWdXBWdFZ4S3Jwd0JYeEdLaTNnc2RVV29iQ1BqcnVCRU1vOVVHUmF6SUE2VHlDOA==',
     unusedDays: 90
   });
+  const [auditMode, setAuditMode] = useState<'unused' | 'disabled'>('unused');
+  const [disabledDays, setDisabledDays] = useState(90);
 
   const [haPairs, setHAPairs] = useState<HAPair[]>([]);
   const [rules, setRules] = useState<PanoramaRule[]>([]);
@@ -59,17 +61,26 @@ const App: React.FC = () => {
     setIsAuditing(true);
     
     try {
-      const response = await fetch('/api/audit', {
+      const endpoint = auditMode === 'disabled' ? '/api/audit/disabled' : '/api/audit';
+      const body = auditMode === 'disabled' 
+        ? {
+            url: config.url,
+            apiKey: config.apiKey,
+            disabledDays: disabledDays
+          }
+        : {
+            url: config.url,
+            apiKey: config.apiKey,
+            unusedDays: config.unusedDays,
+            haPairs: haPairs
+          };
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          url: config.url,
-          apiKey: config.apiKey,
-          unusedDays: config.unusedDays,
-          haPairs: haPairs
-        })
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {
@@ -299,6 +310,34 @@ const App: React.FC = () => {
             Audit Settings
           </h2>
           <form onSubmit={handleAudit} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-600">Audit Mode</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="auditMode"
+                    value="unused"
+                    checked={auditMode === 'unused'}
+                    onChange={e => setAuditMode(e.target.value as 'unused' | 'disabled')}
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span>Find Unused Rules</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="auditMode"
+                    value="disabled"
+                    checked={auditMode === 'disabled'}
+                    onChange={e => setAuditMode(e.target.value as 'unused' | 'disabled')}
+                    className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span>Find Disabled Rules</span>
+                </label>
+              </div>
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-600">Panorama URL</label>
@@ -322,17 +361,31 @@ const App: React.FC = () => {
                   required
                 />
               </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-600">Unused Threshold (Days)</label>
-                <input 
-                  type="number" 
-                  value={config.unusedDays}
-                  onChange={e => setConfig({...config, unusedDays: parseInt(e.target.value) || 0})}
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
-                  min="1"
-                  required
-                />
-              </div>
+              {auditMode === 'unused' ? (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-600">Unused Threshold (Days)</label>
+                  <input 
+                    type="number" 
+                    value={config.unusedDays}
+                    onChange={e => setConfig({...config, unusedDays: parseInt(e.target.value) || 0})}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                    min="1"
+                    required
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-slate-600">Disabled Threshold (Days)</label>
+                  <input 
+                    type="number" 
+                    value={disabledDays}
+                    onChange={e => setDisabledDays(parseInt(e.target.value) || 0)}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                    min="1"
+                    required
+                  />
+                </div>
+              )}
               <div className="space-y-1">
                 <label className="text-sm font-medium text-slate-600 flex items-center gap-2">
                   <input 
@@ -351,8 +404,9 @@ const App: React.FC = () => {
                     : 'Dry-run mode: Only shows report, no changes will be made'}
                 </p>
               </div>
-              <div className="space-y-1">
-                <label className="text-sm font-medium text-slate-600">HA Pairs Definition (.txt)</label>
+            </div>
+            
+            {auditMode === 'unused' && (
                 <div className="flex gap-2">
                   <input 
                     type="file" 
@@ -380,7 +434,7 @@ const App: React.FC = () => {
                 </div>
                 <p className="text-[10px] text-slate-400">Format: firewall1:firewall2</p>
               </div>
-            </div>
+            )}
             
             <div className="pt-2">
               <button 
@@ -396,7 +450,7 @@ const App: React.FC = () => {
                     </svg>
                     Scanning Panorama Rules...
                   </>
-                ) : 'Generate Dry Run Report'}
+                ) : auditMode === 'disabled' ? `Find Disabled Rules (>${disabledDays} days)` : 'Generate Dry Run Report'}
               </button>
             </div>
           </form>

@@ -499,3 +499,170 @@ export async function auditPanoramaRules(
     throw error;
   }
 }
+
+export async function auditDisabledRules(
+  panoramaUrl: string,
+  apiKey: string,
+  disabledDays: number
+): Promise<AuditResult> {
+  try {
+    const panoramaDeviceName = 'localhost.localdomain';
+
+    console.log('Step 1: Fetching device groups list...');
+    const deviceGroupsUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry[@name='${panoramaDeviceName}']/device-group&key=${apiKey}`;
+    console.log('API Call - Device Groups:', deviceGroupsUrl);
+    
+    let deviceGroupNames: string[] = [];
+    try {
+      const dgResponse = await fetch(deviceGroupsUrl);
+      console.log(`Device Groups API Response Status: ${dgResponse.status} ${dgResponse.statusText}`);
+      if (dgResponse.ok) {
+        const dgXml = await dgResponse.text();
+        console.log(`Device Groups API Response length: ${dgXml.length} chars`);
+        const dgData = parser.parse(dgXml);
+        console.log('Parsed device groups data structure:', JSON.stringify(dgData.response?.result, null, 2));
+        
+        const deviceGroupResult = dgData.response?.result?.['device-group'];
+        if (deviceGroupResult?.entry) {
+          const entries = Array.isArray(deviceGroupResult.entry) 
+            ? deviceGroupResult.entry 
+            : [deviceGroupResult.entry];
+          deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
+          console.log(`Found ${deviceGroupNames.length} device groups:`, deviceGroupNames);
+        } else {
+          console.log('Device Groups API response structure:', JSON.stringify(dgData.response, null, 2));
+        }
+      } else {
+        const errorText = await dgResponse.text();
+        console.error(`Device Groups API error: ${dgResponse.status} ${dgResponse.statusText}`);
+        console.error(`Error response: ${errorText.substring(0, 500)}`);
+      }
+    } catch (error) {
+      console.error('Could not fetch device groups list:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
+    }
+
+    if (deviceGroupNames.length === 0) {
+      console.log('No device groups found, skipping audit');
+      return { rules: [], deviceGroups: [] };
+    }
+
+    console.log(`\nStep 2: Processing ${deviceGroupNames.length} device groups for disabled rules...`);
+    
+    const disabledRules: PanoramaRule[] = [];
+    const deviceGroupsSet = new Set<string>();
+    const now = new Date();
+    const disabledThreshold = new Date(now.getTime() - disabledDays * 24 * 60 * 60 * 1000);
+    console.log(`Looking for rules disabled before ${disabledThreshold.toISOString()} (${disabledDays} days ago)`);
+
+    for (const dgName of deviceGroupNames) {
+      console.log(`\n=== Processing Device Group: ${dgName} ===`);
+      
+      try {
+        console.log(`Fetching pre-rulebase rules for device group "${dgName}"...`);
+        const preConfigUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules&key=${apiKey}`;
+        console.log(`  Pre-rulebase config URL: ${preConfigUrl}`);
+        const preConfigResponse = await fetch(preConfigUrl);
+        console.log(`  Pre-rulebase response status: ${preConfigResponse.status} ${preConfigResponse.statusText}`);
+        
+        if (!preConfigResponse.ok) {
+          const errorText = await preConfigResponse.text();
+          console.error(`  Pre-rulebase fetch failed: ${errorText.substring(0, 500)}`);
+          continue;
+        }
+
+        const preConfigXml = await preConfigResponse.text();
+        const preConfigData = parser.parse(preConfigXml);
+        
+        let rules: any[] = [];
+        if (preConfigData.response?.result?.rules?.entry) {
+          rules = Array.isArray(preConfigData.response.result.rules.entry)
+            ? preConfigData.response.result.rules.entry
+            : [preConfigData.response.result.rules.entry];
+        } else if (preConfigData.response?.result?.entry?.rules?.entry) {
+          rules = Array.isArray(preConfigData.response.result.entry.rules.entry)
+            ? preConfigData.response.result.entry.rules.entry
+            : [preConfigData.response.result.entry.rules.entry];
+        }
+        
+        rules = rules.filter((rule: any) => {
+          const disabled = rule.disabled || rule['@_disabled'];
+          if (disabled === 'yes') {
+            const ruleName = rule.name || rule['@_name'];
+            console.log(`  Found disabled rule: "${ruleName}"`);
+            return true;
+          }
+          return false;
+        });
+        
+        if (rules.length === 0) {
+          console.log(`  No disabled rules found for device group "${dgName}"`);
+          continue;
+        }
+
+        console.log(`  Found ${rules.length} disabled rules in "${dgName}"`);
+        deviceGroupsSet.add(dgName);
+
+        for (let i = 0; i < rules.length; i++) {
+          const rule = rules[i];
+          const ruleName = rule.name || rule['@_name'] || rule['name'];
+          if (!ruleName) {
+            console.log(`  Skipping rule without name at index ${i}`);
+            continue;
+          }
+
+          console.log(`\n[${i + 1}/${rules.length}] Checking disabled rule: "${ruleName}"`);
+          
+          const modificationTimestamp = rule['rule-modification-timestamp'];
+          const creationTimestamp = rule['rule-creation-timestamp'];
+          
+          let disabledDate: Date | null = null;
+          if (modificationTimestamp) {
+            disabledDate = new Date(parseInt(modificationTimestamp) * 1000);
+          } else if (creationTimestamp) {
+            disabledDate = new Date(parseInt(creationTimestamp) * 1000);
+          }
+          
+          if (!disabledDate || disabledDate < disabledThreshold) {
+            console.log(`    Rule "${ruleName}" disabled on ${disabledDate ? disabledDate.toISOString() : 'unknown date'} - older than ${disabledDays} days`);
+            
+            const panoramaRule: PanoramaRule = {
+              id: `disabled-rule-${disabledRules.length}`,
+              name: ruleName,
+              deviceGroup: dgName,
+              totalHits: 0,
+              lastHitDate: disabledDate ? disabledDate.toISOString() : new Date(0).toISOString(),
+              targets: [],
+              action: 'DISABLE',
+              isShared: false,
+            };
+            
+            disabledRules.push(panoramaRule);
+          } else {
+            console.log(`    Rule "${ruleName}" disabled on ${disabledDate.toISOString()} - within ${disabledDays} days threshold`);
+          }
+        }
+      } catch (error) {
+        console.error(`Error processing device group ${dgName}:`, error);
+        if (error instanceof Error) {
+          console.error(`  Error message: ${error.message}`);
+          console.error(`  Error stack: ${error.stack}`);
+        }
+      }
+    }
+
+    const deviceGroups = Array.from(deviceGroupsSet).sort();
+    console.log(`\nFound ${disabledRules.length} rules disabled for more than ${disabledDays} days across ${deviceGroups.length} device groups`);
+    
+    return {
+      rules: disabledRules,
+      deviceGroups: deviceGroups
+    };
+  } catch (error) {
+    console.error('Panorama API error:', error);
+    throw error;
+  }
+}

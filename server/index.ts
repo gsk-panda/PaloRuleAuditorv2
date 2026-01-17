@@ -146,6 +146,32 @@ app.post('/api/audit', async (req, res) => {
   }
 });
 
+app.post('/api/audit/disabled', async (req, res) => {
+  try {
+    console.log('Received disabled rules audit request');
+    const { url, apiKey, disabledDays } = req.body;
+
+    if (!url || !apiKey) {
+      console.log('Missing required parameters');
+      return res.status(400).json({ error: 'Panorama URL and API key are required' });
+    }
+
+    console.log('Calling auditDisabledRules...');
+    const { auditDisabledRules } = await import('./panoramaService.js');
+    const result = await auditDisabledRules(url, apiKey, disabledDays || 90);
+    console.log(`Disabled rules audit completed: ${result.rules.length} rules, ${result.deviceGroups.length} device groups`);
+    
+    res.json({ rules: result.rules, deviceGroups: result.deviceGroups });
+  } catch (error) {
+    console.error('Disabled rules audit error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to perform audit';
+    console.error('Error details:', errorMessage);
+    res.status(500).json({ 
+      error: errorMessage
+    });
+  }
+});
+
 app.post('/api/remediate', async (req, res) => {
   try {
     console.log('Received remediation request');
