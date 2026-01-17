@@ -125,6 +125,10 @@ setup_application() {
 
     mkdir -p "$APP_DIR"
     
+    if [[ ! -w "$APP_DIR" ]]; then
+        error "Destination directory $APP_DIR is not writable"
+    fi
+    
     local source_dir
     if ! source_dir=$(find_source_directory); then
         log "Current working directory: $(pwd)"
@@ -138,22 +142,32 @@ setup_application() {
     fi
     
     log "Using source directory: $source_dir"
+    log "Verifying source directory contains files..."
+    log "Source directory contents:"
+    ls -la "$source_dir" 2>&1 | head -10 || true
+    
     log "Copying application files from $source_dir to $APP_DIR..."
     
     if command -v rsync &> /dev/null; then
+        log "Using rsync to copy files..."
         if ! rsync -av --exclude='.git' "$source_dir/" "$APP_DIR/"; then
             error "Failed to copy application files using rsync"
         fi
+        log "rsync completed"
     elif command -v tar &> /dev/null; then
+        log "Using tar to copy files..."
         cd "$source_dir"
         if ! tar --exclude='.git' -cf - . | (cd "$APP_DIR" && tar -xf -); then
             error "Failed to copy application files using tar"
         fi
+        log "tar completed"
     else
+        log "Using cp to copy files..."
         shopt -s dotglob nullglob
         files_copied=0
         for file in "$source_dir"/* "$source_dir"/.[!.]* "$source_dir"/..?*; do
             if [[ -e "$file" && "$(basename "$file")" != ".git" ]]; then
+                log "Copying: $(basename "$file")"
                 cp -r "$file" "$APP_DIR/" || error "Failed to copy $file"
                 files_copied=1
             fi
@@ -162,18 +176,28 @@ setup_application() {
         if [[ $files_copied -eq 0 ]]; then
             error "No files were copied. Check that $source_dir contains the application files."
         fi
+        log "cp completed, $files_copied file(s) copied"
     fi
     
+    log "Verifying copy operation..."
+    log "Destination directory contents:"
+    ls -la "$APP_DIR" 2>&1 | head -20 || true
+    
     if [[ ! -f "$APP_DIR/package.json" ]]; then
-        log "Files in $APP_DIR:"
-        ls -la "$APP_DIR" || true
-        log "Files in $SCRIPT_DIR:"
-        ls -la "$SCRIPT_DIR" || true
+        log "ERROR: package.json not found in destination!"
+        log "Source directory: $source_dir"
+        log "Destination directory: $APP_DIR"
+        log "Source directory file count: $(find "$source_dir" -type f | wc -l)"
+        log "Destination directory file count: $(find "$APP_DIR" -type f 2>/dev/null | wc -l)"
         error "package.json not found after copying files. Copy operation may have failed."
     fi
     
+    log "Copy verification successful - package.json found in destination"
+    
+    log "Setting ownership and permissions..."
     chown -R "$APP_USER:$APP_USER" "$APP_DIR"
     chmod -R 755 "$APP_DIR"
+    log "Ownership set to $APP_USER:$APP_USER"
     
     log "Application files copied to $APP_DIR"
 }
