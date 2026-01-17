@@ -407,6 +407,8 @@ const App: React.FC = () => {
             </div>
             
             {auditMode === 'unused' && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-slate-600">HA Pairs Definition (.txt)</label>
                 <div className="flex gap-2">
                   <input 
                     type="file" 
