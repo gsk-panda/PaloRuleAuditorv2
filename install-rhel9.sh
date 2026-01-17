@@ -12,6 +12,7 @@ APP_USER="panoruleauditor"
 APP_DIR="/opt/${APP_NAME}"
 SERVICE_NAME="panoruleauditor"
 NODE_VERSION="20"
+SOURCE_DIR=""
 
 log() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
@@ -76,6 +77,38 @@ create_app_user() {
     fi
 }
 
+find_source_directory() {
+    local search_dirs=()
+    
+    if [[ -n "$SOURCE_DIR" ]]; then
+        search_dirs+=("$SOURCE_DIR")
+    fi
+    
+    search_dirs+=("$(pwd)")
+    search_dirs+=("$SCRIPT_DIR")
+    
+    for dir in "${search_dirs[@]}"; do
+        if [[ -f "$dir/package.json" ]]; then
+            echo "$dir"
+            return 0
+        fi
+    done
+    
+    SEARCH_DIR="$SCRIPT_DIR"
+    for i in {1..5}; do
+        if [[ -f "$SEARCH_DIR/package.json" ]]; then
+            echo "$SEARCH_DIR"
+            return 0
+        fi
+        SEARCH_DIR="$(dirname "$SEARCH_DIR")"
+        if [[ "$SEARCH_DIR" == "/" ]]; then
+            break
+        fi
+    done
+    
+    return 1
+}
+
 setup_application() {
     log "Setting up application directory..."
     
@@ -92,50 +125,34 @@ setup_application() {
 
     mkdir -p "$APP_DIR"
     
-    log "Copying application files from $SCRIPT_DIR to $APP_DIR..."
-    
-    if ! [[ -f "$SCRIPT_DIR/package.json" ]]; then
-        log "package.json not found in $SCRIPT_DIR"
-        log "Searching for package.json in parent directories..."
-        
-        SEARCH_DIR="$SCRIPT_DIR"
-        FOUND_DIR=""
-        for i in {1..5}; do
-            if [[ -f "$SEARCH_DIR/package.json" ]]; then
-                FOUND_DIR="$SEARCH_DIR"
-                break
-            fi
-            SEARCH_DIR="$(dirname "$SEARCH_DIR")"
-            if [[ "$SEARCH_DIR" == "/" ]]; then
-                break
-            fi
-        done
-        
-        if [[ -n "$FOUND_DIR" ]]; then
-            log "Found package.json in $FOUND_DIR, using that as source directory"
-            SCRIPT_DIR="$FOUND_DIR"
-        else
-            log "Current working directory: $(pwd)"
-            log "Script location: $SCRIPT_DIR"
-            log "Contents of script directory:"
-            ls -la "$SCRIPT_DIR" 2>&1 || true
-            error "package.json not found. Please ensure the script is in the project root directory, or run it from the project root."
+    local source_dir
+    if ! source_dir=$(find_source_directory); then
+        log "Current working directory: $(pwd)"
+        log "Script location: $SCRIPT_DIR"
+        if [[ -n "$SOURCE_DIR" ]]; then
+            log "Specified source directory: $SOURCE_DIR"
         fi
+        log "Contents of current directory:"
+        ls -la "$(pwd)" 2>&1 | head -20 || true
+        error "package.json not found. Please run this script from the project root, or specify the source directory: $0 /path/to/project"
     fi
     
+    log "Using source directory: $source_dir"
+    log "Copying application files from $source_dir to $APP_DIR..."
+    
     if command -v rsync &> /dev/null; then
-        if ! rsync -av --exclude='.git' "$SCRIPT_DIR/" "$APP_DIR/"; then
+        if ! rsync -av --exclude='.git' "$source_dir/" "$APP_DIR/"; then
             error "Failed to copy application files using rsync"
         fi
     elif command -v tar &> /dev/null; then
-        cd "$SCRIPT_DIR"
+        cd "$source_dir"
         if ! tar --exclude='.git' -cf - . | (cd "$APP_DIR" && tar -xf -); then
             error "Failed to copy application files using tar"
         fi
     else
         shopt -s dotglob nullglob
         files_copied=0
-        for file in "$SCRIPT_DIR"/* "$SCRIPT_DIR"/.[!.]* "$SCRIPT_DIR"/..?*; do
+        for file in "$source_dir"/* "$source_dir"/.[!.]* "$source_dir"/..?*; do
             if [[ -e "$file" && "$(basename "$file")" != ".git" ]]; then
                 cp -r "$file" "$APP_DIR/" || error "Failed to copy $file"
                 files_copied=1
@@ -143,7 +160,7 @@ setup_application() {
         done
         shopt -u dotglob nullglob
         if [[ $files_copied -eq 0 ]]; then
-            error "No files were copied. Check that $SCRIPT_DIR contains the application files."
+            error "No files were copied. Check that $source_dir contains the application files."
         fi
     fi
     
@@ -271,6 +288,29 @@ print_summary() {
 }
 
 main() {
+    if [[ $# -gt 0 ]]; then
+        if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+            echo "Usage: $0 [SOURCE_DIRECTORY]"
+            echo ""
+            echo "Install PaloRuleAuditor application"
+            echo ""
+            echo "Arguments:"
+            echo "  SOURCE_DIRECTORY    Path to the project root directory (optional)"
+            echo "                      If not specified, script will search for package.json"
+            echo "                      in current directory, script directory, and parent directories"
+            echo ""
+            exit 0
+        fi
+        SOURCE_DIR="$(cd "$1" && pwd)"
+        if [[ ! -d "$SOURCE_DIR" ]]; then
+            error "Source directory does not exist: $1"
+        fi
+        if [[ ! -f "$SOURCE_DIR/package.json" ]]; then
+            error "package.json not found in specified directory: $SOURCE_DIR"
+        fi
+        log "Using specified source directory: $SOURCE_DIR"
+    fi
+    
     log "Starting installation of $APP_NAME for RHEL 9.7"
     
     check_root
