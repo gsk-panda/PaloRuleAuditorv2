@@ -13,6 +13,7 @@ const App: React.FC = () => {
 
   const [haPairs, setHAPairs] = useState<HAPair[]>([]);
   const [rules, setRules] = useState<PanoramaRule[]>([]);
+  const [deviceGroups, setDeviceGroups] = useState<string[]>([]);
   const [isAuditing, setIsAuditing] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
@@ -75,6 +76,7 @@ const App: React.FC = () => {
 
       const data = await response.json();
       setRules(data.rules || []);
+      setDeviceGroups(data.deviceGroups || []);
       setShowReport(true);
     } catch (error) {
       console.error('Audit failed:', error);
@@ -210,6 +212,32 @@ const App: React.FC = () => {
 
         {showReport && (
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Device Groups Found */}
+            {deviceGroups.length > 0 && (
+              <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
+                <h3 className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Device Groups Found ({deviceGroups.length})
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {deviceGroups.map((dg) => (
+                    <span
+                      key={dg}
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        dg === 'Shared'
+                          ? 'bg-slate-200 text-slate-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}
+                    >
+                      {dg}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             {/* Stats Summary */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">

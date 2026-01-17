@@ -16,9 +16,9 @@ app.post('/api/audit', async (req, res) => {
       return res.status(400).json({ error: 'Panorama URL and API key are required' });
     }
 
-    const rules = await auditPanoramaRules(url, apiKey, unusedDays || 90, haPairs || []);
+    const result = await auditPanoramaRules(url, apiKey, unusedDays || 90, haPairs || []);
     
-    res.json({ rules });
+    res.json({ rules: result.rules, deviceGroups: result.deviceGroups });
   } catch (error) {
     console.error('Audit error:', error);
     res.status(500).json({ 

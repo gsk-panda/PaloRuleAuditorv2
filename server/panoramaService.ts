@@ -27,12 +27,17 @@ const parser = new XMLParser({
   parseAttributeValue: true,
 });
 
+export interface AuditResult {
+  rules: PanoramaRule[];
+  deviceGroups: string[];
+}
+
 export async function auditPanoramaRules(
   panoramaUrl: string,
   apiKey: string,
   unusedDays: number,
   haPairs: HAPair[]
-): Promise<PanoramaRule[]> {
+): Promise<AuditResult> {
   const haMap = new Map<string, string>();
   haPairs.forEach(pair => {
     haMap.set(pair.fw1, pair.fw2);
@@ -57,7 +62,7 @@ export async function auditPanoramaRules(
     const data: PanoramaResponse = parser.parse(xmlText);
 
     if (!data.response?.result?.['panorama-rule-use']?.entry) {
-      return [];
+      return { rules: [], deviceGroups: [] };
     }
 
     const entries = Array.isArray(data.response.result['panorama-rule-use'].entry)
@@ -66,8 +71,12 @@ export async function auditPanoramaRules(
 
     const rules: PanoramaRule[] = [];
     const ruleMap = new Map<string, PanoramaRule>();
+    const deviceGroupsSet = new Set<string>();
 
     entries.forEach((entry, index) => {
+      if (entry.devicegroup) {
+        deviceGroupsSet.add(entry.devicegroup);
+      }
       if (!entry.rulename || !entry.devicegroup) return;
 
       const ruleKey = `${entry.devicegroup}:${entry.rulename}`;
@@ -174,7 +183,10 @@ export async function auditPanoramaRules(
       }
     });
 
-    return processedRules;
+    return {
+      rules: processedRules,
+      deviceGroups: Array.from(deviceGroupsSet).sort()
+    };
   } catch (error) {
     console.error('Panorama API error:', error);
     throw error;
