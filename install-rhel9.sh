@@ -286,9 +286,6 @@ User=${APP_USER}
 WorkingDirectory=${APP_DIR}
 Environment="NODE_ENV=production"
 EnvironmentFile=${APP_DIR}/.env.local
-ExecStartPre=/bin/bash -c 'fuser -k 3001/tcp 2>/dev/null || true'
-ExecStartPre=/bin/bash -c 'fuser -k 3000/tcp 2>/dev/null || true'
-ExecStartPre=/bin/sleep 1
 ExecStart=/usr/bin/npm run dev
 Restart=always
 RestartSec=10
