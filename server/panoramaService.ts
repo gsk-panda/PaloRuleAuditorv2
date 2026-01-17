@@ -147,8 +147,7 @@ export async function auditPanoramaRules(
           console.error(`Error querying device group ${dgName}:`, error);
         }
       }
-    }
-  } else {
+    } else {
     console.log('Trying alternative API command...');
     const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent('<show><rule-hit-count></rule-hit-count></show>')}&key=${apiKey}`;
     
