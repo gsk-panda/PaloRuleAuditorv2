@@ -558,7 +558,7 @@ const App: React.FC = () => {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {rules.map((rule) => (
-                      <RuleRow key={rule.id} rule={rule} />
+                      <RuleRow key={rule.id} rule={rule} auditMode={auditMode} />
                     ))}
                   </tbody>
                 </table>

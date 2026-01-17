@@ -4,9 +4,10 @@ import { PanoramaRule, FirewallTarget } from '../types';
 
 interface RuleRowProps {
   rule: PanoramaRule;
+  auditMode?: 'unused' | 'disabled';
 }
 
-export const RuleRow: React.FC<RuleRowProps> = ({ rule }) => {
+export const RuleRow: React.FC<RuleRowProps> = ({ rule, auditMode = 'unused' }) => {
   const getActionBadge = (action: string) => {
     switch (action) {
       case 'DISABLE':
@@ -69,7 +70,7 @@ export const RuleRow: React.FC<RuleRowProps> = ({ rule }) => {
       </td>
       <td className="px-6 py-4 whitespace-nowrap">
         <div className="text-sm text-gray-900">{rule.totalHits.toLocaleString()} hits</div>
-        <div className="text-xs text-gray-400">Last: {formatDate(rule.lastHitDate)}</div>
+        <div className="text-xs text-gray-400">{auditMode === 'disabled' ? 'Disabled:' : 'Last:'} {formatDate(rule.lastHitDate)}</div>
       </td>
       <td className="px-6 py-4">
         <div className="flex flex-wrap gap-2">
