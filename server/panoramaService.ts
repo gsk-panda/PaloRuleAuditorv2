@@ -123,7 +123,7 @@ export async function auditPanoramaRules(
       for (const dgName of deviceGroupNames) {
         deviceGroupsSet.add(dgName);
         try {
-          const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`;
+          const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase><post-rulebase><entry name="security"><rules><all/></rules></entry></post-rulebase></entry></device-group></rule-hit-count></show>`;
           const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
           console.log(`API Call - Device Group "${dgName}":`, apiUrl);
           console.log(`  XML Command:`, xmlCmd);
@@ -142,12 +142,25 @@ export async function auditPanoramaRules(
 
           const xmlText = await response.text();
           console.log(`Device Group "${dgName}" API Response length: ${xmlText.length} chars`);
-          console.log(`Device Group "${dgName}" API Response (first 1000 chars): ${xmlText.substring(0, 1000)}`);
+          console.log(`Device Group "${dgName}" API Response (first 2000 chars): ${xmlText.substring(0, 2000)}`);
+          
+          if (xmlText.includes('<response status="error"')) {
+            console.error(`Device Group "${dgName}" API returned an error response`);
+            console.error(`Full error response: ${xmlText}`);
+            continue;
+          }
+          
           const data: PanoramaResponse = parser.parse(xmlText);
           console.log(`Device Group "${dgName}" Parsed structure:`, JSON.stringify(data.response?.result, null, 2));
           
           const ruleHitCount = data.response?.result?.['rule-hit-count'];
           console.log(`Device Group "${dgName}" ruleHitCount structure:`, JSON.stringify(ruleHitCount, null, 2));
+          
+          if (!ruleHitCount) {
+            console.log(`Device Group "${dgName}" - No rule-hit-count data in response`);
+            continue;
+          }
+          
           if (ruleHitCount?.['device-group']?.entry) {
             const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
               ? ruleHitCount['device-group'].entry

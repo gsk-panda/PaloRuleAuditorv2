@@ -56,11 +56,11 @@ app.post('/api/audit/preview', async (req, res) => {
         }
 
         for (const dgName of deviceGroupNames) {
-          const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`;
+          const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase><post-rulebase><entry name="security"><rules><all/></rules></entry></post-rulebase></entry></device-group></rule-hit-count></show>`;
           const apiUrl = `${url}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
           apiCalls.push({
             url: apiUrl,
-            description: `Query rule-hit-count for device group "${dgName}"`,
+            description: `Query rule-hit-count for device group "${dgName}" (pre and post rulebase)`,
             xmlCommand: xmlCmd
           });
         }
