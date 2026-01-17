@@ -212,12 +212,9 @@ export async function auditPanoramaRules(
               : [ruleHitCount['device-group'].entry];
             
             deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
-              if (dg['pre-rulebase']?.entry) {
-                const preEntries = Array.isArray(dg['pre-rulebase'].entry) 
-                  ? dg['pre-rulebase'].entry 
-                  : [dg['pre-rulebase'].entry];
-                
-                preEntries.forEach((rb: PanoramaRuleBaseEntry) => {
+              const processRuleBase = (ruleBase: PanoramaRuleBaseEntry | PanoramaRuleBaseEntry[], rulebaseType: string) => {
+                const ruleBaseEntries = Array.isArray(ruleBase) ? ruleBase : [ruleBase];
+                ruleBaseEntries.forEach((rb: PanoramaRuleBaseEntry) => {
                   if (rb.rules?.entry) {
                     const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
                     ruleEntries.forEach((ruleEntry: any) => {
@@ -240,7 +237,7 @@ export async function auditPanoramaRules(
                         
                         const rule: PanoramaRuleUseEntry = {
                           devicegroup: dgName,
-                          rulebase: 'pre-rulebase',
+                          rulebase: rulebaseType,
                           rulename: ruleName,
                           lastused: lastUsedDate,
                           hitcnt: hitCount,
@@ -253,6 +250,13 @@ export async function auditPanoramaRules(
                     });
                   }
                 });
+              };
+
+              if (dg['pre-rulebase']?.entry) {
+                processRuleBase(dg['pre-rulebase'].entry, 'pre-rulebase');
+              }
+              if (dg['rule-base']?.entry) {
+                processRuleBase(dg['rule-base'].entry, 'rule-base');
               }
             });
           } catch (error) {
