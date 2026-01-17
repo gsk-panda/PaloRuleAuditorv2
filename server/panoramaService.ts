@@ -44,7 +44,7 @@ export async function auditPanoramaRules(
     haMap.set(pair.fw2, pair.fw1);
   });
 
-  const apiUrl = `${panoramaUrl}/api/?type=op&cmd=<show><running><panorama-rule-use></panorama-rule-use></running></show>&key=${apiKey}`;
+  const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent('<show><panorama-rule-use></panorama-rule-use></show>')}&key=${apiKey}`;
 
   try {
     const response = await fetch(apiUrl, {
