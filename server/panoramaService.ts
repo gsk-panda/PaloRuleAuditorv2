@@ -59,25 +59,35 @@ export async function auditPanoramaRules(
     }
 
     const xmlText = await response.text();
+    console.log('Panorama API Response:', xmlText.substring(0, 1000));
     const data: PanoramaResponse = parser.parse(xmlText);
+    console.log('Parsed data:', JSON.stringify(data, null, 2).substring(0, 2000));
 
     if (!data.response?.result?.['panorama-rule-use']?.entry) {
+      console.log('No entries found in response');
       return { rules: [], deviceGroups: [] };
     }
 
     const entries = Array.isArray(data.response.result['panorama-rule-use'].entry)
       ? data.response.result['panorama-rule-use'].entry
       : [data.response.result['panorama-rule-use'].entry];
+    
+    console.log(`Found ${entries.length} entries`);
 
     const rules: PanoramaRule[] = [];
     const ruleMap = new Map<string, PanoramaRule>();
     const deviceGroupsSet = new Set<string>();
 
     entries.forEach((entry, index) => {
+      console.log(`Entry ${index}:`, JSON.stringify(entry, null, 2));
       if (entry.devicegroup) {
         deviceGroupsSet.add(entry.devicegroup);
+        console.log(`Added device group: ${entry.devicegroup}`);
       }
-      if (!entry.rulename || !entry.devicegroup) return;
+      if (!entry.rulename || !entry.devicegroup) {
+        console.log(`Skipping entry ${index}: missing rulename or devicegroup`);
+        return;
+      }
 
       const ruleKey = `${entry.devicegroup}:${entry.rulename}`;
       const isShared = entry.devicegroup === 'Shared';
@@ -183,9 +193,12 @@ export async function auditPanoramaRules(
       }
     });
 
+    const deviceGroups = Array.from(deviceGroupsSet).sort();
+    console.log(`Returning ${processedRules.length} rules and ${deviceGroups.length} device groups:`, deviceGroups);
+    
     return {
       rules: processedRules,
-      deviceGroups: Array.from(deviceGroupsSet).sort()
+      deviceGroups: deviceGroups
     };
   } catch (error) {
     console.error('Panorama API error:', error);

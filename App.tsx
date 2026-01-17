@@ -75,8 +75,10 @@ const App: React.FC = () => {
       }
 
       const data = await response.json();
+      console.log('API Response:', data);
       setRules(data.rules || []);
       setDeviceGroups(data.deviceGroups || []);
+      console.log('Device groups set:', data.deviceGroups);
       setShowReport(true);
     } catch (error) {
       console.error('Audit failed:', error);
