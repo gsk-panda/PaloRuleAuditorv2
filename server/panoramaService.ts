@@ -294,124 +294,124 @@ export async function auditPanoramaRules(
     const ruleMap = new Map<string, PanoramaRule>();
 
     filteredEntries.forEach((entry, index) => {
-    console.log(`Entry ${index}:`, JSON.stringify(entry, null, 2));
-    
-    if (!entry.rulename || !entry.devicegroup) {
-      console.log(`Skipping entry ${index}: missing rulename or devicegroup`);
-      return;
-    }
-
-    const ruleKey = `${entry.devicegroup}:${entry.rulename}`;
-    const isShared = false;
-    const hitCount = parseInt(entry.hitcnt || '0', 10);
-    
-    let lastUsed: Date | null = null;
-    if (entry.lastused) {
-      lastUsed = new Date(entry.lastused);
-    } else {
-      lastUsed = new Date(0);
-    }
-    
-    const targets: string[] = [];
-    if (entry.target) {
-      if (typeof entry.target === 'string') {
-        if (entry.target !== 'all') {
-          targets.push(entry.target);
-        }
-      } else if (Array.isArray(entry.target)) {
-        entry.target.forEach(t => {
-          if (t.entry && t.entry !== 'all') targets.push(t.entry);
-        });
+      console.log(`Entry ${index}:`, JSON.stringify(entry, null, 2));
+      
+      if (!entry.rulename || !entry.devicegroup) {
+        console.log(`Skipping entry ${index}: missing rulename or devicegroup`);
+        return;
       }
-    }
-    
-    if (entry.target === 'all' || (targets.length === 0 && entry.target === 'all')) {
-      targets.push('all');
-    }
 
-    if (!ruleMap.has(ruleKey)) {
-      const rule: PanoramaRule = {
-        id: `rule-${index}`,
-        name: entry.rulename,
-        deviceGroup: entry.devicegroup,
-        totalHits: hitCount,
-        lastHitDate: lastUsed.toISOString(),
-        targets: [],
-        action: 'KEEP',
-        isShared,
-      };
-      ruleMap.set(ruleKey, rule);
-    }
-
-    const rule = ruleMap.get(ruleKey)!;
-    
-    if (targets.length === 0) {
-      targets.push('all');
-    }
-    
-    targets.forEach(targetName => {
-      const existingTarget = rule.targets.find(t => t.name === targetName);
-      if (existingTarget) {
-        existingTarget.hitCount += hitCount;
-        existingTarget.hasHits = existingTarget.hitCount > 0;
+      const ruleKey = `${entry.devicegroup}:${entry.rulename}`;
+      const isShared = false;
+      const hitCount = parseInt(entry.hitcnt || '0', 10);
+      
+      let lastUsed: Date | null = null;
+      if (entry.lastused) {
+        lastUsed = new Date(entry.lastused);
       } else {
-        rule.targets.push({
-          name: targetName,
-          hasHits: false,
-          hitCount: 0,
-          haPartner: haMap.get(targetName) || undefined,
-        });
+        lastUsed = new Date(0);
       }
-    });
+      
+      const targets: string[] = [];
+      if (entry.target) {
+        if (typeof entry.target === 'string') {
+          if (entry.target !== 'all') {
+            targets.push(entry.target);
+          }
+        } else if (Array.isArray(entry.target)) {
+          entry.target.forEach(t => {
+            if (t.entry && t.entry !== 'all') targets.push(t.entry);
+          });
+        }
+      }
+      
+      if (entry.target === 'all' || (targets.length === 0 && entry.target === 'all')) {
+        targets.push('all');
+      }
 
-    rule.totalHits = Math.max(rule.totalHits, hitCount);
-    if (lastUsed && (!rule.lastHitDate || new Date(rule.lastHitDate) < lastUsed)) {
-      rule.lastHitDate = lastUsed.toISOString();
-    }
+      if (!ruleMap.has(ruleKey)) {
+        const rule: PanoramaRule = {
+          id: `rule-${index}`,
+          name: entry.rulename,
+          deviceGroup: entry.devicegroup,
+          totalHits: hitCount,
+          lastHitDate: lastUsed.toISOString(),
+          targets: [],
+          action: 'KEEP',
+          isShared,
+        };
+        ruleMap.set(ruleKey, rule);
+      }
+
+      const rule = ruleMap.get(ruleKey)!;
+      
+      if (targets.length === 0) {
+        targets.push('all');
+      }
+      
+      targets.forEach(targetName => {
+        const existingTarget = rule.targets.find(t => t.name === targetName);
+        if (existingTarget) {
+          existingTarget.hitCount += hitCount;
+          existingTarget.hasHits = existingTarget.hitCount > 0;
+        } else {
+          rule.targets.push({
+            name: targetName,
+            hasHits: false,
+            hitCount: 0,
+            haPartner: haMap.get(targetName) || undefined,
+          });
+        }
+      });
+
+      rule.totalHits = Math.max(rule.totalHits, hitCount);
+      if (lastUsed && (!rule.lastHitDate || new Date(rule.lastHitDate) < lastUsed)) {
+        rule.lastHitDate = lastUsed.toISOString();
+      }
     });
 
     const processedRules = Array.from(ruleMap.values());
 
     processedRules.forEach(rule => {
-    const firewallsToUntarget = new Set<string>();
-    const processed = new Set<string>();
+      const firewallsToUntarget = new Set<string>();
+      const processed = new Set<string>();
 
-    rule.targets.forEach(target => {
-      if (processed.has(target.name)) return;
+      rule.targets.forEach(target => {
+        if (processed.has(target.name)) return;
 
-      const lastHit = new Date(rule.lastHitDate);
-      const isUnused = !target.hasHits && lastHit < unusedThreshold;
+        const lastHit = new Date(rule.lastHitDate);
+        const isUnused = !target.hasHits && lastHit < unusedThreshold;
 
-      if (target.haPartner) {
-        const partner = rule.targets.find(t => t.name === target.haPartner);
-        if (partner) {
-          const partnerLastHit = new Date(rule.lastHitDate);
-          const partnerIsUnused = !partner.hasHits && partnerLastHit < unusedThreshold;
-          
-          if (isUnused && partnerIsUnused) {
-            firewallsToUntarget.add(target.name);
-            firewallsToUntarget.add(partner.name);
+        if (target.haPartner) {
+          const partner = rule.targets.find(t => t.name === target.haPartner);
+          if (partner) {
+            const partnerLastHit = new Date(rule.lastHitDate);
+            const partnerIsUnused = !partner.hasHits && partnerLastHit < unusedThreshold;
+            
+            if (isUnused && partnerIsUnused) {
+              firewallsToUntarget.add(target.name);
+              firewallsToUntarget.add(partner.name);
+            }
+            processed.add(target.name);
+            processed.add(partner.name);
+          } else {
+            if (isUnused) firewallsToUntarget.add(target.name);
+            processed.add(target.name);
           }
-          processed.add(target.name);
-          processed.add(partner.name);
         } else {
           if (isUnused) firewallsToUntarget.add(target.name);
           processed.add(target.name);
         }
+      });
+
+      if (firewallsToUntarget.size === rule.targets.length && rule.targets.length > 0) {
+        rule.action = 'DISABLE';
+      } else if (firewallsToUntarget.size > 0) {
+        rule.action = 'UNTARGET';
       } else {
-        if (isUnused) firewallsToUntarget.add(target.name);
-        processed.add(target.name);
+        rule.action = 'KEEP';
       }
     });
-
-    if (firewallsToUntarget.size === rule.targets.length && rule.targets.length > 0) {
-      rule.action = 'DISABLE';
-    } else if (firewallsToUntarget.size > 0) {
-      rule.action = 'UNTARGET';
-    } else {
-      rule.action = 'KEEP';
-    }
-  });
 
     console.log(`Returning ${processedRules.length} unused rules and ${deviceGroups.length} device groups:`, deviceGroups);
     
