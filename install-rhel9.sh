@@ -89,8 +89,15 @@ setup_application() {
     mkdir -p "$APP_DIR"
     
     log "Copying application files..."
-    cp -r "$SCRIPT_DIR"/* "$APP_DIR"/ 2>/dev/null || true
-    cp -r "$SCRIPT_DIR"/. "$APP_DIR"/ 2>/dev/null || true
+    shopt -s dotglob
+    if ! cp -r "$SCRIPT_DIR"/* "$APP_DIR"/ 2>&1; then
+        error "Failed to copy application files"
+    fi
+    shopt -u dotglob
+    
+    if [[ ! -f "$APP_DIR/package.json" ]]; then
+        error "package.json not found after copying files. Copy operation may have failed."
+    fi
     
     chown -R "$APP_USER:$APP_USER" "$APP_DIR"
     chmod -R 755 "$APP_DIR"
@@ -101,9 +108,15 @@ setup_application() {
 install_npm_dependencies() {
     log "Installing npm dependencies..."
     
+    if [[ ! -f "$APP_DIR/package.json" ]]; then
+        error "package.json not found in $APP_DIR. Cannot install dependencies."
+    fi
+    
     cd "$APP_DIR"
     
-    sudo -u "$APP_USER" npm install
+    if ! sudo -u "$APP_USER" npm install; then
+        error "Failed to install npm dependencies"
+    fi
     
     log "npm dependencies installed successfully"
 }
