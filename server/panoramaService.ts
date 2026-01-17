@@ -82,6 +82,53 @@ export async function auditPanoramaRules(
     haMap.set(pair.fw2, pair.fw1);
   });
 
+  console.log('Fetching Shared device group rule names...');
+  const sharedRulesSet = new Set<string>();
+  try {
+    const sharedPreRulesUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/shared/pre-rulebase/security/rules&key=${apiKey}`;
+    console.log('API Call - Shared Pre-rulebase Rules:', sharedPreRulesUrl);
+    const sharedPreResponse = await fetch(sharedPreRulesUrl);
+    if (sharedPreResponse.ok) {
+      const sharedPreXml = await sharedPreResponse.text();
+      const sharedPreData = parser.parse(sharedPreXml);
+      if (sharedPreData.response?.result?.entry?.rules?.entry) {
+        const rules = Array.isArray(sharedPreData.response.result.entry.rules.entry)
+          ? sharedPreData.response.result.entry.rules.entry
+          : [sharedPreData.response.result.entry.rules.entry];
+        rules.forEach((r: any) => {
+          const ruleName = r.name || r['@_name'];
+          if (ruleName) {
+            sharedRulesSet.add(ruleName);
+          }
+        });
+        console.log(`Found ${sharedRulesSet.size} Shared pre-rulebase rules`);
+      }
+    }
+    
+    const sharedPostRulesUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/shared/post-rulebase/security/rules&key=${apiKey}`;
+    console.log('API Call - Shared Post-rulebase Rules:', sharedPostRulesUrl);
+    const sharedPostResponse = await fetch(sharedPostRulesUrl);
+    if (sharedPostResponse.ok) {
+      const sharedPostXml = await sharedPostResponse.text();
+      const sharedPostData = parser.parse(sharedPostXml);
+      if (sharedPostData.response?.result?.entry?.rules?.entry) {
+        const rules = Array.isArray(sharedPostData.response.result.entry.rules.entry)
+          ? sharedPostData.response.result.entry.rules.entry
+          : [sharedPostData.response.result.entry.rules.entry];
+        rules.forEach((r: any) => {
+          const ruleName = r.name || r['@_name'];
+          if (ruleName) {
+            sharedRulesSet.add(ruleName);
+          }
+        });
+        console.log(`Found ${sharedRulesSet.size} total Shared rules (pre + post)`);
+      }
+    }
+    console.log(`Shared rule names to exclude:`, Array.from(sharedRulesSet).slice(0, 10), sharedRulesSet.size > 10 ? '...' : '');
+  } catch (error) {
+    console.error('Error fetching Shared rules:', error);
+  }
+
   console.log('Fetching device groups list...');
   const deviceGroupsUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry/device-group&key=${apiKey}`;
   console.log('API Call 1 - Device Groups:', deviceGroupsUrl);
@@ -273,6 +320,11 @@ export async function auditPanoramaRules(
                             const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
                             ruleEntries.forEach((ruleEntry: any) => {
                               if (ruleEntry && dg.name && (ruleEntry.name === ruleInfo.name || ruleEntry['@_name'] === ruleInfo.name)) {
+                                if (sharedRulesSet.has(ruleInfo.name)) {
+                                  console.log(`    Skipping rule "${ruleInfo.name}" - matches Shared rule name`);
+                                  return;
+                                }
+                                
                                 const lastHitTimestamp = ruleEntry['last-hit-timestamp'];
                                 const hitCount = ruleEntry['hit-count'] || ruleEntry['hitcount'] || '0';
                                 const lastUsedDate = lastHitTimestamp 
@@ -404,6 +456,11 @@ export async function auditPanoramaRules(
                           return;
                         }
                         
+                        if (sharedRulesSet.has(ruleName)) {
+                          console.log(`  Skipping rule "${ruleName}" - matches Shared rule name`);
+                          return;
+                        }
+                        
                         const modTimestamp = ruleEntry['rule-modification-timestamp'];
                         const lastUsedDate = modTimestamp 
                           ? new Date(parseInt(modTimestamp) * 1000).toISOString()
@@ -502,10 +559,16 @@ export async function auditPanoramaRules(
               const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
               ruleEntries.forEach((ruleEntry: any) => {
                 if (ruleEntry && dg.name && dg.name !== 'Shared') {
+                  const ruleName = ruleEntry.name || ruleEntry['@_name'];
+                  if (sharedRulesSet.has(ruleName)) {
+                    console.log(`Skipping rule "${ruleName}" - matches Shared rule name`);
+                    return;
+                  }
+                  
                   const rule: PanoramaRuleUseEntry = {
                     devicegroup: dg.name,
                     rulebase: rb.name || 'security',
-                    rulename: ruleEntry.name || ruleEntry['@_name'],
+                    rulename: ruleName,
                     lastused: ruleEntry['rule-modification-timestamp'] 
                       ? new Date(parseInt(ruleEntry['rule-modification-timestamp']) * 1000).toISOString()
                       : undefined,
