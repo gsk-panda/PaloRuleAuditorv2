@@ -172,8 +172,18 @@ export async function auditPanoramaRules(
             : [preConfigData.response.result.entry.rules.entry];
         }
         
+        rules = rules.filter((rule: any) => {
+          const disabled = rule.disabled || rule['@_disabled'];
+          if (disabled === 'yes') {
+            const ruleName = rule.name || rule['@_name'];
+            console.log(`  Skipping disabled rule: "${ruleName}"`);
+            return false;
+          }
+          return true;
+        });
+        
         if (rules.length === 0) {
-          console.log(`  Step 3: No rules found for device group "${dgName}" - skipping`);
+          console.log(`  Step 3: No enabled rules found for device group "${dgName}" - skipping`);
           continue;
         }
 
