@@ -36,6 +36,9 @@ interface PanoramaDeviceGroupEntry {
   'post-rulebase'?: {
     entry?: PanoramaRuleBaseEntry | PanoramaRuleBaseEntry[];
   };
+  'rule-base'?: {
+    entry?: PanoramaRuleBaseEntry | PanoramaRuleBaseEntry[];
+  };
 }
 
 interface PanoramaRuleBaseEntry {
@@ -43,6 +46,14 @@ interface PanoramaRuleBaseEntry {
   rules?: {
     entry?: PanoramaRuleUseEntry | PanoramaRuleUseEntry[];
   };
+}
+
+interface PanoramaRuleHitCountEntry {
+  name?: string;
+  'rule-state'?: string;
+  'all-connected'?: string;
+  'rule-creation-timestamp'?: string;
+  'rule-modification-timestamp'?: string;
 }
 
 const parser = new XMLParser({
@@ -167,18 +178,38 @@ export async function auditPanoramaRules(
               : [ruleHitCount['device-group'].entry];
             
             deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
-              const rulebases = [
-                ...(dg['pre-rulebase']?.entry ? (Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry]) : []),
-                ...(dg['post-rulebase']?.entry ? (Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry]) : [])
-              ];
+              const rulebases: PanoramaRuleBaseEntry[] = [];
+              
+              if (dg['pre-rulebase']?.entry) {
+                const preEntries = Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry];
+                rulebases.push(...preEntries);
+              }
+              
+              if (dg['post-rulebase']?.entry) {
+                const postEntries = Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry];
+                rulebases.push(...postEntries);
+              }
+              
+              if (dg['rule-base']?.entry) {
+                const ruleBaseEntries = Array.isArray(dg['rule-base'].entry) ? dg['rule-base'].entry : [dg['rule-base'].entry];
+                rulebases.push(...ruleBaseEntries);
+              }
               
               rulebases.forEach((rb: PanoramaRuleBaseEntry) => {
                 if (rb.rules?.entry) {
                   const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
-                  ruleEntries.forEach((rule: PanoramaRuleUseEntry) => {
-                    if (rule && dg.name) {
-                      rule.devicegroup = dg.name;
-                      rule.rulebase = rb.name;
+                  ruleEntries.forEach((ruleEntry: any) => {
+                    if (ruleEntry && dg.name) {
+                      const rule: PanoramaRuleUseEntry = {
+                        devicegroup: dg.name,
+                        rulebase: rb.name || 'security',
+                        rulename: ruleEntry.name || ruleEntry['@_name'],
+                        lastused: ruleEntry['rule-modification-timestamp'] 
+                          ? new Date(parseInt(ruleEntry['rule-modification-timestamp']) * 1000).toISOString()
+                          : undefined,
+                        hitcnt: ruleEntry['rule-state'] === 'Used' ? '1' : '0',
+                        target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined
+                      };
                       entries.push(rule);
                     }
                   });
@@ -235,18 +266,38 @@ export async function auditPanoramaRules(
             deviceGroupsSet.add(dg.name);
           }
           
-          const rulebases = [
-            ...(dg['pre-rulebase']?.entry ? (Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry]) : []),
-            ...(dg['post-rulebase']?.entry ? (Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry]) : [])
-          ];
+          const rulebases: PanoramaRuleBaseEntry[] = [];
+          
+          if (dg['pre-rulebase']?.entry) {
+            const preEntries = Array.isArray(dg['pre-rulebase'].entry) ? dg['pre-rulebase'].entry : [dg['pre-rulebase'].entry];
+            rulebases.push(...preEntries);
+          }
+          
+          if (dg['post-rulebase']?.entry) {
+            const postEntries = Array.isArray(dg['post-rulebase'].entry) ? dg['post-rulebase'].entry : [dg['post-rulebase'].entry];
+            rulebases.push(...postEntries);
+          }
+          
+          if (dg['rule-base']?.entry) {
+            const ruleBaseEntries = Array.isArray(dg['rule-base'].entry) ? dg['rule-base'].entry : [dg['rule-base'].entry];
+            rulebases.push(...ruleBaseEntries);
+          }
           
           rulebases.forEach((rb: PanoramaRuleBaseEntry) => {
             if (rb.rules?.entry) {
               const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
-              ruleEntries.forEach((rule: PanoramaRuleUseEntry) => {
-                if (rule && dg.name) {
-                  rule.devicegroup = dg.name;
-                  rule.rulebase = rb.name;
+              ruleEntries.forEach((ruleEntry: any) => {
+                if (ruleEntry && dg.name) {
+                  const rule: PanoramaRuleUseEntry = {
+                    devicegroup: dg.name,
+                    rulebase: rb.name || 'security',
+                    rulename: ruleEntry.name || ruleEntry['@_name'],
+                    lastused: ruleEntry['rule-modification-timestamp'] 
+                      ? new Date(parseInt(ruleEntry['rule-modification-timestamp']) * 1000).toISOString()
+                      : undefined,
+                    hitcnt: ruleEntry['rule-state'] === 'Used' ? '1' : '0',
+                    target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined
+                  };
                   entries.push(rule);
                 }
               });
