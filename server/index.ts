@@ -18,6 +18,66 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+app.post('/api/audit/preview', async (req, res) => {
+  try {
+    const { url, apiKey } = req.body;
+
+    if (!url || !apiKey) {
+      return res.status(400).json({ error: 'Panorama URL and API key are required' });
+    }
+
+    const apiCalls: Array<{ url: string; description: string; xmlCommand?: string }> = [];
+    
+    const deviceGroupsUrl = `${url}/api/?type=config&action=get&xpath=/config/devices/entry/device-group&key=${apiKey}`;
+    apiCalls.push({
+      url: deviceGroupsUrl,
+      description: 'Fetch device groups list'
+    });
+
+    try {
+      const dgResponse = await fetch(deviceGroupsUrl);
+      if (dgResponse.ok) {
+        const dgXml = await dgResponse.text();
+        const { XMLParser } = await import('fast-xml-parser');
+        const parser = new XMLParser({
+          ignoreAttributes: false,
+          attributeNamePrefix: '',
+          textNodeName: '_text',
+          parseAttributeValue: true,
+        });
+        const dgData = parser.parse(dgXml);
+        const deviceGroupResult = dgData.response?.result?.['device-group'];
+        let deviceGroupNames: string[] = [];
+        if (deviceGroupResult?.entry) {
+          const entries = Array.isArray(deviceGroupResult.entry) 
+            ? deviceGroupResult.entry 
+            : [deviceGroupResult.entry];
+          deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
+        }
+
+        for (const dgName of deviceGroupNames) {
+          const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`;
+          const apiUrl = `${url}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+          apiCalls.push({
+            url: apiUrl,
+            description: `Query rule-hit-count for device group "${dgName}"`,
+            xmlCommand: xmlCmd
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error generating preview:', error);
+    }
+
+    res.json({ apiCalls });
+  } catch (error) {
+    console.error('Preview error:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to generate preview'
+    });
+  }
+});
+
 app.post('/api/audit', async (req, res) => {
   try {
     console.log('Received audit request');
