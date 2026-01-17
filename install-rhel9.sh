@@ -88,14 +88,41 @@ setup_application() {
 
     mkdir -p "$APP_DIR"
     
-    log "Copying application files..."
-    shopt -s dotglob
-    if ! cp -r "$SCRIPT_DIR"/* "$APP_DIR"/ 2>&1; then
-        error "Failed to copy application files"
+    log "Copying application files from $SCRIPT_DIR to $APP_DIR..."
+    
+    if ! [[ -f "$SCRIPT_DIR/package.json" ]]; then
+        error "package.json not found in source directory $SCRIPT_DIR. Please run this script from the project root."
     fi
-    shopt -u dotglob
+    
+    if command -v rsync &> /dev/null; then
+        if ! rsync -av --exclude='.git' "$SCRIPT_DIR/" "$APP_DIR/"; then
+            error "Failed to copy application files using rsync"
+        fi
+    elif command -v tar &> /dev/null; then
+        cd "$SCRIPT_DIR"
+        if ! tar --exclude='.git' -cf - . | (cd "$APP_DIR" && tar -xf -); then
+            error "Failed to copy application files using tar"
+        fi
+    else
+        shopt -s dotglob nullglob
+        files_copied=0
+        for file in "$SCRIPT_DIR"/* "$SCRIPT_DIR"/.[!.]* "$SCRIPT_DIR"/..?*; do
+            if [[ -e "$file" && "$(basename "$file")" != ".git" ]]; then
+                cp -r "$file" "$APP_DIR/" || error "Failed to copy $file"
+                files_copied=1
+            fi
+        done
+        shopt -u dotglob nullglob
+        if [[ $files_copied -eq 0 ]]; then
+            error "No files were copied. Check that $SCRIPT_DIR contains the application files."
+        fi
+    fi
     
     if [[ ! -f "$APP_DIR/package.json" ]]; then
+        log "Files in $APP_DIR:"
+        ls -la "$APP_DIR" || true
+        log "Files in $SCRIPT_DIR:"
+        ls -la "$SCRIPT_DIR" || true
         error "package.json not found after copying files. Copy operation may have failed."
     fi
     
