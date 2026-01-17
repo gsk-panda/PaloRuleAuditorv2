@@ -37,7 +37,8 @@ app.post('/api/audit/preview', async (req, res) => {
     const deviceGroupsUrl = `${url}/api/?type=config&action=get&xpath=/config/devices/entry/device-group&key=${apiKey}`;
     apiCalls.push({
       url: deviceGroupsUrl,
-      description: 'Fetch device groups list'
+      description: 'Fetch device groups list',
+      xmlCommand: undefined
     });
 
     try {
@@ -61,14 +62,62 @@ app.post('/api/audit/preview', async (req, res) => {
           deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
         }
 
-        for (const dgName of deviceGroupNames) {
-          const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><all/></rules></entry></pre-rulebase><post-rulebase><entry name="security"><rules><all/></rules></entry></post-rulebase></entry></device-group></rule-hit-count></show>`;
-          const apiUrl = `${url}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
-          apiCalls.push({
-            url: apiUrl,
-            description: `Query rule-hit-count for device group "${dgName}" (pre and post rulebase)`,
-            xmlCommand: xmlCmd
-          });
+        const nonSharedDeviceGroups = deviceGroupNames.filter(dg => dg !== 'Shared');
+        
+        for (const dgName of nonSharedDeviceGroups) {
+          try {
+            const preConfigUrl = `${url}/api/?type=config&action=get&xpath=/config/devices/entry/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules&key=${apiKey}`;
+            const preConfigResponse = await fetch(preConfigUrl);
+            if (preConfigResponse.ok) {
+              const preConfigXml = await preConfigResponse.text();
+              const preConfigData = parser.parse(preConfigXml);
+              if (preConfigData.response?.result?.entry?.rules?.entry) {
+                const rules = Array.isArray(preConfigData.response.result.entry.rules.entry)
+                  ? preConfigData.response.result.entry.rules.entry
+                  : [preConfigData.response.result.entry.rules.entry];
+                for (const rule of rules) {
+                  const ruleName = rule.name || rule['@_name'];
+                  if (ruleName) {
+                    const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name><entry name="${ruleName}"/></rule-name></rules></entry></pre-rulebase>`;
+                    const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
+                    const apiUrl = `${url}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+                    apiCalls.push({
+                      url: apiUrl,
+                      description: `Query rule-hit-count for rule "${ruleName}" in pre-rulebase of device group "${dgName}"`,
+                      xmlCommand: xmlCmd
+                    });
+                  }
+                }
+              }
+            }
+            
+            const postConfigUrl = `${url}/api/?type=config&action=get&xpath=/config/devices/entry/device-group/entry[@name='${dgName}']/post-rulebase/security/rules&key=${apiKey}`;
+            const postConfigResponse = await fetch(postConfigUrl);
+            if (postConfigResponse.ok) {
+              const postConfigXml = await postConfigResponse.text();
+              const postConfigData = parser.parse(postConfigXml);
+              if (postConfigData.response?.result?.entry?.rules?.entry) {
+                const rules = Array.isArray(postConfigData.response.result.entry.rules.entry)
+                  ? postConfigData.response.result.entry.rules.entry
+                  : [postConfigData.response.result.entry.rules.entry];
+                for (const rule of rules) {
+                  const ruleName = rule.name || rule['@_name'];
+                  if (ruleName) {
+                    const rulebaseXml = `<post-rulebase><entry name="security"><rules><rule-name><entry name="${ruleName}"/></rule-name></rules></entry></post-rulebase>`;
+                    const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
+                    const apiUrl = `${url}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+                    apiCalls.push({
+                      url: apiUrl,
+                      description: `Query rule-hit-count for rule "${ruleName}" in post-rulebase of device group "${dgName}"`,
+                      xmlCommand: xmlCmd
+                    });
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Error generating preview for device group ${dgName}:`, error);
+          }
         }
       }
     } catch (error) {
