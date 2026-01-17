@@ -616,33 +616,107 @@ export async function auditDisabledRules(
 
           console.log(`\n[${i + 1}/${rules.length}] Checking disabled rule: "${ruleName}"`);
           
-          const modificationTimestamp = rule['rule-modification-timestamp'];
-          const creationTimestamp = rule['rule-creation-timestamp'];
-          
-          let disabledDate: Date | null = null;
-          if (modificationTimestamp) {
-            disabledDate = new Date(parseInt(modificationTimestamp) * 1000);
-          } else if (creationTimestamp) {
-            disabledDate = new Date(parseInt(creationTimestamp) * 1000);
-          }
-          
-          if (!disabledDate || disabledDate < disabledThreshold) {
-            console.log(`    Rule "${ruleName}" disabled on ${disabledDate ? disabledDate.toISOString() : 'unknown date'} - older than ${disabledDays} days`);
+          try {
+            const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name><entry name="${ruleName}"/></rule-name></rules></entry></pre-rulebase>`;
+            const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
+            const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+            console.log(`    Querying rule-hit-count for disabled rule "${ruleName}"`);
             
-            const panoramaRule: PanoramaRule = {
-              id: `disabled-rule-${disabledRules.length}`,
-              name: ruleName,
-              deviceGroup: dgName,
-              totalHits: 0,
-              lastHitDate: disabledDate ? disabledDate.toISOString() : new Date(0).toISOString(),
-              targets: [],
-              action: 'DISABLE',
-              isShared: false,
-            };
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+              console.error(`    Rule "${ruleName}" query failed: ${response.status} ${response.statusText}`);
+              continue;
+            }
+
+            const xmlText = await response.text();
+            if (xmlText.includes('<response status="error"')) {
+              console.error(`    Rule "${ruleName}" returned error response`);
+              continue;
+            }
+
+            const data: PanoramaResponse = parser.parse(xmlText);
+            const ruleHitCount = data.response?.result?.['rule-hit-count'];
             
-            disabledRules.push(panoramaRule);
-          } else {
-            console.log(`    Rule "${ruleName}" disabled on ${disabledDate.toISOString()} - within ${disabledDays} days threshold`);
+            let modificationTimestamp: string | undefined;
+            let hitCount = 0;
+            
+            if (ruleHitCount?.['device-group']?.entry) {
+              const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
+                ? ruleHitCount['device-group'].entry
+                : [ruleHitCount['device-group'].entry];
+              
+              deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
+                const processRuleBase = (ruleBase: PanoramaRuleBaseEntry | PanoramaRuleBaseEntry[]) => {
+                  const ruleBaseEntries = Array.isArray(ruleBase) ? ruleBase : [ruleBase];
+                  ruleBaseEntries.forEach((rb: PanoramaRuleBaseEntry) => {
+                    if (rb.rules?.entry) {
+                      const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
+                      ruleEntries.forEach((ruleEntry: any) => {
+                        if (ruleEntry && (ruleEntry.name === ruleName || ruleEntry['@_name'] === ruleName)) {
+                          if (ruleEntry['device-vsys']?.entry) {
+                            const deviceVsysEntries = Array.isArray(ruleEntry['device-vsys'].entry) 
+                              ? ruleEntry['device-vsys'].entry 
+                              : [ruleEntry['device-vsys'].entry];
+                            
+                            deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
+                              const ts = vsysEntry['rule-modification-timestamp'];
+                              if (ts && (!modificationTimestamp || parseInt(ts) > parseInt(modificationTimestamp || '0'))) {
+                                modificationTimestamp = ts;
+                              }
+                              const hitCountStr = vsysEntry['hit-count'] || '0';
+                              hitCount += parseInt(hitCountStr, 10);
+                            });
+                          } else {
+                            const ts = ruleEntry['rule-modification-timestamp'];
+                            if (ts && (!modificationTimestamp || parseInt(ts) > parseInt(modificationTimestamp || '0'))) {
+                              modificationTimestamp = ts;
+                            }
+                            const hitCountStr = ruleEntry['hit-count'] || '0';
+                            hitCount += parseInt(hitCountStr, 10);
+                          }
+                        }
+                      });
+                    }
+                  });
+                };
+
+                if (dg['pre-rulebase']?.entry) {
+                  processRuleBase(dg['pre-rulebase'].entry);
+                }
+                if (dg['rule-base']?.entry) {
+                  processRuleBase(dg['rule-base'].entry);
+                }
+              });
+            }
+            
+            let disabledDate: Date | null = null;
+            if (modificationTimestamp) {
+              disabledDate = new Date(parseInt(modificationTimestamp) * 1000);
+            }
+            
+            if (!disabledDate || disabledDate < disabledThreshold) {
+              console.log(`    Rule "${ruleName}" disabled on ${disabledDate ? disabledDate.toISOString() : 'unknown date'} - older than ${disabledDays} days (hit count: ${hitCount})`);
+              
+              const panoramaRule: PanoramaRule = {
+                id: `disabled-rule-${disabledRules.length}`,
+                name: ruleName,
+                deviceGroup: dgName,
+                totalHits: hitCount,
+                lastHitDate: disabledDate ? disabledDate.toISOString() : new Date(0).toISOString(),
+                targets: [],
+                action: 'DISABLE',
+                isShared: false,
+              };
+              
+              disabledRules.push(panoramaRule);
+            } else {
+              console.log(`    Rule "${ruleName}" disabled on ${disabledDate.toISOString()} - within ${disabledDays} days threshold`);
+            }
+          } catch (error) {
+            console.error(`Error querying disabled rule "${ruleName}":`, error);
+            if (error instanceof Error) {
+              console.error(`  Error details: ${error.message}`);
+            }
           }
         }
       } catch (error) {
