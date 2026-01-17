@@ -177,7 +177,18 @@ app.post('/api/remediate', async (req, res) => {
     const checkTagUrl = `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(tagXpath)}&key=${apiKey}`;
     const tagCheckResponse = await fetch(checkTagUrl);
     
-    if (!tagCheckResponse.ok || tagCheckResponse.status === 404) {
+    let tagExists = false;
+    if (tagCheckResponse.ok) {
+      const tagCheckXml = await tagCheckResponse.text();
+      if (!tagCheckXml.includes('<response status="error"')) {
+        const tagCheckData = parser.parse(tagCheckXml);
+        if (tagCheckData.response?.result?.entry) {
+          tagExists = true;
+        }
+      }
+    }
+    
+    if (!tagExists) {
       console.log(`Tag "${tag}" does not exist, creating it...`);
       const tagEntry = {
         '@_name': tag,
