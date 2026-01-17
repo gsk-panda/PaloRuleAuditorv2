@@ -54,6 +54,8 @@ interface PanoramaRuleHitCountEntry {
   'all-connected'?: string;
   'rule-creation-timestamp'?: string;
   'rule-modification-timestamp'?: string;
+  'last-hit-timestamp'?: string;
+  'hit-count'?: string;
 }
 
 const parser = new XMLParser({
@@ -130,8 +132,9 @@ export async function auditPanoramaRules(
     const deviceGroupsSet = new Set<string>();
 
     if (deviceGroupNames.length > 0) {
-      console.log(`Querying rules and hit counts for ${deviceGroupNames.length} device groups...`);
-      for (const dgName of deviceGroupNames) {
+      const nonSharedDeviceGroups = deviceGroupNames.filter(dg => dg !== 'Shared');
+      console.log(`Querying rules and hit counts for ${nonSharedDeviceGroups.length} device groups (excluding Shared)...`);
+      for (const dgName of nonSharedDeviceGroups) {
         deviceGroupsSet.add(dgName);
         try {
           console.log(`\n=== Processing Device Group: ${dgName} ===`);
@@ -270,23 +273,26 @@ export async function auditPanoramaRules(
                             const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
                             ruleEntries.forEach((ruleEntry: any) => {
                               if (ruleEntry && dg.name && (ruleEntry.name === ruleInfo.name || ruleEntry['@_name'] === ruleInfo.name)) {
-                                const modTimestamp = ruleEntry['rule-modification-timestamp'];
-                                const lastUsedDate = modTimestamp 
-                                  ? new Date(parseInt(modTimestamp) * 1000).toISOString()
-                                  : undefined;
+                                const lastHitTimestamp = ruleEntry['last-hit-timestamp'];
+                                const hitCount = ruleEntry['hit-count'] || ruleEntry['hitcount'] || '0';
+                                const lastUsedDate = lastHitTimestamp 
+                                  ? new Date(parseInt(lastHitTimestamp) * 1000).toISOString()
+                                  : (ruleEntry['rule-modification-timestamp']
+                                    ? new Date(parseInt(ruleEntry['rule-modification-timestamp']) * 1000).toISOString()
+                                    : undefined);
                                 
                                 console.log(`    Rule "${ruleInfo.name}" response:`, JSON.stringify(ruleEntry, null, 2));
+                                console.log(`    Rule "${ruleInfo.name}": Last Hit Timestamp: ${lastHitTimestamp}, Hit Count: ${hitCount}, Last Used: ${lastUsedDate}`);
                                 
                                 const rule: PanoramaRuleUseEntry = {
                                   devicegroup: dg.name,
                                   rulebase: rb.name || 'security',
                                   rulename: ruleInfo.name,
                                   lastused: lastUsedDate,
-                                  hitcnt: '0',
+                                  hitcnt: hitCount,
                                   target: ruleEntry['all-connected'] === 'yes' ? 'all' : undefined
                                 };
                                 
-                                console.log(`    Rule "${ruleInfo.name}": Mod Timestamp: ${modTimestamp}, Last Modified: ${lastUsedDate}, Full entry:`, JSON.stringify(ruleEntry, null, 2));
                                 entries.push(rule);
                               }
                             });
@@ -546,7 +552,7 @@ export async function auditPanoramaRules(
 
       const ruleKey = `${entry.devicegroup}:${entry.rulename}`;
       const isShared = entry.devicegroup === 'Shared';
-      const hitCount = 0;
+      const hitCount = parseInt(entry.hitcnt || '0', 10);
       
       let lastUsed: Date | null = null;
       if (entry.lastused) {
