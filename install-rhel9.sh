@@ -145,12 +145,6 @@ setup_application() {
     
     if [[ -d "$APP_DIR" && "$(ls -A $APP_DIR 2>/dev/null)" ]]; then
         log "Previous installation detected in $APP_DIR"
-        read -p "Do you want to remove the existing installation and reinstall? (y/N): " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log "Installation cancelled"
-            exit 0
-        fi
         log "Removing existing installation..."
         systemctl stop "$SERVICE_NAME" 2>/dev/null || true
         systemctl disable "$SERVICE_NAME" 2>/dev/null || true
@@ -399,11 +393,8 @@ main() {
     create_systemd_service
     configure_firewall
     
-    read -p "Do you want to build the application now? (Y/n): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Nn]$ ]]; then
-        build_application
-    fi
+    log "Building application..."
+    build_application
     
     print_summary
 }
