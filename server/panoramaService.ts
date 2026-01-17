@@ -146,7 +146,6 @@ export async function auditPanoramaRules(
 
     const rules: PanoramaRule[] = [];
     const ruleMap = new Map<string, PanoramaRule>();
-    const deviceGroupsSet = new Set<string>();
 
     entries.forEach((entry, index) => {
       console.log(`Entry ${index}:`, JSON.stringify(entry, null, 2));
