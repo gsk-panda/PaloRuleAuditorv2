@@ -286,11 +286,17 @@ User=${APP_USER}
 WorkingDirectory=${APP_DIR}
 Environment="NODE_ENV=production"
 EnvironmentFile=${APP_DIR}/.env.local
+ExecStartPre=/bin/bash -c 'pkill -f "tsx.*server/index.ts" || true'
+ExecStartPre=/bin/bash -c 'pkill -f "node.*server/index" || true'
+ExecStartPre=/bin/sleep 2
 ExecStart=/usr/bin/npm run dev
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
