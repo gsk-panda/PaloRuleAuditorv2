@@ -31,7 +31,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`API server running on port ${PORT}`);
 }).on('error', (err: NodeJS.ErrnoException) => {
   if (err.code === 'EADDRINUSE') {
@@ -39,6 +39,7 @@ const server = app.listen(PORT, () => {
     console.error(`To find and kill the process: lsof -ti:${PORT} | xargs kill -9`);
     process.exit(1);
   } else {
+    console.error('Server error:', err);
     throw err;
   }
 });

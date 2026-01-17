@@ -84,9 +84,18 @@ export async function auditPanoramaRules(
     }
 
     const xmlText = await response.text();
-    console.log('Panorama API Response:', xmlText.substring(0, 1000));
-    const data: PanoramaResponse = parser.parse(xmlText);
-    console.log('Parsed data:', JSON.stringify(data, null, 2).substring(0, 2000));
+    console.log('Panorama API Response length:', xmlText.length);
+    console.log('Panorama API Response (first 2000 chars):', xmlText.substring(0, 2000));
+    
+    let data: PanoramaResponse;
+    try {
+      data = parser.parse(xmlText);
+      console.log('Parsed data structure:', Object.keys(data.response?.result || {}));
+    } catch (parseError) {
+      console.error('XML Parse error:', parseError);
+      console.error('XML text that failed to parse:', xmlText.substring(0, 500));
+      throw new Error(`Failed to parse Panorama API response: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+    }
 
     const ruleHitCount = data.response?.result?.['rule-hit-count'];
     const ruleUseData = data.response?.result?.['rule-use'] || data.response?.result?.['panorama-rule-use'];
