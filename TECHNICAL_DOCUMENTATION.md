@@ -143,76 +143,76 @@ PaloRuleAuditor/
        │    (URL, API Key, Days, HA Pairs)
        ▼
 ┌─────────────────────────────────────┐
-│  App.tsx: handleAudit()              │
-│  - Validates input                    │
-│  - Prepares request body              │
-│  - POST /api/audit                    │
-└──────┬───────────────────────────────┘
+│  App.tsx: handleAudit()             │
+│  - Validates input                  │
+│  - Prepares request body            │
+│  - POST /api/audit                  │
+└──────┬──────────────────────────────┘
        │
        ▼
 ┌─────────────────────────────────────┐
-│  server/index.ts: /api/audit         │
-│  - Validates parameters               │
-│  - Calls auditPanoramaRules()        │
-└──────┬───────────────────────────────┘
+│  server/index.ts: /api/audit        │
+│  - Validates parameters             │
+│  - Calls auditPanoramaRules()       │
+└──────┬──────────────────────────────┘
        │
        ▼
-┌─────────────────────────────────────┐
+┌──────────────────────────────────────┐
 │  panoramaService.ts                  │
 │  auditPanoramaRules()                │
 │                                      │
 │  Step 1: Fetch Device Groups         │
-│  ┌──────────────────────────────┐   │
-│  │ GET /api/?type=config        │   │
-│  │ XPath: .../device-group       │   │
-│  └───────────┬──────────────────┘   │
-│              │ Parse XML              │
-│              ▼                        │
-│  Step 2: For Each Device Group        │
-│  ┌──────────────────────────────┐   │
-│  │ GET /api/?type=config        │   │
-│  │ XPath: .../pre-rulebase/...   │   │
-│  └───────────┬──────────────────┘   │
-│              │ Parse Rules            │
-│              │ Filter Disabled        │
-│              │ Filter Shared          │
-│              ▼                        │
-│  Step 3: For Each Rule                │
-│  ┌──────────────────────────────┐   │
-│  │ GET /api/?type=op            │   │
-│  │ Cmd: <show><rule-hit-count>  │   │
-│  └───────────┬──────────────────┘   │
-│              │ Parse Hit Data         │
-│              │ Aggregate device-vsys   │
-│              │ Extract Timestamps      │
-│              ▼                        │
-│  Step 4: Process Targets              │
-│  - Map HA pairs                        │
-│  - Determine hit status                │
-│  - Apply HA protection logic           │
-│              ▼                        │
-│  Step 5: Determine Actions            │
-│  - Evaluate unused threshold          │
-│  - Apply HA pair rules                │
-│  - Assign action (DISABLE/UNTARGET/   │
-│    HA-PROTECTED/KEEP)                 │
+│  ┌──────────────────────────────┐    │
+│  │ GET /api/?type=config        │    │
+│  │ XPath: .../device-group      │    │
+│  └───────────┬──────────────────┘    │
+│              │ Parse XML             │
+│              ▼                       │
+│  Step 2: For Each Device Group       │
+│  ┌──────────────────────────────┐    │
+│  │ GET /api/?type=config        │    │
+│  │ XPath: .../pre-rulebase/...  │    │
+│  └───────────┬──────────────────┘    │
+│              │ Parse Rules           │
+│              │ Filter Disabled       │
+│              │ Filter Shared         │
+│              ▼                       │
+│  Step 3: For Each Rule               │
+│  ┌──────────────────────────────┐    │
+│  │ GET /api/?type=op            │    │
+│  │ Cmd: <show><rule-hit-count>  │    │
+│  └───────────┬──────────────────┘    │
+│              │ Parse Hit Data        │
+│              │ Aggregate device-vsys │
+│              │ Extract Timestamps    │
+│              ▼                       │
+│  Step 4: Process Targets             │
+│  - Map HA pairs                      │
+│  - Determine hit status              │
+│  - Apply HA protection logic         │
+│              ▼                       │
+│  Step 5: Determine Actions           │
+│  - Evaluate unused threshold         │
+│  - Apply HA pair rules               │
+│  - Assign action (DISABLE/UNTARGET/  │
+│    HA-PROTECTED/KEEP)                │
 └──────┬───────────────────────────────┘
        │
        │ Return AuditResult
        ▼
 ┌─────────────────────────────────────┐
-│  server/index.ts                     │
-│  - Format response                   │
-│  - Return JSON                       │
-└──────┬───────────────────────────────┘
+│  server/index.ts                    │
+│  - Format response                  │
+│  - Return JSON                      │
+└──────┬──────────────────────────────┘
        │
        ▼
-┌─────────────────────────────────────┐
-│  App.tsx: handleAudit()              │
-│  - Update state (rules, deviceGroups)│
-│  - Initialize selectedRuleIds        │
-│  - Show report                       │
-└──────┬───────────────────────────────┘
+┌───────────────────────────────────────┐
+│  App.tsx: handleAudit()               │
+│  - Update state (rules, deviceGroups) │
+│  - Initialize selectedRuleIds         │
+│  - Show report                        │
+└──────┬────────────────────────────────┘
        │
        ▼
 ┌─────────────┐
@@ -224,15 +224,15 @@ PaloRuleAuditor/
 ### Remediation Flow: Disable Rules
 
 ```
-┌─────────────┐
-│   User      │
-│  Clicks     │
-│  "Apply     │
-│  Remediation"│
-└──────┬──────┘
+┌───────────────┐
+│   User        │
+│  Clicks       │
+│  "Apply       │
+│  Remediation" │
+└──────┬────────┘
        │
        ▼
-┌─────────────────────────────────────┐
+┌──────────────────────────────────────┐
 │  App.tsx: handleApplyRemediation()   │
 │  - Validates production mode         │
 │  - Filters selected rules            │
@@ -243,56 +243,56 @@ PaloRuleAuditor/
        ▼
 ┌─────────────────────────────────────┐
 │  server/index.ts: /api/remediate    │
-│                                      │
-│  Step 1: Check/Create Tag          │
+│                                     │
+│  Step 1: Check/Create Tag           │
 │  ┌──────────────────────────────┐   │
 │  │ GET /api/?type=config        │   │
 │  │ XPath: /config/shared/tag    │   │
 │  └───────────┬──────────────────┘   │
-│              │ Check if exists       │
-│              ▼                        │
+│              │ Check if exists      │
+│              ▼                      │
 │  ┌──────────────────────────────┐   │
 │  │ GET /api/?type=config        │   │
 │  │ Action: set                  │   │
 │  │ Create tag if missing        │   │
 │  └───────────┬──────────────────┘   │
-│              ▼                        │
-│  Step 2: For Each Rule                │
+│              ▼                      │
+│  Step 2: For Each Rule              │
 │  ┌──────────────────────────────┐   │
 │  │ GET /api/?type=config        │   │
 │  │ Action: set                  │   │
 │  │ Element: <disabled>yes</...> │   │
 │  └───────────┬──────────────────┘   │
-│              │ Disable rule           │
-│              ▼                        │
+│              │ Disable rule         │
+│              ▼                      │
 │  ┌──────────────────────────────┐   │
 │  │ GET /api/?type=config        │   │
 │  │ Action: get                  │   │
-│  │ Fetch current rule            │   │
+│  │ Fetch current rule           │   │
 │  └───────────┬──────────────────┘   │
-│              │ Get existing tags     │
-│              ▼                        │
+│              │ Get existing tags    │
+│              ▼                      │
 │  ┌──────────────────────────────┐   │
 │  │ GET /api/?type=config        │   │
 │  │ Action: set                  │   │
 │  │ Element: <tag><member>...    │   │
 │  └───────────┬──────────────────┘   │
-│              │ Add tag                │
-│              ▼                        │
-│  Step 3: Commit Changes               │
+│              │ Add tag              │
+│              ▼                      │
+│  Step 3: Commit Changes             │
 │  ┌──────────────────────────────┐   │
 │  │ GET /api/?type=commit        │   │
 │  │ Cmd: <commit><description>   │   │
 │  └───────────┬──────────────────┘   │
-│              │ Commit to Panorama    │
-└──────┬───────────────────────────────┘
+│              │ Commit to Panorama   │
+└──────┬──────────────────────────────┘
        │
        │ Return result
        ▼
 ┌─────────────────────────────────────┐
-│  App.tsx                              │
-│  - Display success/error message     │
-│  - Update UI state                   │
+│  App.tsx                            │
+│  - Display success/error message    │
+│  - Update UI state                  │
 └─────────────────────────────────────┘
 ```
 
