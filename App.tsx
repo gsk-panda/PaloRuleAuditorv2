@@ -251,7 +251,7 @@ const App: React.FC = () => {
     }
 
     const rulesToProcess = rules.filter(r => 
-      r.action === 'DISABLE' && selectedRuleIds.has(r.id) && r.action !== 'PROTECTED'
+      r.action === 'DISABLE' && selectedRuleIds.has(r.id)
     );
     
     if (rulesToProcess.length === 0) {
