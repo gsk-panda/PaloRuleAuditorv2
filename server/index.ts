@@ -175,14 +175,22 @@ app.post('/api/audit/disabled', async (req, res) => {
 app.post('/api/remediate', async (req, res) => {
   try {
     console.log('Received remediation request');
-    const { url, apiKey, rules, tag } = req.body;
+    const { url, apiKey, rules, tag, auditMode } = req.body;
+    console.log('Remediation request - auditMode:', auditMode, 'type:', typeof auditMode);
 
-    if (!url || !apiKey || !rules || !Array.isArray(rules) || !tag) {
-      return res.status(400).json({ error: 'Panorama URL, API key, rules array, and tag are required' });
+    if (!url || !apiKey || !rules || !Array.isArray(rules)) {
+      return res.status(400).json({ error: 'Panorama URL, API key, and rules array are required' });
+    }
+
+    if (auditMode !== 'disabled' && !tag) {
+      return res.status(400).json({ error: 'Tag is required for unused rules remediation' });
     }
 
     const panoramaDeviceName = 'localhost.localdomain';
+    const isDeleteMode = String(auditMode) === 'disabled';
+    console.log(`Remediation mode: ${isDeleteMode ? 'DELETE' : 'DISABLE'}, auditMode value: "${auditMode}"`);
     let disabledCount = 0;
+    let deletedCount = 0;
     const errors: string[] = [];
 
     const { XMLParser, XMLBuilder } = await import('fast-xml-parser');
@@ -199,134 +207,160 @@ app.post('/api/remediate', async (req, res) => {
       format: false,
     });
 
-    const checkTagUrl = `${url}/api/?type=config&action=get&xpath=/config/shared/tag&key=${apiKey}`;
-    const tagCheckResponse = await fetch(checkTagUrl);
-    
-    let tagExists = false;
-    if (tagCheckResponse.ok) {
-      const tagCheckXml = await tagCheckResponse.text();
-      const tagCheckData = parser.parse(tagCheckXml);
+    if (!isDeleteMode) {
+      const checkTagUrl = `${url}/api/?type=config&action=get&xpath=/config/shared/tag&key=${apiKey}`;
+      const tagCheckResponse = await fetch(checkTagUrl);
       
-      if (tagCheckData.response?.status === 'success' && tagCheckData.response?.result?.tag?.entry) {
-        const entries = Array.isArray(tagCheckData.response.result.tag.entry)
-          ? tagCheckData.response.result.tag.entry
-          : [tagCheckData.response.result.tag.entry];
+      let tagExists = false;
+      if (tagCheckResponse.ok) {
+        const tagCheckXml = await tagCheckResponse.text();
+        const tagCheckData = parser.parse(tagCheckXml);
         
-        tagExists = entries.some((entry: any) => {
-          const entryName = entry.name || entry['@_name'];
-          return entryName === tag;
-        });
-      }
-    }
-    
-    if (!tagExists) {
-      console.log(`Tag "${tag}" does not exist, creating it...`);
-      const tagElement = `<color>color1</color><comments>Auto-generated tag for disabled rules on ${new Date().toISOString().split('T')[0]}</comments>`;
-      const tagXpath = `/config/shared/tag/entry[@name='${tag}']`;
-      const createTagUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(tagXpath)}&element=${encodeURIComponent(tagElement)}&key=${apiKey}`;
-      console.log(`Creating tag with URL: ${createTagUrl}`);
-      const createTagResponse = await fetch(createTagUrl);
-      
-      if (!createTagResponse.ok) {
-        const errorText = await createTagResponse.text();
-        console.error(`Tag creation failed: ${errorText}`);
-        return res.status(500).json({ 
-          error: `Failed to create tag "${tag}": ${errorText.substring(0, 500)}`
-        });
+        if (tagCheckData.response?.status === 'success' && tagCheckData.response?.result?.tag?.entry) {
+          const entries = Array.isArray(tagCheckData.response.result.tag.entry)
+            ? tagCheckData.response.result.tag.entry
+            : [tagCheckData.response.result.tag.entry];
+          
+          tagExists = entries.some((entry: any) => {
+            const entryName = entry.name || entry['@_name'];
+            return entryName === tag;
+          });
+        }
       }
       
-      const createTagResult = await createTagResponse.text();
-      console.log(`Tag creation response: ${createTagResult.substring(0, 500)}`);
-      if (createTagResult.includes('<response status="error"')) {
-        return res.status(500).json({ 
-          error: `Error creating tag "${tag}": ${createTagResult.substring(0, 500)}`
-        });
+      if (!tagExists) {
+        console.log(`Tag "${tag}" does not exist, creating it...`);
+        const tagElement = `<color>color1</color><comments>Auto-generated tag for disabled rules on ${new Date().toISOString().split('T')[0]}</comments>`;
+        const tagXpath = `/config/shared/tag/entry[@name='${tag}']`;
+        const createTagUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(tagXpath)}&element=${encodeURIComponent(tagElement)}&key=${apiKey}`;
+        console.log(`Creating tag with URL: ${createTagUrl}`);
+        const createTagResponse = await fetch(createTagUrl);
+        
+        if (!createTagResponse.ok) {
+          const errorText = await createTagResponse.text();
+          console.error(`Tag creation failed: ${errorText}`);
+          return res.status(500).json({ 
+            error: `Failed to create tag "${tag}": ${errorText.substring(0, 500)}`
+          });
+        }
+        
+        const createTagResult = await createTagResponse.text();
+        console.log(`Tag creation response: ${createTagResult.substring(0, 500)}`);
+        if (createTagResult.includes('<response status="error"')) {
+          return res.status(500).json({ 
+            error: `Error creating tag "${tag}": ${createTagResult.substring(0, 500)}`
+          });
+        }
+        
+        console.log(`Successfully created tag "${tag}"`);
+      } else {
+        console.log(`Tag "${tag}" already exists`);
       }
-      
-      console.log(`Successfully created tag "${tag}"`);
-    } else {
-      console.log(`Tag "${tag}" already exists`);
     }
 
     for (const rule of rules) {
       try {
         const xpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${rule.deviceGroup}']/pre-rulebase/security/rules/entry[@name='${rule.name}']`;
         
-        const disableElement = '<disabled>yes</disabled>';
-        const disableUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(disableElement)}&key=${apiKey}`;
-        
-        console.log(`Disabling rule "${rule.name}" in device group "${rule.deviceGroup}"`);
-        const disableResponse = await fetch(disableUrl);
-        
-        if (!disableResponse.ok) {
-          const errorText = await disableResponse.text();
-          errors.push(`Failed to disable rule "${rule.name}": ${errorText.substring(0, 200)}`);
-          continue;
-        }
-
-        const disableResult = await disableResponse.text();
-        if (disableResult.includes('<response status="error"')) {
-          errors.push(`Error disabling rule "${rule.name}": ${disableResult.substring(0, 200)}`);
-          continue;
-        }
-
-        const getCurrentRuleUrl = `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(xpath)}&key=${apiKey}`;
-        const getResponse = await fetch(getCurrentRuleUrl);
-        
-        if (!getResponse.ok) {
-          console.log(`Warning: Could not fetch rule "${rule.name}" to add tag, but rule was disabled`);
-          disabledCount++;
-          continue;
-        }
-
-        const ruleXml = await getResponse.text();
-        const ruleData = parser.parse(ruleXml);
-        const ruleEntry = ruleData.response?.result?.entry;
-        
-        if (!ruleEntry) {
-          console.log(`Warning: Rule "${rule.name}" not found in response, but rule was disabled`);
-          disabledCount++;
-          continue;
-        }
-
-        const existingTags: string[] = [];
-        if (ruleEntry.tag?.member) {
-          const members = Array.isArray(ruleEntry.tag.member) 
-            ? ruleEntry.tag.member 
-            : [ruleEntry.tag.member];
-          existingTags.push(...members.map((m: any) => {
-            if (typeof m === 'string') return m;
-            if (m['_text']) return m['_text'];
-            if (m['#text']) return m['#text'];
-            return String(m);
-          }).filter(Boolean));
-        }
-
-        if (!existingTags.includes(tag)) {
-          existingTags.push(tag);
+        if (isDeleteMode) {
+          console.log(`[DELETE MODE] Processing rule "${rule.name}" in device group "${rule.deviceGroup}"`);
+          const deleteUrl = `${url}/api/?type=config&action=delete&xpath=${encodeURIComponent(xpath)}&key=${apiKey}`;
           
-          const tagElement = existingTags.length === 1 
-            ? `<tag><member>${existingTags[0]}</member></tag>`
-            : `<tag>${existingTags.map(t => `<member>${t}</member>`).join('')}</tag>`;
+          console.log(`Deleting rule "${rule.name}" in device group "${rule.deviceGroup}"`);
+          const deleteResponse = await fetch(deleteUrl);
           
-          const tagUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(tagElement)}&key=${apiKey}`;
+          if (!deleteResponse.ok) {
+            const errorText = await deleteResponse.text();
+            errors.push(`Failed to delete rule "${rule.name}": ${errorText.substring(0, 200)}`);
+            continue;
+          }
+
+          const deleteResult = await deleteResponse.text();
+          if (deleteResult.includes('<response status="error"')) {
+            errors.push(`Error deleting rule "${rule.name}": ${deleteResult.substring(0, 200)}`);
+            continue;
+          }
+
+          deletedCount++;
+          console.log(`Successfully deleted rule "${rule.name}" in device group "${rule.deviceGroup}"`);
+        } else {
+          console.log(`[DISABLE MODE] Processing rule "${rule.name}" in device group "${rule.deviceGroup}"`);
+          const disableElement = '<disabled>yes</disabled>';
+          const disableUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(disableElement)}&key=${apiKey}`;
           
-          console.log(`Adding tag to rule "${rule.name}"`);
-          const tagResponse = await fetch(tagUrl);
+          console.log(`Disabling rule "${rule.name}" in device group "${rule.deviceGroup}"`);
+          const disableResponse = await fetch(disableUrl);
           
-          if (!tagResponse.ok) {
-            const errorText = await tagResponse.text();
-            console.error(`Warning: Failed to add tag to rule "${rule.name}": ${errorText.substring(0, 200)}`);
-          } else {
-            const tagResult = await tagResponse.text();
-            if (tagResult.includes('<response status="error"')) {
-              console.error(`Warning: Error adding tag to rule "${rule.name}": ${tagResult.substring(0, 200)}`);
+          if (!disableResponse.ok) {
+            const errorText = await disableResponse.text();
+            errors.push(`Failed to disable rule "${rule.name}": ${errorText.substring(0, 200)}`);
+            continue;
+          }
+
+          const disableResult = await disableResponse.text();
+          if (disableResult.includes('<response status="error"')) {
+            errors.push(`Error disabling rule "${rule.name}": ${disableResult.substring(0, 200)}`);
+            continue;
+          }
+
+          const getCurrentRuleUrl = `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(xpath)}&key=${apiKey}`;
+          const getResponse = await fetch(getCurrentRuleUrl);
+          
+          if (!getResponse.ok) {
+            console.log(`Warning: Could not fetch rule "${rule.name}" to add tag, but rule was disabled`);
+            disabledCount++;
+            continue;
+          }
+
+          const ruleXml = await getResponse.text();
+          const ruleData = parser.parse(ruleXml);
+          const ruleEntry = ruleData.response?.result?.entry;
+          
+          if (!ruleEntry) {
+            console.log(`Warning: Rule "${rule.name}" not found in response, but rule was disabled`);
+            disabledCount++;
+            continue;
+          }
+
+          const existingTags: string[] = [];
+          if (ruleEntry.tag?.member) {
+            const members = Array.isArray(ruleEntry.tag.member) 
+              ? ruleEntry.tag.member 
+              : [ruleEntry.tag.member];
+            existingTags.push(...members.map((m: any) => {
+              if (typeof m === 'string') return m;
+              if (m['_text']) return m['_text'];
+              if (m['#text']) return m['#text'];
+              return String(m);
+            }).filter(Boolean));
+          }
+
+          if (!existingTags.includes(tag)) {
+            existingTags.push(tag);
+            
+            const tagElement = existingTags.length === 1 
+              ? `<tag><member>${existingTags[0]}</member></tag>`
+              : `<tag>${existingTags.map(t => `<member>${t}</member>`).join('')}</tag>`;
+            
+            const tagUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(tagElement)}&key=${apiKey}`;
+            
+            console.log(`Adding tag to rule "${rule.name}"`);
+            const tagResponse = await fetch(tagUrl);
+            
+            if (!tagResponse.ok) {
+              const errorText = await tagResponse.text();
+              console.error(`Warning: Failed to add tag to rule "${rule.name}": ${errorText.substring(0, 200)}`);
+            } else {
+              const tagResult = await tagResponse.text();
+              if (tagResult.includes('<response status="error"')) {
+                console.error(`Warning: Error adding tag to rule "${rule.name}": ${tagResult.substring(0, 200)}`);
+              }
             }
           }
-        }
 
-        disabledCount++;
-        console.log(`Successfully disabled rule "${rule.name}" in device group "${rule.deviceGroup}"`);
+          disabledCount++;
+          console.log(`Successfully disabled rule "${rule.name}" in device group "${rule.deviceGroup}"`);
+        }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
         errors.push(`Error processing rule "${rule.name}": ${errorMsg}`);
@@ -338,9 +372,13 @@ app.post('/api/remediate', async (req, res) => {
       console.error('Remediation errors:', errors);
     }
 
-    if (disabledCount > 0) {
+    const isDeleteMode = String(auditMode) === 'disabled';
+    const totalProcessed = isDeleteMode ? deletedCount : disabledCount;
+    if (totalProcessed > 0) {
       console.log('Committing configuration changes to Panorama...');
-      const commitDescription = `Disabled ${disabledCount} unused firewall rules and added tag ${tag}`;
+      const commitDescription = isDeleteMode
+        ? `Deleted ${deletedCount} disabled firewall rules`
+        : `Disabled ${disabledCount} unused firewall rules and added tag ${tag}`;
       const commitCmd = `<commit><description>${commitDescription}</description></commit>`;
       const commitUrl = `${url}/api/?type=commit&cmd=${encodeURIComponent(commitCmd)}&key=${apiKey}`;
       
@@ -367,7 +405,8 @@ app.post('/api/remediate', async (req, res) => {
     }
 
     res.json({ 
-      disabledCount,
+      disabledCount: isDeleteMode ? 0 : disabledCount,
+      deletedCount: isDeleteMode ? deletedCount : 0,
       totalRules: rules.length,
       errors: errors.length > 0 ? errors : undefined
     });

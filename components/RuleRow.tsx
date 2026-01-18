@@ -5,9 +5,11 @@ import { PanoramaRule, FirewallTarget } from '../types';
 interface RuleRowProps {
   rule: PanoramaRule;
   auditMode?: 'unused' | 'disabled';
+  isSelected?: boolean;
+  onSelectionChange?: (checked: boolean) => void;
 }
 
-export const RuleRow: React.FC<RuleRowProps> = ({ rule, auditMode = 'unused' }) => {
+export const RuleRow: React.FC<RuleRowProps> = ({ rule, auditMode = 'unused', isSelected = false, onSelectionChange }) => {
   const getActionBadge = (action: string) => {
     switch (action) {
       case 'DISABLE':
@@ -64,6 +66,19 @@ export const RuleRow: React.FC<RuleRowProps> = ({ rule, auditMode = 'unused' }) 
 
   return (
     <tr className="hover:bg-gray-50 border-b border-gray-100 transition-colors">
+      {auditMode === 'disabled' && rule.action === 'DISABLE' && (
+        <td className="px-6 py-4 whitespace-nowrap">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => onSelectionChange?.(e.target.checked)}
+            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+          />
+        </td>
+      )}
+      {auditMode === 'disabled' && rule.action !== 'DISABLE' && (
+        <td className="px-6 py-4 whitespace-nowrap"></td>
+      )}
       <td className="px-6 py-4 whitespace-nowrap">
         <div className="text-sm font-medium text-gray-900">{rule.name}</div>
         <div className="text-xs text-gray-500">{rule.deviceGroup}</div>

@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isProductionMode, setIsProductionMode] = useState(false);
   const [isApplyingRemediation, setIsApplyingRemediation] = useState(false);
+  const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const summary: AuditSummary = useMemo(() => {
@@ -89,8 +90,10 @@ const App: React.FC = () => {
 
       const data = await response.json();
       console.log('API Response:', data);
-      setRules(data.rules || []);
+      const newRules = data.rules || [];
+      setRules(newRules);
       setDeviceGroups(data.deviceGroups || []);
+      setSelectedRuleIds(new Set(newRules.map((r: PanoramaRule) => r.id)));
       console.log('Device groups set:', data.deviceGroups);
       setShowReport(true);
     } catch (error) {
@@ -239,13 +242,19 @@ const App: React.FC = () => {
       return;
     }
 
-    const rulesToDisable = rules.filter(r => r.action === 'DISABLE');
-    if (rulesToDisable.length === 0) {
-      alert('No rules to disable');
+    const rulesToProcess = rules.filter(r => 
+      r.action === 'DISABLE' && selectedRuleIds.has(r.id)
+    );
+    
+    if (rulesToProcess.length === 0) {
+      alert('No rules selected for remediation');
       return;
     }
 
-    if (!confirm(`Are you sure you want to disable ${rulesToDisable.length} rules and add tags? This action cannot be undone.`)) {
+    const action = auditMode === 'disabled' ? 'delete' : 'disable';
+    const actionText = auditMode === 'disabled' ? 'delete' : 'disable and tag';
+    
+    if (!confirm(`Are you sure you want to ${actionText} ${rulesToProcess.length} rule(s)? This action cannot be undone.`)) {
       return;
     }
 
@@ -259,11 +268,12 @@ const App: React.FC = () => {
         body: JSON.stringify({
           url: config.url,
           apiKey: config.apiKey,
-          rules: rulesToDisable.map(r => ({
+          rules: rulesToProcess.map(r => ({
             name: r.name,
             deviceGroup: r.deviceGroup
           })),
-          tag: getDisabledDateTag()
+          tag: getDisabledDateTag(),
+          auditMode: auditMode
         })
       });
 
@@ -273,13 +283,28 @@ const App: React.FC = () => {
       }
 
       const result = await response.json();
-      alert(`Successfully disabled ${result.disabledCount} rules and added tags.`);
+      const successMessage = auditMode === 'disabled' 
+        ? `Successfully deleted ${result.deletedCount || result.disabledCount} rules.`
+        : `Successfully disabled ${result.disabledCount} rules and added tags.`;
+      alert(successMessage);
     } catch (error) {
       console.error('Remediation failed:', error);
       alert(`Failed to apply remediation: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsApplyingRemediation(false);
     }
+  };
+
+  const handleRuleSelection = (ruleId: string, checked: boolean) => {
+    setSelectedRuleIds(prev => {
+      const newSet = new Set(prev);
+      if (checked) {
+        newSet.add(ruleId);
+      } else {
+        newSet.delete(ruleId);
+      }
+      return newSet;
+    });
   };
 
 
@@ -550,6 +575,23 @@ const App: React.FC = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+                        {auditMode === 'disabled' && (
+                          <input
+                            type="checkbox"
+                            checked={rules.length > 0 && rules.filter(r => r.action === 'DISABLE').every(r => selectedRuleIds.has(r.id))}
+                            onChange={(e) => {
+                              const rulesToToggle = rules.filter(r => r.action === 'DISABLE');
+                              if (e.target.checked) {
+                                setSelectedRuleIds(new Set(rulesToToggle.map(r => r.id)));
+                              } else {
+                                setSelectedRuleIds(new Set());
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                        )}
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rule Name / Group</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hit Stats</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Target Status (HA Aware)</th>
@@ -558,7 +600,13 @@ const App: React.FC = () => {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {rules.map((rule) => (
-                      <RuleRow key={rule.id} rule={rule} auditMode={auditMode} />
+                      <RuleRow 
+                        key={rule.id} 
+                        rule={rule} 
+                        auditMode={auditMode}
+                        isSelected={selectedRuleIds.has(rule.id)}
+                        onSelectionChange={(checked) => handleRuleSelection(rule.id, checked)}
+                      />
                     ))}
                   </tbody>
                 </table>
@@ -613,7 +661,7 @@ const App: React.FC = () => {
           <button 
             className={`${isProductionMode ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'} text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transform hover:scale-105 transition-all disabled:transform-none`}
             onClick={handleApplyRemediation}
-            disabled={!isProductionMode || isApplyingRemediation}
+            disabled={!isProductionMode || isApplyingRemediation || rules.filter(r => r.action === 'DISABLE' && selectedRuleIds.has(r.id)).length === 0}
           >
             {isApplyingRemediation ? (
               <>
@@ -626,7 +674,9 @@ const App: React.FC = () => {
             ) : (
               <>
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                {isProductionMode ? `Apply Remediation (${summary.toDisable} rules)` : 'Enable Production Mode to Apply'}
+                {isProductionMode 
+                  ? `${auditMode === 'disabled' ? 'Delete' : 'Apply Remediation'} (${rules.filter(r => r.action === 'DISABLE' && selectedRuleIds.has(r.id)).length} selected)`
+                  : 'Enable Production Mode to Apply'}
               </>
             )}
           </button>
