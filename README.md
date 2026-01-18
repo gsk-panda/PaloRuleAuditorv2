@@ -309,7 +309,7 @@ The application follows a client-server architecture:
    - Creates set of Shared rule names
    - Filters out any device group rules with matching names
 
-8. **Hit Count Query Loop** (for each rule)
+8. **Batched Hit Count Query** (for all rules in device group)
    ```
    API Call: GET /api/?type=op&cmd={xmlCommand}&key={apiKey}
    
@@ -454,7 +454,7 @@ The application follows a client-server architecture:
    - **Filters IN only rules where `<disabled>yes</disabled>`**
    - Extracts rule names
 
-7. **Hit Count Query for Disabled Rules**
+7. **Batched Hit Count Query for Disabled Rules** (all rules in device group)
    ```
    API Call: GET /api/?type=op&cmd={xmlCommand}&key={apiKey}
    ```
