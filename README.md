@@ -19,6 +19,7 @@ A comprehensive web application for auditing, analyzing, and managing firewall r
 - [API Reference](#api-reference)
 - [Troubleshooting](#troubleshooting)
 - [Security Considerations](#security-considerations)
+- [Additional Documentation](#additional-documentation)
 
 ## Overview
 
@@ -1379,3 +1380,17 @@ For issues, questions, or feature requests:
 ---
 
 **Note**: This application interacts directly with your Panorama configuration. Always test in a non-production environment first and maintain backups of your Panorama configuration.
+
+## Additional Documentation
+
+For detailed technical information, see:
+
+- **[TECHNICAL_DOCUMENTATION.md](./TECHNICAL_DOCUMENTATION.md)**: Comprehensive technical documentation including:
+  - Complete data flow diagrams
+  - Detailed API integration patterns
+  - Processing algorithms
+  - Error handling strategies
+  - Performance characteristics
+  - Security implementation details
+
+- **[SINGLE_FIREWALL_MIGRATION.md](./SINGLE_FIREWALL_MIGRATION.md)**: Guide for adapting the application to work with single Palo Alto firewalls instead of Panorama
