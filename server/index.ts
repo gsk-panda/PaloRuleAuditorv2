@@ -372,7 +372,6 @@ app.post('/api/remediate', async (req, res) => {
       console.error('Remediation errors:', errors);
     }
 
-    const isDeleteMode = String(auditMode) === 'disabled';
     const totalProcessed = isDeleteMode ? deletedCount : disabledCount;
     if (totalProcessed > 0) {
       console.log('Committing configuration changes to Panorama...');
