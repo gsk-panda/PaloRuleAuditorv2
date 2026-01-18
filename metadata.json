@@ -1,7 +1,4 @@
 {
   "name": "Panorama Rule Auditor",
-  "description": "A sophisticated tool for identifying and managing unused firewall rules in Palo Alto Panorama deployments, featuring dry-run reports and automated untargeting/disabling logic.",
-  "requestFramePermissions": [
-    "microphone"
-  ]
+  "description": "A sophisticated tool for identifying and managing unused firewall rules in Palo Alto Panorama deployments, featuring dry-run reports and automated untargeting/disabling logic."
 }
