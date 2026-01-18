@@ -363,10 +363,12 @@ The application follows a client-server architecture:
      </result>
    </response>
    ```
-   - Queries operational API for each rule's hit statistics
+   - **Single batched API call** queries hit statistics for all rules in the device group
+   - Response contains hit data for all queried rules
    - Handles nested `device-vsys` entries (aggregates across all devices)
-   - Extracts `hit-count`, `last-hit-timestamp`, `rule-modification-timestamp`
+   - Extracts `hit-count`, `last-hit-timestamp`, `rule-modification-timestamp` for each rule
    - If `last-hit-timestamp = 0`, uses `rule-modification-timestamp` as fallback
+   - **Performance**: Reduces API calls from N (one per rule) to 1 per device group
 
 9. **Target Processing & HA Pair Mapping**
    - For each rule, processes target information:
