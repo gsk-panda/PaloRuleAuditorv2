@@ -842,11 +842,16 @@ Identifies security rules that haven't been hit within the specified threshold p
 **Process:**
 1. Discovers all device groups in Panorama
 2. Fetches pre-rulebase security rules from each device group
-3. Queries hit counts and last-hit timestamps for each rule
+3. **Batches all rules per device group** and queries hit counts in a single API call (optimized)
 4. Filters out rules from "Shared" device group
 5. Filters out rules with the same name as Shared rules
 6. Identifies rules with 0 hits or last hit beyond threshold
 7. Handles rules with `last-hit-timestamp = 0` by using `rule-modification-timestamp`
+
+**Performance Optimization:**
+- All rules in a device group are queried in a single batched API call
+- Reduces API calls from N (one per rule) to 1 per device group
+- Significantly improves performance for device groups with many rules
 
 **Remediation Actions:**
 - **DISABLE**: Rules with 0 hits across all targets (or both HA pair members). For HA pairs, both must have 0 hits.
@@ -863,9 +868,14 @@ Locates rules that have been disabled for more than the specified threshold.
 1. Discovers all device groups in Panorama
 2. Fetches pre-rulebase security rules
 3. Filters for rules with `<disabled>yes</disabled>`
-4. Queries rule-hit-count API to get `rule-modification-timestamp` (disabled date)
-5. Identifies rules disabled longer than threshold
-6. Displays disabled date instead of last hit date
+4. **Batches all disabled rules per device group** and queries rule-hit-count API in a single call (optimized)
+5. Extracts `rule-modification-timestamp` (disabled date) for each rule
+6. Identifies rules disabled longer than threshold
+7. Displays disabled date instead of last hit date
+
+**Performance Optimization:**
+- All disabled rules in a device group are queried in a single batched API call
+- Reduces API calls significantly for device groups with many disabled rules
 
 **Remediation Actions:**
 - **DELETE**: Selected rules are permanently deleted from Panorama

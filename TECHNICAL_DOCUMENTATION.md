@@ -578,25 +578,37 @@ User Alert/Notification
 
 ### API Call Count
 
-For a typical audit:
+For a typical audit (optimized with batching):
 - 1 call: Device groups
 - DG calls: Rules per device group (DG = number of device groups)
-- R calls: Hit counts (R = total number of rules)
-- **Total**: 1 + DG + R calls
+- DG calls: Hit counts (batched - one call per device group)
+- **Total**: 1 + DG + DG = 1 + 2×DG calls
 
-Example: 5 device groups, 100 rules = 106 API calls
+**Before optimization**: 1 + DG + R calls (R = total number of rules)
+**After optimization**: 1 + 2×DG calls
+
+Example: 5 device groups, 100 rules
+- **Before**: 1 + 5 + 100 = 106 API calls
+- **After**: 1 + 10 = 11 API calls (90% reduction)
 
 ### Estimated Processing Time
 
-- **Small deployment** (1-2 device groups, <50 rules): 30-60 seconds
-- **Medium deployment** (3-5 device groups, 50-200 rules): 2-5 minutes
-- **Large deployment** (10+ device groups, 200+ rules): 5-15 minutes
+**With batched API calls (current implementation):**
+- **Small deployment** (1-2 device groups, <50 rules): 10-20 seconds
+- **Medium deployment** (3-5 device groups, 50-200 rules): 30-90 seconds
+- **Large deployment** (10+ device groups, 200+ rules): 2-5 minutes
+
+**Before optimization (individual API calls):**
+- **Small deployment**: 30-60 seconds
+- **Medium deployment**: 2-5 minutes
+- **Large deployment**: 5-15 minutes
 
 Times vary based on:
 - Panorama response latency
 - Network conditions
 - API rate limiting
 - Rule complexity
+- Number of device groups (primary factor with batching)
 
 ## Security Considerations
 

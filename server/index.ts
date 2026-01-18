@@ -89,15 +89,16 @@ app.post('/api/audit/preview', async (req, res) => {
                   : [preConfigData.response.result.entry.rules.entry];
               }
               
-              for (const rule of rules) {
-                const ruleName = rule.name || rule['@_name'] || rule['name'];
-                if (ruleName) {
-                  const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name><entry name="${ruleName}"/></rule-name></rules></entry></pre-rulebase>`;
+              if (rules.length > 0) {
+                const ruleNames = rules.map(r => r.name || r['@_name'] || r['name']).filter(Boolean);
+                if (ruleNames.length > 0) {
+                  const ruleNameEntries = ruleNames.map(name => `<entry name="${name}"/>`).join('');
+                  const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase>`;
                   const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
                   const apiUrl = `${url}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
                   apiCalls.push({
                     url: apiUrl,
-                    description: `Query rule-hit-count for rule "${ruleName}" in pre-rulebase of device group "${dgName}"`,
+                    description: `Query rule-hit-count for ${ruleNames.length} rules in pre-rulebase of device group "${dgName}" (batched)`,
                     xmlCommand: xmlCmd
                   });
                 }
