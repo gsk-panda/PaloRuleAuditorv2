@@ -100,6 +100,31 @@ The API key must have permissions to:
 
 ## Installation
 
+### Updating an Existing Installation
+
+If you already have PaloRuleAuditor installed and want to update to the latest version:
+
+**Quick Update (Recommended):**
+```bash
+# Stop the service
+sudo systemctl stop panoruleauditor
+
+# Update from git
+cd /opt/PaloRuleAuditor
+sudo -u panoruleauditor git pull origin main
+
+# Install any new dependencies
+sudo -u panoruleauditor npm install
+
+# Rebuild if needed
+sudo -u panoruleauditor npm run build
+
+# Start the service
+sudo systemctl start panoruleauditor
+```
+
+For detailed update instructions, troubleshooting, and rollback procedures, see **[DEPLOYMENT_UPDATE.md](DEPLOYMENT_UPDATE.md)**.
+
 ### Development Installation
 
 1. **Clone the repository:**
