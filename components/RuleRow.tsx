@@ -18,6 +18,8 @@ export const RuleRow: React.FC<RuleRowProps> = ({ rule, auditMode = 'unused', is
         return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 uppercase">Untarget</span>;
       case 'IGNORE':
         return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-500 uppercase">Ignored (Shared)</span>;
+      case 'HA-PROTECTED':
+        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-700 uppercase">HA-Protected</span>;
       default:
         return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700 uppercase">Keep</span>;
     }

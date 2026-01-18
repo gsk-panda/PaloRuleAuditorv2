@@ -251,7 +251,8 @@ Identifies security rules that haven't been hit within the specified threshold p
 **Remediation Actions:**
 - **DISABLE**: Rules with 0 hits across all targets (or both HA pair members). For HA pairs, both must have 0 hits.
 - **UNTARGET**: Rules with hits on some targets but not others (non-HA targets only). HA pairs are protected if either member has hits.
-- **KEEP**: Rules with recent hits
+- **HA-PROTECTED**: Rules targeted to HA pairs where either firewall has hits. Both firewalls are protected from disable/untarget.
+- **KEEP**: Rules with recent hits (non-HA targets)
 - **IGNORE**: Rules from Shared device group
 
 #### Find Disabled Rules
@@ -347,6 +348,7 @@ Generate comprehensive PDF reports with:
   - Total rules analyzed
   - Rules to disable/delete
   - Rules to untarget
+  - HA-protected rules
   - Ignored shared rules
   - Rules to keep active
 
@@ -421,8 +423,8 @@ The application intelligently handles High Availability firewall pairs to preven
 2. **Rule Evaluation Logic**
    - **Protection Rule**: If **EITHER** firewall in an HA pair shows hits, **BOTH** firewalls are protected from disable/untarget
    - For rules targeted to HA pairs: **Both** firewalls must show 0 hits to be eligible for remediation
-   - If one firewall has hits, the rule is marked as "KEEP" (both firewalls protected)
-   - If both have hits, the rule is marked as "KEEP"
+   - If one firewall has hits, the rule is marked as "HA-PROTECTED" (both firewalls protected)
+   - If both have hits, the rule is marked as "HA-PROTECTED"
    - If both have 0 hits, the rule is marked as "DISABLE"
 
 3. **Visual Display**

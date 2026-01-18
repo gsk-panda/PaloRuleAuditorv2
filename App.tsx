@@ -31,9 +31,10 @@ const App: React.FC = () => {
       if (rule.action === 'DISABLE') acc.toDisable++;
       else if (rule.action === 'UNTARGET') acc.toUntarget++;
       else if (rule.action === 'IGNORE') acc.ignoredShared++;
+      else if (rule.action === 'HA-PROTECTED') acc.haProtected++;
       else acc.toKeep++;
       return acc;
-    }, { totalRules: 0, toDisable: 0, toUntarget: 0, toKeep: 0, ignoredShared: 0 });
+    }, { totalRules: 0, toDisable: 0, toUntarget: 0, toKeep: 0, ignoredShared: 0, haProtected: 0 });
   }, [rules]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -150,6 +151,9 @@ const App: React.FC = () => {
       yPos += 7;
       doc.setTextColor(255, 193, 7);
       doc.text(`To Untarget: ${summary.toUntarget}`, margin, yPos);
+      yPos += 7;
+      doc.setTextColor(99, 102, 241);
+      doc.text(`HA-Protected: ${summary.haProtected}`, margin, yPos);
       yPos += 7;
       doc.setTextColor(108, 117, 125);
       doc.text(`Ignored (Shared): ${summary.ignoredShared}`, margin, yPos);
@@ -514,7 +518,7 @@ const App: React.FC = () => {
             </div>
             
             {/* Stats Summary */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
               <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                 <p className="text-xs text-slate-500 uppercase font-bold mb-1">Total Rules</p>
                 <p className="text-2xl font-bold text-slate-800">{summary.totalRules}</p>
@@ -526,6 +530,10 @@ const App: React.FC = () => {
               <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 shadow-sm">
                 <p className="text-xs text-amber-600 uppercase font-bold mb-1">To Untarget</p>
                 <p className="text-2xl font-bold text-amber-700">{summary.toUntarget}</p>
+              </div>
+              <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100 shadow-sm">
+                <p className="text-xs text-indigo-600 uppercase font-bold mb-1">HA-Protected</p>
+                <p className="text-2xl font-bold text-indigo-700">{summary.haProtected}</p>
               </div>
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-sm">
                 <p className="text-xs text-slate-500 uppercase font-bold mb-1">Ignored (Shared)</p>

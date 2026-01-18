@@ -450,6 +450,7 @@ export async function auditPanoramaRules(
     processedRules.forEach(rule => {
       const firewallsToUntarget = new Set<string>();
       const processed = new Set<string>();
+      let hasHAProtection = false;
 
       rule.targets.forEach(target => {
         if (processed.has(target.name)) return;
@@ -466,6 +467,7 @@ export async function auditPanoramaRules(
             if (target.hasHits || partner.hasHits) {
               firewallsToUntarget.delete(target.name);
               firewallsToUntarget.delete(partner.name);
+              hasHAProtection = true;
             } else if (isUnused && partnerIsUnused) {
               firewallsToUntarget.add(target.name);
               firewallsToUntarget.add(partner.name);
@@ -482,7 +484,9 @@ export async function auditPanoramaRules(
         }
       });
 
-      if (firewallsToUntarget.size === rule.targets.length && rule.targets.length > 0) {
+      if (hasHAProtection && firewallsToUntarget.size === 0) {
+        rule.action = 'HA-PROTECTED';
+      } else if (firewallsToUntarget.size === rule.targets.length && rule.targets.length > 0) {
         rule.action = 'DISABLE';
       } else if (firewallsToUntarget.size > 0) {
         rule.action = 'UNTARGET';
