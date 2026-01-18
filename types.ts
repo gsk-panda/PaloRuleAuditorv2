@@ -1,5 +1,5 @@
 
-export type RuleAction = 'KEEP' | 'DISABLE' | 'UNTARGET' | 'IGNORE' | 'HA-PROTECTED';
+export type RuleAction = 'KEEP' | 'DISABLE' | 'UNTARGET' | 'IGNORE' | 'HA-PROTECTED' | 'PROTECTED';
 
 export interface HAPair {
   fw1: string;
@@ -38,4 +38,5 @@ export interface AuditSummary {
   toKeep: number;
   ignoredShared: number;
   haProtected: number;
+  protected: number;
 }

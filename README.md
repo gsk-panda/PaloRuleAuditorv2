@@ -67,6 +67,11 @@ The application provides a modern web interface with dry-run capabilities, ensur
   - Intelligent rule evaluation (both firewalls must show 0 hits for remediation)
   - Visual HA pair grouping in rule display
 
+- **Rule Protection**
+  - Rules with "PROTECT" tag are automatically excluded from disable/delete operations
+  - Protected rules are marked with "PROTECTED" action in audit reports
+  - Visual indication in UI with purple badge
+
 - **Device Group Management**
   - Automatic discovery of all device groups
   - Pre-rulebase security rule analysis
@@ -620,7 +625,7 @@ interface PanoramaRule {
   totalHits: number;            // Aggregated hit count across all targets
   lastHitDate: string;          // ISO timestamp of last hit (or modification)
   targets: FirewallTarget[];    // Array of firewall targets
-  action: RuleAction;           // 'DISABLE' | 'UNTARGET' | 'HA-PROTECTED' | 'KEEP' | 'IGNORE'
+  action: RuleAction;           // 'DISABLE' | 'UNTARGET' | 'HA-PROTECTED' | 'PROTECTED' | 'KEEP' | 'IGNORE'
   suggestedActionNotes?: string; // Optional AI-generated notes
   isShared: boolean;            // Whether rule is from Shared device group
 }
@@ -884,6 +889,7 @@ Identifies security rules that haven't been hit within the specified threshold p
 - **DISABLE**: Rules with 0 hits across all targets (or both HA pair members). For HA pairs, both must have 0 hits.
 - **UNTARGET**: Rules with hits on some targets but not others (non-HA targets only). HA pairs are protected if either member has hits.
 - **HA-PROTECTED**: Rules targeted to HA pairs where either firewall has hits. Both firewalls are protected from disable/untarget.
+- **PROTECTED**: Rules that have the "PROTECT" tag in Panorama. These rules are automatically excluded from all remediation actions (disable/delete).
 - **KEEP**: Rules with recent hits (non-HA targets)
 - **IGNORE**: Rules from Shared device group
 

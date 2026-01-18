@@ -74,6 +74,23 @@ const parser = new XMLParser({
   parseAttributeValue: true,
 });
 
+function hasProtectTag(rule: any): boolean {
+  if (!rule.tag) {
+    return false;
+  }
+  
+  const tag = rule.tag;
+  if (tag.member) {
+    const members = Array.isArray(tag.member) ? tag.member : [tag.member];
+    return members.some((m: any) => {
+      const memberValue = typeof m === 'string' ? m : (m._text || m);
+      return memberValue === 'PROTECT';
+    });
+  }
+  
+  return false;
+}
+
 export interface AuditResult {
   rules: PanoramaRule[];
   deviceGroups: string[];
@@ -140,6 +157,7 @@ export async function auditPanoramaRules(
     
     let entries: PanoramaRuleUseEntry[] = [];
     const deviceGroupsSet = new Set<string>();
+    const protectedRuleSet = new Set<string>();
 
     for (const dgName of deviceGroupNames) {
       console.log(`\n=== Processing Device Group: ${dgName} ===`);
@@ -171,6 +189,15 @@ export async function auditPanoramaRules(
             ? preConfigData.response.result.entry.rules.entry
             : [preConfigData.response.result.entry.rules.entry];
         }
+        
+        rules.forEach((rule: any) => {
+          const ruleName = rule.name || rule['@_name'];
+          if (ruleName && hasProtectTag(rule)) {
+            const protectedKey = `${dgName}:${ruleName}`;
+            protectedRuleSet.add(protectedKey);
+            console.log(`  Rule "${ruleName}" in device group "${dgName}" has PROTECT tag - will be protected from disable/delete`);
+          }
+        });
         
         rules = rules.filter((rule: any) => {
           const disabled = rule.disabled || rule['@_disabled'];
@@ -493,7 +520,10 @@ export async function auditPanoramaRules(
         }
       });
 
-      if (hasHAProtection && firewallsToUntarget.size === 0) {
+      const protectedKey = `${rule.deviceGroup}:${rule.name}`;
+      if (protectedRuleSet.has(protectedKey)) {
+        rule.action = 'PROTECTED';
+      } else if (hasHAProtection && firewallsToUntarget.size === 0) {
         rule.action = 'HA-PROTECTED';
       } else if (firewallsToUntarget.size === rule.targets.length && rule.targets.length > 0) {
         rule.action = 'DISABLE';
@@ -603,6 +633,16 @@ export async function auditDisabledRules(
             ? preConfigData.response.result.entry.rules.entry
             : [preConfigData.response.result.entry.rules.entry];
         }
+        
+        const protectedRuleSet = new Set<string>();
+        rules.forEach((rule: any) => {
+          const ruleName = rule.name || rule['@_name'];
+          if (ruleName && hasProtectTag(rule)) {
+            const protectedKey = `${dgName}:${ruleName}`;
+            protectedRuleSet.add(protectedKey);
+            console.log(`  Rule "${ruleName}" in device group "${dgName}" has PROTECT tag - will be protected from deletion`);
+          }
+        });
         
         rules = rules.filter((rule: any) => {
           const disabled = rule.disabled || rule['@_disabled'];
@@ -729,7 +769,25 @@ export async function auditDisabledRules(
               disabledDate = new Date(parseInt(modificationTimestamp) * 1000);
             }
             
-            if (!disabledDate || disabledDate < disabledThreshold) {
+            const protectedKey = `${dgName}:${ruleName}`;
+            const isProtected = protectedRuleSet.has(protectedKey);
+            
+            if (isProtected) {
+              console.log(`    Rule "${ruleName}" has PROTECT tag - marking as protected (disabled on ${disabledDate ? disabledDate.toISOString() : 'unknown date'}, hit count: ${hitCount})`);
+              
+              const panoramaRule: PanoramaRule = {
+                id: `disabled-rule-${disabledRules.length}`,
+                name: ruleName,
+                deviceGroup: dgName,
+                totalHits: hitCount,
+                lastHitDate: disabledDate ? disabledDate.toISOString() : new Date(0).toISOString(),
+                targets: [],
+                action: 'PROTECTED',
+                isShared: false,
+              };
+              
+              disabledRules.push(panoramaRule);
+            } else if (!disabledDate || disabledDate < disabledThreshold) {
               console.log(`    Rule "${ruleName}" disabled on ${disabledDate ? disabledDate.toISOString() : 'unknown date'} - older than ${disabledDays} days (hit count: ${hitCount})`);
               
               const panoramaRule: PanoramaRule = {

@@ -259,7 +259,13 @@ app.post('/api/remediate', async (req, res) => {
       }
     }
 
-    for (const rule of rules) {
+    const rulesToProcess = rules.filter((rule: any) => rule.action !== 'PROTECTED');
+    
+    if (rulesToProcess.length === 0) {
+      return res.status(400).json({ error: 'No rules to process (all rules are protected)' });
+    }
+    
+    for (const rule of rulesToProcess) {
       try {
         const xpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${rule.deviceGroup}']/pre-rulebase/security/rules/entry[@name='${rule.name}']`;
         
