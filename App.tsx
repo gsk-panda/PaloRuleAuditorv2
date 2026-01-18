@@ -6,8 +6,8 @@ import { RuleRow } from './components/RuleRow';
 
 const App: React.FC = () => {
   const [config, setConfig] = useState<PanoramaConfig>({
-    url: 'https://panorama.officeours.com',
-    apiKey: 'LUFRPT1LQWx1dUk4RVVqODQrQkN3TDZtRlBYd0dHUkk9dzczNHg3T0VsRS9yYmFMcEpWdXBWdFZ4S3Jwd0JYeEdLaTNnc2RVV29iQ1BqcnVCRU1vOVVHUmF6SUE2VHlDOA==',
+    url: '',
+    apiKey: '',
     unusedDays: 90
   });
   const [auditMode, setAuditMode] = useState<'unused' | 'disabled'>('unused');
