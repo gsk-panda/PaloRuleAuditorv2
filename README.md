@@ -9,6 +9,7 @@ A comprehensive web application for auditing, analyzing, and managing firewall r
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Configuration](#configuration)
+- [Architecture & Data Flow](#architecture--data-flow)
 - [Usage Guide](#usage-guide)
 - [Audit Modes](#audit-modes)
 - [Remediation Options](#remediation-options)
@@ -196,6 +197,604 @@ pa-01:pa-02
 - Format: `firewall1:firewall2`
 - Both firewalls in a pair must show 0 hits for a rule to be eligible for remediation
 - Rules are visually grouped by HA pair in the results table
+
+## Architecture & Data Flow
+
+### System Architecture
+
+The application follows a client-server architecture:
+
+```
+┌─────────────────┐         ┌──────────────────┐         ┌─────────────────┐
+│   React Client  │ ◄─────► │  Express Server  │ ◄─────► │  Panorama API   │
+│   (Port 3000)   │  HTTP   │   (Port 3001)    │  HTTPS  │   (External)    │
+└─────────────────┘         └──────────────────┘         └─────────────────┘
+         │                           │
+         │                           │
+         ▼                           ▼
+┌─────────────────┐         ┌──────────────────┐
+│  TailwindCSS UI │         │  TypeScript      │
+│  State Mgmt     │         │  XML Parser      │
+│  PDF Export     │         │  Rule Processing │
+└─────────────────┘         └──────────────────┘
+```
+
+### Complete Data Flow: Find Unused Rules
+
+#### Phase 1: User Input & Request Initiation
+
+1. **User Interface (App.tsx)**
+   - User enters Panorama URL, API key, and threshold days
+   - User optionally uploads HA pairs file (parsed client-side)
+   - User clicks "Generate Dry Run Report"
+   - `handleAudit()` function is triggered
+
+2. **Frontend Request Preparation**
+   ```typescript
+   POST /api/audit
+   {
+     url: "https://panorama.example.com",
+     apiKey: "user_provided_key",
+     unusedDays: 90,
+     haPairs: [{fw1: "fw1", fw2: "fw2"}, ...]
+   }
+   ```
+
+#### Phase 2: Backend Processing (server/index.ts)
+
+3. **Request Reception**
+   - Express receives POST request at `/api/audit`
+   - Validates required parameters (url, apiKey)
+   - Extracts `unusedDays` (defaults to 90) and `haPairs` array
+
+4. **Service Invocation**
+   - Calls `auditPanoramaRules(panoramaUrl, apiKey, unusedDays, haPairs)`
+   - Passes control to `panoramaService.ts`
+
+#### Phase 3: Panorama API Interaction (server/panoramaService.ts)
+
+5. **Device Group Discovery**
+   ```
+   API Call: GET /api/?type=config&action=get
+   XPath: /config/devices/entry[@name='localhost.localdomain']/device-group
+   
+   Response Structure:
+   <response>
+     <result>
+       <device-group>
+         <entry name="device-group-1"/>
+         <entry name="device-group-2"/>
+       </device-group>
+     </result>
+   </response>
+   ```
+   - Parses XML response using `fast-xml-parser`
+   - Extracts device group names into array
+   - Filters out "Shared" device group if present
+
+6. **Rule Discovery Loop** (for each device group)
+   ```
+   API Call: GET /api/?type=config&action=get
+   XPath: /config/devices/entry[@name='localhost.localdomain']/
+          device-group/entry[@name='{dgName}']/pre-rulebase/security/rules
+   
+   Response Structure:
+   <response>
+     <result>
+       <rules>
+         <entry name="Rule Name 1">
+           <disabled>no</disabled>
+           <target>
+             <devices>
+               <entry name="firewall1"/>
+             </devices>
+           </target>
+         </entry>
+       </rules>
+     </result>
+   </response>
+   ```
+   - Fetches all pre-rulebase security rules for device group
+   - Filters out rules where `<disabled>yes</disabled>`
+   - Extracts rule names and target information
+   - Builds initial rule map with device group association
+
+7. **Shared Rules Filtering**
+   ```
+   API Call: GET /api/?type=config&action=get
+   XPath: /config/shared/pre-rulebase/security/rules
+   ```
+   - Fetches all Shared device group rule names
+   - Creates set of Shared rule names
+   - Filters out any device group rules with matching names
+
+8. **Hit Count Query Loop** (for each rule)
+   ```
+   API Call: GET /api/?type=op&cmd={xmlCommand}&key={apiKey}
+   
+   XML Command:
+   <show>
+     <rule-hit-count>
+       <device-group>
+         <entry name="{dgName}">
+           <pre-rulebase>
+             <entry name="security">
+               <rules>
+                 <rule-name>
+                   <entry name="{ruleName}"/>
+                 </rule-name>
+               </rules>
+             </entry>
+           </pre-rulebase>
+         </entry>
+       </device-group>
+     </rule-hit-count>
+   </show>
+   
+   Response Structure:
+   <response>
+     <result>
+       <rule-hit-count>
+         <device-group>
+           <entry name="{dgName}">
+             <pre-rulebase>
+               <entry name="security">
+                 <rules>
+                   <entry name="{ruleName}">
+                     <device-vsys>
+                       <entry name="firewall1/vsys1">
+                         <hit-count>12345</hit-count>
+                         <last-hit-timestamp>1768691213</last-hit-timestamp>
+                         <rule-modification-timestamp>1749766247</rule-modification-timestamp>
+                       </entry>
+                       <entry name="firewall2/vsys1">
+                         <hit-count>0</hit-count>
+                         <last-hit-timestamp>0</last-hit-timestamp>
+                       </entry>
+                     </device-vsys>
+                   </entry>
+                 </rules>
+               </entry>
+             </pre-rulebase>
+           </entry>
+         </device-group>
+       </rule-hit-count>
+     </result>
+   </response>
+   ```
+   - Queries operational API for each rule's hit statistics
+   - Handles nested `device-vsys` entries (aggregates across all devices)
+   - Extracts `hit-count`, `last-hit-timestamp`, `rule-modification-timestamp`
+   - If `last-hit-timestamp = 0`, uses `rule-modification-timestamp` as fallback
+
+9. **Target Processing & HA Pair Mapping**
+   - For each rule, processes target information:
+     - Extracts firewall names from `<target><devices><entry>`
+     - Maps HA pairs using provided HA pairs file
+     - Creates `FirewallTarget` objects with:
+       - `name`: Firewall name
+       - `hasHits`: Boolean (hit-count > 0)
+       - `hitCount`: Numeric hit count
+       - `haPartner`: Partner firewall name (if in HA pair)
+
+10. **Rule Action Determination**
+    ```typescript
+    For each rule:
+      - Initialize firewallsToUntarget Set
+      - For each target:
+        - If target has HA partner:
+          - Check if either partner has hits
+          - If either has hits → protect both (don't add to untarget set)
+          - If both have 0 hits → add both to untarget set
+        - Else (non-HA target):
+          - If unused → add to untarget set
+      
+      - Determine action:
+        - If ALL targets in untarget set → action = "DISABLE"
+        - If SOME targets in untarget set → action = "UNTARGET"
+        - If HA pair protected → action = "HA-PROTECTED"
+        - Otherwise → action = "KEEP"
+    ```
+
+11. **Date Threshold Evaluation**
+    - Calculates `unusedThreshold` date: `now - unusedDays`
+    - Compares `lastHitDate` against threshold
+    - Rules with hits after threshold are marked as "KEEP"
+    - Rules with no hits or hits before threshold are evaluated for remediation
+
+#### Phase 4: Response Assembly
+
+12. **Result Compilation**
+    - Aggregates all processed rules into array
+    - Collects unique device group names
+    - Returns `AuditResult` object:
+      ```typescript
+      {
+        rules: PanoramaRule[],
+        deviceGroups: string[]
+      }
+      ```
+
+13. **Backend Response**
+    - Express sends JSON response to frontend
+    - Includes all rules with actions, hit counts, targets, etc.
+
+#### Phase 5: Frontend Display
+
+14. **State Updates (App.tsx)**
+    - `setRules(data.rules)` - Updates rule list
+    - `setDeviceGroups(data.deviceGroups)` - Updates device group list
+    - `setSelectedRuleIds(new Set(...))` - Initializes all rules as selected
+    - `setShowReport(true)` - Displays results
+
+15. **UI Rendering**
+    - Summary statistics calculated via `useMemo`
+    - Rule table rendered with `RuleRow` components
+    - Device groups displayed as badges
+    - Action badges color-coded by type
+
+### Complete Data Flow: Find Disabled Rules
+
+#### Phase 1-2: Same as Unused Rules (User Input & Backend Reception)
+
+#### Phase 3: Disabled Rules Processing
+
+5. **Device Group Discovery** (same as unused rules)
+
+6. **Disabled Rule Discovery**
+   ```
+   API Call: GET /api/?type=config&action=get
+   XPath: /config/devices/entry[@name='localhost.localdomain']/
+          device-group/entry[@name='{dgName}']/pre-rulebase/security/rules
+   ```
+   - Fetches all pre-rulebase security rules
+   - **Filters IN only rules where `<disabled>yes</disabled>`**
+   - Extracts rule names
+
+7. **Hit Count Query for Disabled Rules**
+   ```
+   API Call: GET /api/?type=op&cmd={xmlCommand}&key={apiKey}
+   ```
+   - Same XML command structure as unused rules
+   - Queries `rule-hit-count` API for each disabled rule
+   - Extracts `rule-modification-timestamp` (represents when rule was disabled)
+
+8. **Date Evaluation**
+   - Calculates `disabledThreshold` date: `now - disabledDays`
+   - Compares `rule-modification-timestamp` against threshold
+   - Only includes rules disabled longer than threshold
+
+9. **Action Assignment**
+   - All disabled rules are marked with `action = "DISABLE"`
+   - This indicates they are candidates for deletion (not disable)
+
+#### Phase 4-5: Same response and display flow
+
+### Complete Data Flow: Remediation (Production Mode)
+
+#### Phase 1: User Initiation
+
+1. **User Actions**
+   - User enables "Production Mode" checkbox
+   - User reviews audit results
+   - User selects/deselects rules via checkboxes (disabled mode only)
+   - User clicks "Apply Remediation" button
+
+2. **Frontend Request**
+   ```typescript
+   POST /api/remediate
+   {
+     url: "https://panorama.example.com",
+     apiKey: "user_provided_key",
+     rules: [
+       {name: "Rule Name", deviceGroup: "device-group-name"},
+       ...
+     ],
+     tag: "disabled-20260117",
+     auditMode: "unused" | "disabled"
+   }
+   ```
+
+#### Phase 2: Backend Remediation Processing
+
+3. **Mode Detection**
+   - Determines `isDeleteMode = (auditMode === 'disabled')`
+   - Routes to appropriate remediation logic
+
+4. **Tag Management** (Unused Rules Only)
+   ```
+   Step 1: Check if tag exists
+   API Call: GET /api/?type=config&action=get
+   XPath: /config/shared/tag
+   
+   Step 2: Create tag if missing
+   API Call: GET /api/?type=config&action=set
+   XPath: /config/shared/tag/entry[@name='disabled-YYYYMMDD']
+   Element: <color>color1</color><comments>Auto-generated tag...</comments>
+   ```
+
+5. **Rule Processing Loop**
+
+   **For Disabled Rules (Delete Mode):**
+   ```
+   API Call: GET /api/?type=config&action=delete
+   XPath: /config/devices/entry[@name='localhost.localdomain']/
+          device-group/entry[@name='{dgName}']/pre-rulebase/security/rules/
+          entry[@name='{ruleName}']
+   ```
+   - Deletes rule permanently
+   - Increments `deletedCount`
+
+   **For Unused Rules (Disable Mode):**
+   ```
+   Step 1: Disable rule
+   API Call: GET /api/?type=config&action=set
+   XPath: /config/devices/entry[@name='localhost.localdomain']/
+          device-group/entry[@name='{dgName}']/pre-rulebase/security/rules/
+          entry[@name='{ruleName}']
+   Element: <disabled>yes</disabled>
+   
+   Step 2: Fetch current rule (to get existing tags)
+   API Call: GET /api/?type=config&action=get
+   XPath: (same as above)
+   
+   Step 3: Add tag to rule
+   API Call: GET /api/?type=config&action=set
+   XPath: (same as above)
+   Element: <tag><member>existing-tag1</member><member>disabled-YYYYMMDD</member></tag>
+   ```
+   - Disables rule
+   - Preserves existing tags
+   - Adds date-based tag
+   - Increments `disabledCount`
+
+6. **Commit Operation**
+   ```
+   API Call: GET /api/?type=commit&cmd={xmlCommand}&key={apiKey}
+   
+   XML Command:
+   <commit>
+     <description>Disabled X unused firewall rules and added tag disabled-YYYYMMDD</description>
+   </commit>
+   OR
+   <commit>
+     <description>Deleted X disabled firewall rules</description>
+   </commit>
+   ```
+   - Commits all configuration changes to Panorama
+   - Changes are now active in Panorama
+
+#### Phase 3: Response & Confirmation
+
+7. **Backend Response**
+   ```json
+   {
+     "disabledCount": 5,
+     "deletedCount": 0,
+     "totalRules": 5,
+     "errors": []
+   }
+   ```
+
+8. **Frontend Display**
+   - Shows success message with counts
+   - Displays any errors if present
+   - Updates UI state
+
+### Data Structures
+
+#### PanoramaRule Interface
+```typescript
+interface PanoramaRule {
+  id: string;                    // Unique identifier
+  name: string;                  // Rule name from Panorama
+  deviceGroup: string;           // Device group name
+  totalHits: number;            // Aggregated hit count across all targets
+  lastHitDate: string;          // ISO timestamp of last hit (or modification)
+  targets: FirewallTarget[];    // Array of firewall targets
+  action: RuleAction;           // 'DISABLE' | 'UNTARGET' | 'HA-PROTECTED' | 'KEEP' | 'IGNORE'
+  suggestedActionNotes?: string; // Optional AI-generated notes
+  isShared: boolean;            // Whether rule is from Shared device group
+}
+```
+
+#### FirewallTarget Interface
+```typescript
+interface FirewallTarget {
+  name: string;        // Firewall name
+  hasHits: boolean;     // Whether this firewall has hits
+  hitCount: number;     // Hit count for this specific firewall
+  haPartner?: string;  // Partner firewall name (if in HA pair)
+}
+```
+
+### XML Parsing Details
+
+The application uses `fast-xml-parser` with specific configuration:
+
+```typescript
+XMLParser({
+  ignoreAttributes: false,        // Preserve XML attributes
+  attributeNamePrefix: '',         // No prefix for attributes
+  textNodeName: '_text',          // Text content key
+  parseAttributeValue: true       // Parse numeric/boolean values
+})
+```
+
+**Key Parsing Challenges:**
+- Panorama XML responses can have varying structures
+- Arrays vs single objects: `entry` can be object or array
+- Nested structures: `device-vsys` entries within rule-hit-count
+- Attribute handling: `@name` vs `name` depending on structure
+
+**Response Handling Patterns:**
+```typescript
+// Handle single vs array entries
+const entries = Array.isArray(result.entry) 
+  ? result.entry 
+  : [result.entry];
+
+// Handle nested device-vsys aggregation
+if (ruleEntry['device-vsys']?.entry) {
+  const vsysEntries = Array.isArray(ruleEntry['device-vsys'].entry)
+    ? ruleEntry['device-vsys'].entry
+    : [ruleEntry['device-vsys'].entry];
+  // Aggregate hit counts and find latest timestamp
+}
+```
+
+### Error Handling Flow
+
+1. **Network Errors**
+   - Caught in try-catch blocks
+   - Logged to console
+   - Returned as error response to frontend
+   - Frontend displays alert to user
+
+2. **API Errors**
+   - Panorama returns `<response status="error">`
+   - Parsed and checked in response handling
+   - Errors collected in `errors[]` array
+   - Returned in remediation response
+
+3. **Validation Errors**
+   - Frontend: Form validation before submission
+   - Backend: Parameter validation (400 status)
+   - Clear error messages returned to user
+
+### Rule Action Decision Tree
+
+The application uses a hierarchical decision tree to determine rule actions:
+
+```
+For each rule:
+│
+├─ Is rule from Shared device group?
+│  └─ YES → Action: IGNORE
+│
+├─ Does rule have targets?
+│  └─ NO → Action: KEEP (no targets to evaluate)
+│
+└─ YES → Evaluate targets:
+   │
+   ├─ For each target:
+   │  │
+   │  ├─ Is target in HA pair?
+   │  │  │
+   │  │  ├─ YES:
+   │  │  │  ├─ Does target have hits? → Protect both (don't untarget)
+   │  │  │  ├─ Does partner have hits? → Protect both (don't untarget)
+   │  │  │  └─ Both have 0 hits? → Add both to untarget set
+   │  │  │
+   │  │  └─ NO:
+   │  │     └─ Has 0 hits and unused? → Add to untarget set
+   │  │
+   │  └─ Aggregate untarget decisions
+   │
+   └─ Determine final action:
+      │
+      ├─ All targets in untarget set? → DISABLE
+      ├─ Some targets in untarget set? → UNTARGET
+      ├─ HA pair protected (either has hits)? → HA-PROTECTED
+      └─ Otherwise → KEEP
+```
+
+### Performance Optimizations
+
+1. **Sequential Processing**
+   - Rules are processed sequentially to avoid API rate limiting
+   - Device groups processed sequentially
+   - Hit count queries executed one at a time
+   - Prevents overwhelming Panorama API
+
+2. **Caching Opportunities**
+   - Device group list cached during audit
+   - Shared rules cached after first fetch
+   - Rule configurations cached per device group
+   - Reduces redundant API calls
+
+3. **Memory Management**
+   - Rules processed in batches (all in memory for current implementation)
+   - Large deployments may require streaming/chunking for very large rule sets
+   - Consider pagination for deployments with 1000+ rules
+
+4. **Optimization Strategies**
+   - Batch API calls where possible (Panorama supports batch operations)
+   - Use `useMemo` for expensive calculations (summary statistics)
+   - Lazy load AI analysis (only when requested)
+   - PDF generation on-demand (not pre-computed)
+
+### State Management
+
+**Frontend State (React Hooks):**
+- `config`: Panorama connection settings (URL, API key, unusedDays)
+- `rules`: Array of audit results (PanoramaRule[])
+- `deviceGroups`: Discovered device groups (string[])
+- `selectedRuleIds`: Set of selected rule IDs (for remediation)
+- `isAuditing`: Loading state during audit
+- `isApplyingRemediation`: Loading state during remediation
+- `auditMode`: Current audit mode ('unused' | 'disabled')
+- `disabledDays`: Threshold for disabled rules mode
+- `haPairs`: Array of HA pair definitions
+- `showReport`: Boolean to control report display
+- `aiAnalysis`: AI-generated analysis text (nullable)
+- `isAiLoading`: Loading state for AI analysis
+- `isProductionMode`: Boolean for production/dry-run mode
+
+**State Updates:**
+- All state updates trigger re-renders
+- `useMemo` used for summary calculations (performance optimization)
+- State persists during session (cleared on page refresh)
+- Selected rule IDs initialized when audit completes (all selected by default)
+
+**State Flow:**
+```
+User Input → State Update → API Call → Response → State Update → UI Re-render
+```
+
+### Timestamp Handling
+
+**Unix Timestamp Conversion:**
+- Panorama returns timestamps as Unix epoch seconds
+- Application converts to JavaScript Date objects
+- Displayed as ISO strings in UI
+- Used for date comparisons against thresholds
+
+**Special Cases:**
+- `last-hit-timestamp = 0`: Rule never hit, use `rule-modification-timestamp`
+- `rule-modification-timestamp`: Used as fallback for disabled date
+- Timestamp aggregation: Latest timestamp across all device-vsys entries
+
+### Error Recovery
+
+**Network Failures:**
+- Individual rule query failures don't stop entire audit
+- Failed rules are skipped with error logging
+- Audit continues with remaining rules
+- Partial results returned to user
+
+**API Errors:**
+- Invalid XPath: Logged and skipped
+- Permission errors: Returned to user with clear message
+- Rate limiting: Should be handled by sequential processing
+- Timeout errors: Retry logic could be added
+
+**Data Inconsistencies:**
+- Missing rule names: Skipped with warning
+- Missing device groups: Logged and continued
+- Malformed XML: Caught by parser, error returned
+
+### API Rate Limiting & Throttling
+
+**Current Implementation:**
+- Sequential API calls (no parallelization)
+- No explicit rate limiting
+- Relies on Panorama's built-in rate limiting
+
+**Considerations:**
+- Panorama typically allows 10-20 requests per second
+- Large audits may take several minutes
+- Consider adding delays between requests for very large deployments
 
 ## Usage Guide
 
@@ -546,6 +1145,136 @@ The application uses the following Panorama XML API operations:
 - **Configuration Delete**: `type=config&action=delete`
 - **Operational Query**: `type=op` (for rule-hit-count)
 - **Commit**: `type=commit`
+
+#### Detailed API Call Patterns
+
+**1. Device Group Enumeration**
+```
+URL: {panoramaUrl}/api/?type=config&action=get&xpath={xpath}&key={apiKey}
+XPath: /config/devices/entry[@name='localhost.localdomain']/device-group
+Method: GET
+Response: XML with device-group entries
+```
+
+**2. Rule Configuration Retrieval**
+```
+URL: {panoramaUrl}/api/?type=config&action=get&xpath={xpath}&key={apiKey}
+XPath: /config/devices/entry[@name='localhost.localdomain']/
+       device-group/entry[@name='{deviceGroupName}']/pre-rulebase/security/rules
+Method: GET
+Response: XML with rule entries including name, disabled status, targets
+```
+
+**3. Rule Hit Count Query**
+```
+URL: {panoramaUrl}/api/?type=op&cmd={xmlCommand}&key={apiKey}
+XML Command: <show><rule-hit-count><device-group><entry name="{dgName}">
+              <pre-rulebase><entry name="security"><rules><rule-name>
+              <entry name="{ruleName}"/></rule-name></rules></entry>
+              </pre-rulebase></entry></device-group></rule-hit-count></show>
+Method: GET
+Response: XML with hit counts, timestamps, nested device-vsys entries
+```
+
+**4. Rule Disable Operation**
+```
+URL: {panoramaUrl}/api/?type=config&action=set&xpath={xpath}&element={element}&key={apiKey}
+XPath: /config/devices/entry[@name='localhost.localdomain']/
+       device-group/entry[@name='{deviceGroupName}']/pre-rulebase/security/rules/
+       entry[@name='{ruleName}']
+Element: <disabled>yes</disabled>
+Method: GET
+Response: XML status response
+```
+
+**5. Tag Management**
+```
+Check Tag: GET /api/?type=config&action=get&xpath=/config/shared/tag&key={apiKey}
+Create Tag: GET /api/?type=config&action=set&xpath=/config/shared/tag/entry[@name='{tagName}']&element={element}&key={apiKey}
+Add Tag to Rule: GET /api/?type=config&action=set&xpath={ruleXpath}&element=<tag><member>{tag}</member></tag>&key={apiKey}
+```
+
+**6. Rule Deletion**
+```
+URL: {panoramaUrl}/api/?type=config&action=delete&xpath={xpath}&key={apiKey}
+XPath: /config/devices/entry[@name='localhost.localdomain']/
+       device-group/entry[@name='{deviceGroupName}']/pre-rulebase/security/rules/
+       entry[@name='{ruleName}']
+Method: GET
+Response: XML status response
+```
+
+**7. Configuration Commit**
+```
+URL: {panoramaUrl}/api/?type=commit&cmd={xmlCommand}&key={apiKey}
+XML Command: <commit><description>{description}</description></commit>
+Method: GET
+Response: XML with commit job ID and status
+```
+
+#### XPath Patterns Reference
+
+All XPath queries use the standard Panorama device name `localhost.localdomain`:
+
+- **Device Groups**: `/config/devices/entry[@name='localhost.localdomain']/device-group`
+- **Pre-rulebase Rules**: `/config/devices/entry[@name='localhost.localdomain']/device-group/entry[@name='{dgName}']/pre-rulebase/security/rules`
+- **Shared Rules**: `/config/shared/pre-rulebase/security/rules`
+- **Tags**: `/config/shared/tag`
+- **Specific Rule**: `/config/devices/entry[@name='localhost.localdomain']/device-group/entry[@name='{dgName}']/pre-rulebase/security/rules/entry[@name='{ruleName}']`
+
+#### Response Parsing
+
+**Common Response Structures:**
+
+1. **Single Entry:**
+   ```xml
+   <response>
+     <result>
+       <entry name="value">content</entry>
+     </result>
+   </response>
+   ```
+
+2. **Multiple Entries:**
+   ```xml
+   <response>
+     <result>
+       <entry name="value1"/>
+       <entry name="value2"/>
+     </result>
+   </response>
+   ```
+
+3. **Nested Structures:**
+   ```xml
+   <response>
+     <result>
+       <device-group>
+         <entry name="dg1">
+           <pre-rulebase>
+             <entry name="security">
+               <rules>
+                 <entry name="rule1">
+                   <device-vsys>
+                     <entry name="fw1/vsys1">
+                       <hit-count>123</hit-count>
+                     </entry>
+                   </device-vsys>
+                 </entry>
+               </rules>
+             </entry>
+           </pre-rulebase>
+         </entry>
+       </device-group>
+     </result>
+   </response>
+   ```
+
+**Parsing Strategy:**
+- Always check if entry is array or single object
+- Handle nested `device-vsys` entries for hit count aggregation
+- Extract attributes using `name` or `@name` depending on parser configuration
+- Handle missing/null values gracefully
 
 ## Troubleshooting
 
