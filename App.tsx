@@ -620,7 +620,7 @@ const App: React.FC = () => {
                 <ul className="space-y-3 text-sm text-slate-600">
                   <li className="flex gap-3">
                     <span className="h-5 w-5 rounded bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">HA</span>
-                    <span>Rules targeted to HA pairs are only remediation-eligible if <strong>BOTH</strong> firewalls in the pair show 0 hits.</span>
+                    <span>Rules targeted to HA pairs: If <strong>EITHER</strong> firewall in the pair shows hits, <strong>BOTH</strong> firewalls are protected from disable/untarget. Only eligible for remediation if <strong>BOTH</strong> show 0 hits.</span>
                   </li>
                   <li className="flex gap-3">
                     <span className="h-5 w-5 rounded bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">1</span>

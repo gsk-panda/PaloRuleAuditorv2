@@ -463,7 +463,10 @@ export async function auditPanoramaRules(
             const partnerLastHit = new Date(rule.lastHitDate);
             const partnerIsUnused = !partner.hasHits && partnerLastHit < unusedThreshold;
             
-            if (isUnused && partnerIsUnused) {
+            if (target.hasHits || partner.hasHits) {
+              firewallsToUntarget.delete(target.name);
+              firewallsToUntarget.delete(partner.name);
+            } else if (isUnused && partnerIsUnused) {
               firewallsToUntarget.add(target.name);
               firewallsToUntarget.add(partner.name);
             }

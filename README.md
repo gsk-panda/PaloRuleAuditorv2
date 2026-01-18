@@ -249,8 +249,8 @@ Identifies security rules that haven't been hit within the specified threshold p
 7. Handles rules with `last-hit-timestamp = 0` by using `rule-modification-timestamp`
 
 **Remediation Actions:**
-- **DISABLE**: Rules with 0 hits across all targets (or both HA pair members)
-- **UNTARGET**: Rules with hits on some targets but not others (HA pair aware)
+- **DISABLE**: Rules with 0 hits across all targets (or both HA pair members). For HA pairs, both must have 0 hits.
+- **UNTARGET**: Rules with hits on some targets but not others (non-HA targets only). HA pairs are protected if either member has hits.
 - **KEEP**: Rules with recent hits
 - **IGNORE**: Rules from Shared device group
 
@@ -419,8 +419,9 @@ The application intelligently handles High Availability firewall pairs to preven
    - Only required for "Find Unused Rules" mode
 
 2. **Rule Evaluation Logic**
-   - For rules targeted to HA pairs: **Both** firewalls must show 0 hits
-   - If one firewall has hits, the rule is marked as "UNTARGET" (remove from inactive firewall only)
+   - **Protection Rule**: If **EITHER** firewall in an HA pair shows hits, **BOTH** firewalls are protected from disable/untarget
+   - For rules targeted to HA pairs: **Both** firewalls must show 0 hits to be eligible for remediation
+   - If one firewall has hits, the rule is marked as "KEEP" (both firewalls protected)
    - If both have hits, the rule is marked as "KEEP"
    - If both have 0 hits, the rule is marked as "DISABLE"
 
