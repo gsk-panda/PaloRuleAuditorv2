@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { PanoramaConfig, PanoramaRule, AuditSummary, HAPair } from './types';
 import { analyzeRulesWithAI } from './services/geminiService';
 import { RuleRow } from './components/RuleRow';
@@ -11,7 +11,7 @@ const App: React.FC = () => {
     unusedDays: 90
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     fetch('/api/config')
       .then(res => res.json())
       .then(data => {
