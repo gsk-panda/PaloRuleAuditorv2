@@ -11,7 +11,7 @@ APP_NAME="PaloRuleAuditor"
 APP_USER="panoruleauditor"
 APP_DIR="/opt/${APP_NAME}"
 WEB_ROOT="/var/www/html/audit"
-BACKEND_PORT="3001"
+BACKEND_PORT="3005"
 NODE_VERSION="20"
 SOURCE_DIR=""
 REPO_URL="https://github.com/gsk-panda/PaloRuleAuditorv2.git"
@@ -442,8 +442,8 @@ configure_apache() {
     ProxyRequests Off
     
     <Location /audit/api>
-        ProxyPass http://localhost:3001/api
-        ProxyPassReverse http://localhost:3001/api
+        ProxyPass http://localhost:3005/api
+        ProxyPassReverse http://localhost:3005/api
     </Location>
     
     Alias /audit /var/www/html/audit
