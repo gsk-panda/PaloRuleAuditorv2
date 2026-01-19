@@ -1,0 +1,39 @@
+[2026-01-19 12:00:20] Copy verification successful - package.json found in destination
+[2026-01-19 12:00:20] Setting ownership and permissions...
+[2026-01-19 12:00:20] Ownership set to panoruleauditor:panoruleauditor
+[2026-01-19 12:00:20] Application files copied to /opt/PaloRuleAuditor
+[2026-01-19 12:00:20] Cleaning up temporary clone directory...
+[2026-01-19 12:00:20] Temporary files removed
+[2026-01-19 12:00:20] Installing npm dependencies...
+npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+npm error code 1
+npm error path /opt/PaloRuleAuditor/node_modules/esbuild
+npm error command failed
+npm error command sh -c node install.js
+npm error node:internal/child_process:1123
+npm error     result.error = new ErrnoException(result.error, 'spawnSync ' + options.file);
+npm error                    ^
+npm error
+npm error <ref *1> Error: spawnSync /opt/PaloRuleAuditor/node_modules/esbuild/bin/esbuild EPERM
+npm error     at Object.spawnSync (node:internal/child_process:1123:20)
+npm error     at spawnSync (node:child_process:877:24)
+npm error     at Object.execFileSync (node:child_process:920:15)
+npm error     at validateBinaryVersion (/opt/PaloRuleAuditor/node_modules/esbuild/install.js:102:28)
+npm error     at /opt/PaloRuleAuditor/node_modules/esbuild/install.js:287:5 {
+npm error   errno: -1,
+npm error   code: 'EPERM',
+npm error   syscall: 'spawnSync /opt/PaloRuleAuditor/node_modules/esbuild/bin/esbuild',
+npm error   path: '/opt/PaloRuleAuditor/node_modules/esbuild/bin/esbuild',
+npm error   spawnargs: [ '--version' ],
+npm error   error: [Circular *1],
+npm error   status: null,
+npm error   signal: null,
+npm error   output: null,
+npm error   pid: 0,
+npm error   stdout: null,
+npm error   stderr: null
+npm error }
+npm error
+npm error Node.js v20.19.5
+npm error A complete log of this run can be found in: /opt/PaloRuleAuditor/.npm/_logs/2026-01-19T19_00_20_544Z-debug-0.log
+[ERROR] Failed to install npm dependencies
