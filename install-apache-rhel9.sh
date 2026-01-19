@@ -474,51 +474,113 @@ EOF
 configure_apache() {
     log "Configuring Apache..."
     
+    log "Enabling required Apache modules..."
+    if [[ -f /etc/httpd/conf.modules.d/00-proxy.conf ]]; then
+        if ! grep -q "^LoadModule proxy_module" /etc/httpd/conf.modules.d/00-proxy.conf; then
+            log "Note: mod_proxy may need to be enabled manually"
+        fi
+    fi
+    
     APACHE_CONF="/etc/httpd/conf.d/panoruleauditor.conf"
     
     cat > "$APACHE_CONF" << 'EOF'
+# PaloRuleAuditor Apache Configuration
+# This configuration serves the React frontend and proxies API requests to the Node.js backend
+
 <VirtualHost *:443>
     ServerName panovision.sncorp.com
     DocumentRoot /var/www/html
     
+    # SSL Configuration
     SSLEngine on
     SSLCertificateFile /etc/pki/tls/certs/panovision.sncorp.com.crt
     SSLCertificateKeyFile /etc/pki/tls/private/panovision.sncorp.com.key
+    
+    # Enable required modules (if not already enabled globally)
+    LoadModule proxy_module modules/mod_proxy.so
+    LoadModule proxy_http_module modules/mod_proxy_http.so
+    LoadModule rewrite_module modules/mod_rewrite.so
+    LoadModule headers_module modules/mod_headers.so
+    
+    # Proxy Configuration
+    ProxyPreserveHost On
+    ProxyRequests Off
+    
+    # Proxy API requests to backend Node.js server
+    <Location /audit/api>
+        ProxyPass http://localhost:3005/api
+        ProxyPassReverse http://localhost:3005/api
+        
+        # Pass through necessary headers
+        ProxyPassReverse /audit/api http://localhost:3005/api
+        RequestHeader set X-Forwarded-Proto "https"
+        RequestHeader set X-Forwarded-Port "443"
+        
+        # CORS headers (if needed)
+        Header always set Access-Control-Allow-Origin "*"
+        Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        Header always set Access-Control-Allow-Headers "Content-Type, Authorization"
+        
+        # Handle preflight requests
+        RewriteEngine On
+        RewriteCond %{REQUEST_METHOD} OPTIONS
+        RewriteRule ^(.*)$ $1 [R=200,L]
+    </Location>
+    
+    # Serve static frontend files
+    Alias /audit /var/www/html/audit
     
     <Directory /var/www/html/audit>
         Options -Indexes +FollowSymLinks
         AllowOverride All
         Require all granted
-    </Directory>
-    
-    ProxyPreserveHost On
-    ProxyRequests Off
-    
-    <Location /audit/api>
-        ProxyPass http://localhost:3005/api
-        ProxyPassReverse http://localhost:3005/api
-    </Location>
-    
-    Alias /audit /var/www/html/audit
-    
-    <Directory /var/www/html/audit>
+        
+        # React Router: serve index.html for all non-file requests
         RewriteEngine On
         RewriteBase /audit/
-        RewriteRule ^index\.html$ - [L]
+        
+        # Don't rewrite requests for actual files
         RewriteCond %{REQUEST_FILENAME} !-f
         RewriteCond %{REQUEST_FILENAME} !-d
+        
+        # Don't rewrite API requests (they're handled by ProxyPass above)
+        RewriteCond %{REQUEST_URI} !^/audit/api
+        
+        # Serve index.html for all other requests (React Router)
         RewriteRule . /audit/index.html [L]
+        
+        # Set proper MIME types
+        <FilesMatch "\.(js|mjs|json|css|html|ico|png|jpg|jpeg|gif|svg|woff|woff2|ttf|eot)$">
+            Header set Cache-Control "public, max-age=31536000, immutable"
+        </FilesMatch>
     </Directory>
     
+    # Logging
     ErrorLog /var/log/httpd/panoruleauditor_error.log
     CustomLog /var/log/httpd/panoruleauditor_access.log combined
+    LogLevel warn
+</VirtualHost>
+
+# Optional: Redirect HTTP to HTTPS
+<VirtualHost *:80>
+    ServerName panovision.sncorp.com
+    Redirect permanent / https://panovision.sncorp.com/
 </VirtualHost>
 EOF
 
     log "Apache configuration created at $APACHE_CONF"
+    log "Verifying required modules are available..."
+    
+    if ! httpd -M 2>/dev/null | grep -q "proxy_module"; then
+        log "WARNING: mod_proxy may not be loaded. Check /etc/httpd/conf.modules.d/"
+    fi
+    if ! httpd -M 2>/dev/null | grep -q "rewrite_module"; then
+        log "WARNING: mod_rewrite may not be loaded. Check /etc/httpd/conf.modules.d/"
+    fi
+    
     log "Note: Please ensure SSL certificates are configured correctly"
-    log "Note: You may need to adjust the ProxyPass directive based on your Apache setup"
-    log "Note: Ensure mod_proxy and mod_rewrite are enabled: a2enmod proxy proxy_http rewrite"
+    log "Note: After configuration, test with: httpd -t"
+    log "Note: Then restart Apache: systemctl restart httpd"
 }
 
 update_backend_config() {
