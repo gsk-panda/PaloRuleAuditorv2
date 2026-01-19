@@ -347,22 +347,27 @@ install_npm_dependencies() {
     chown -R "$APP_USER:$APP_USER" "$APP_DIR"
     chmod -R u+w "$APP_DIR"
     
-    log "Setting umask to allow execute permissions..."
-    umask 0022
+    log "Checking for SELinux and adjusting if needed..."
+    if command -v getenforce &> /dev/null; then
+        SELINUX_STATUS=$(getenforce 2>/dev/null || echo "Disabled")
+        if [[ "$SELINUX_STATUS" == "Enforcing" ]]; then
+            log "SELinux is enforcing. Temporarily setting to permissive for npm install..."
+            setenforce 0 2>/dev/null || log "Could not change SELinux mode (may require manual intervention)"
+        fi
+    fi
     
-    log "Running npm install as $APP_USER..."
-    if ! sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && umask 0022 && npm install"; then
-        log "npm install failed, attempting to fix permissions and retry..."
+    log "Installing npm dependencies as root (required for native modules)..."
+    export npm_config_unsafe_perm=true
+    if ! npm install --unsafe-perm; then
+        log "npm install failed, checking for esbuild permission issues..."
         
-        if [[ -d "$APP_DIR/node_modules" ]]; then
-            log "Fixing permissions on node_modules..."
-            chown -R "$APP_USER:$APP_USER" "$APP_DIR/node_modules" 2>/dev/null || true
-            find "$APP_DIR/node_modules" -type f -name "esbuild" -exec chmod +x {} \; 2>/dev/null || true
-            find "$APP_DIR/node_modules/.bin" -type f -exec chmod +x {} \; 2>/dev/null || true
-            find "$APP_DIR/node_modules" -type d -exec chmod 755 {} \; 2>/dev/null || true
+        if [[ -d "$APP_DIR/node_modules/esbuild" ]]; then
+            log "Fixing esbuild binary permissions..."
+            find "$APP_DIR/node_modules/esbuild" -type f -name "esbuild" -exec chmod +x {} \; 2>/dev/null || true
+            find "$APP_DIR/node_modules/esbuild/bin" -type f -exec chmod +x {} \; 2>/dev/null || true
             
             log "Retrying npm install..."
-            if ! sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && umask 0022 && npm install"; then
+            if ! npm install --unsafe-perm; then
                 error "Failed to install npm dependencies after retry"
             fi
         else
@@ -370,12 +375,21 @@ install_npm_dependencies() {
         fi
     fi
     
-    log "Fixing permissions on node_modules binaries..."
+    log "Fixing permissions on all node_modules binaries..."
     if [[ -d "$APP_DIR/node_modules" ]]; then
         find "$APP_DIR/node_modules" -type f -name "esbuild" -exec chmod +x {} \; 2>/dev/null || true
         find "$APP_DIR/node_modules/.bin" -type f -exec chmod +x {} \; 2>/dev/null || true
         find "$APP_DIR/node_modules" -type d -exec chmod 755 {} \; 2>/dev/null || true
-        chown -R "$APP_USER:$APP_USER" "$APP_DIR/node_modules"
+        find "$APP_DIR/node_modules" -type f -exec chmod 644 {} \; 2>/dev/null || true
+        find "$APP_DIR/node_modules" -type f -path "*/bin/*" -exec chmod +x {} \; 2>/dev/null || true
+    fi
+    
+    log "Setting ownership to $APP_USER..."
+    chown -R "$APP_USER:$APP_USER" "$APP_DIR/node_modules" "$APP_DIR/package-lock.json" 2>/dev/null || true
+    
+    log "Restoring SELinux if it was changed..."
+    if command -v getenforce &> /dev/null && [[ "$SELINUX_STATUS" == "Enforcing" ]]; then
+        setenforce 1 2>/dev/null || log "Could not restore SELinux enforcing mode"
     fi
     
     log "npm dependencies installed successfully"
