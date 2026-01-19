@@ -10,6 +10,21 @@ const App: React.FC = () => {
     apiKey: '',
     unusedDays: 90
   });
+
+  React.useEffect(() => {
+    fetch('/api/config')
+      .then(res => res.json())
+      .then(data => {
+        if (data.panoramaUrl || data.apiKey) {
+          setConfig(prev => ({
+            ...prev,
+            url: data.panoramaUrl || prev.url,
+            apiKey: data.apiKey || prev.apiKey
+          }));
+        }
+      })
+      .catch(err => console.log('Could not load stored config:', err));
+  }, []);
   const [auditMode, setAuditMode] = useState<'unused' | 'disabled'>('unused');
   const [disabledDays, setDisabledDays] = useState(90);
 

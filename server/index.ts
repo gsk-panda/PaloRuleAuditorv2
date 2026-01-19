@@ -24,6 +24,50 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+app.get('/api/config', async (req, res) => {
+  try {
+    const fs = await import('fs');
+    const path = await import('path');
+    const configPath = path.join(process.cwd(), '.config');
+    
+    if (fs.existsSync(configPath)) {
+      const configContent = fs.readFileSync(configPath, 'utf-8');
+      const config: { PANORAMA_URL?: string; PANORAMA_API_KEY?: string } = {};
+      
+      configContent.split('\n').forEach(line => {
+        if (line.trim() && !line.trim().startsWith('#')) {
+          const match = line.match(/^([^=]+)="?([^"]+)"?$/);
+          if (match) {
+            const key = match[1].trim();
+            const value = match[2].trim();
+            if (key === 'PANORAMA_URL') {
+              config.PANORAMA_URL = value;
+            } else if (key === 'PANORAMA_API_KEY') {
+              config.PANORAMA_API_KEY = value;
+            }
+          }
+        }
+      });
+      
+      res.json({
+        panoramaUrl: config.PANORAMA_URL || '',
+        apiKey: config.PANORAMA_API_KEY || ''
+      });
+    } else {
+      res.json({
+        panoramaUrl: '',
+        apiKey: ''
+      });
+    }
+  } catch (error) {
+    console.error('Error reading config:', error);
+    res.json({
+      panoramaUrl: '',
+      apiKey: ''
+    });
+  }
+});
+
 app.post('/api/audit/preview', async (req, res) => {
   try {
     const { url, apiKey } = req.body;
