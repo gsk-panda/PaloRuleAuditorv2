@@ -158,7 +158,9 @@ For detailed update instructions, troubleshooting, and rollback procedures, see 
 
 ### Production Installation (RHEL 9)
 
-For production deployment on RHEL 9, use the provided installation script:
+#### Standalone Installation
+
+For production deployment on RHEL 9 with standalone service, use:
 
 ```bash
 sudo ./install-rhel9.sh
@@ -189,6 +191,58 @@ sudo systemctl status panoruleauditor
 # View logs
 sudo journalctl -u panoruleauditor -f
 ```
+
+#### Apache Installation
+
+For deployment behind Apache (e.g., at `https://panovision.sncorp.com/audit`), use:
+
+```bash
+sudo ./install-apache-rhel9.sh
+```
+
+The script will:
+- Install and configure Apache HTTP Server
+- Create a dedicated system user (`panoruleauditor`)
+- Set up the application in `/opt/PaloRuleAuditor`
+- Build the frontend and deploy to `/var/www/html/audit`
+- Configure backend as a systemd service on port 3001
+- **Prompt for Panorama URL and API key** and store in `/opt/PaloRuleAuditor/.config`
+- Create Apache virtual host configuration
+- Set up proxy rules for API calls
+
+**During installation, you will be prompted for:**
+- Panorama URL (e.g., `https://panorama.example.com`)
+- Panorama API Key
+
+These values are stored securely in `/opt/PaloRuleAuditor/.config` and can be updated later.
+
+After installation:
+
+```bash
+# Start the backend service
+sudo systemctl start panoruleauditor-backend
+
+# Enable backend auto-start
+sudo systemctl enable panoruleauditor-backend
+
+# Restart Apache
+sudo systemctl restart httpd
+
+# Check backend status
+sudo systemctl status panoruleauditor-backend
+
+# View backend logs
+sudo journalctl -u panoruleauditor-backend -f
+
+# View Apache logs
+sudo tail -f /var/log/httpd/panoruleauditor_*.log
+```
+
+**To update Panorama configuration:**
+1. Edit `/opt/PaloRuleAuditor/.config`
+2. Restart the backend: `sudo systemctl restart panoruleauditor-backend`
+
+**Note:** The frontend will automatically load stored Panorama URL and API key from the backend configuration endpoint on first load.
 
 ## Configuration
 
