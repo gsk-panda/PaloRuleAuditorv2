@@ -335,19 +335,46 @@ install_npm_dependencies() {
     
     cd "$APP_DIR"
     
+    log "Cleaning up any existing node_modules to avoid permission conflicts..."
+    if [[ -d "$APP_DIR/node_modules" ]]; then
+        rm -rf "$APP_DIR/node_modules"
+    fi
+    if [[ -f "$APP_DIR/package-lock.json" ]]; then
+        rm -f "$APP_DIR/package-lock.json"
+    fi
+    
     log "Ensuring proper permissions before npm install..."
     chown -R "$APP_USER:$APP_USER" "$APP_DIR"
     chmod -R u+w "$APP_DIR"
     
+    log "Setting umask to allow execute permissions..."
+    umask 0022
+    
     log "Running npm install as $APP_USER..."
-    if ! sudo -u "$APP_USER" npm install; then
-        error "Failed to install npm dependencies"
+    if ! sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && umask 0022 && npm install"; then
+        log "npm install failed, attempting to fix permissions and retry..."
+        
+        if [[ -d "$APP_DIR/node_modules" ]]; then
+            log "Fixing permissions on node_modules..."
+            chown -R "$APP_USER:$APP_USER" "$APP_DIR/node_modules" 2>/dev/null || true
+            find "$APP_DIR/node_modules" -type f -name "esbuild" -exec chmod +x {} \; 2>/dev/null || true
+            find "$APP_DIR/node_modules/.bin" -type f -exec chmod +x {} \; 2>/dev/null || true
+            find "$APP_DIR/node_modules" -type d -exec chmod 755 {} \; 2>/dev/null || true
+            
+            log "Retrying npm install..."
+            if ! sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && umask 0022 && npm install"; then
+                error "Failed to install npm dependencies after retry"
+            fi
+        else
+            error "Failed to install npm dependencies"
+        fi
     fi
     
     log "Fixing permissions on node_modules binaries..."
     if [[ -d "$APP_DIR/node_modules" ]]; then
         find "$APP_DIR/node_modules" -type f -name "esbuild" -exec chmod +x {} \; 2>/dev/null || true
         find "$APP_DIR/node_modules/.bin" -type f -exec chmod +x {} \; 2>/dev/null || true
+        find "$APP_DIR/node_modules" -type d -exec chmod 755 {} \; 2>/dev/null || true
         chown -R "$APP_USER:$APP_USER" "$APP_DIR/node_modules"
     fi
     
