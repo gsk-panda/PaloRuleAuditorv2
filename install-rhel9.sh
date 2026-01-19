@@ -246,8 +246,20 @@ install_npm_dependencies() {
     
     cd "$APP_DIR"
     
+    log "Ensuring proper permissions before npm install..."
+    chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+    chmod -R u+w "$APP_DIR"
+    
+    log "Running npm install as $APP_USER..."
     if ! sudo -u "$APP_USER" npm install; then
         error "Failed to install npm dependencies"
+    fi
+    
+    log "Fixing permissions on node_modules binaries..."
+    if [[ -d "$APP_DIR/node_modules" ]]; then
+        find "$APP_DIR/node_modules" -type f -name "esbuild" -exec chmod +x {} \; 2>/dev/null || true
+        find "$APP_DIR/node_modules/.bin" -type f -exec chmod +x {} \; 2>/dev/null || true
+        chown -R "$APP_USER:$APP_USER" "$APP_DIR/node_modules"
     fi
     
     log "npm dependencies installed successfully"
