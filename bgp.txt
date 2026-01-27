@@ -1,1 +1,9 @@
 https://<firewall-ip>/api/?type=op&cmd=<show><routing><protocol><bgp><peer></peer></bgp></protocol></routing></show>&key=<api-key>
+
+https://<firewall-ip>/api/?type=op&cmd=<show><vpn><ipsec-sa></ipsec-sa></vpn></show>&key=<api-key>
+
+IKE - https://<firewall-ip>/api/?type=op&cmd=<show><vpn><ike-sa></ike-sa></vpn></show>&key=<api-key>
+
+VPN Gateway Information - https://<firewall-ip>/api/?type=op&cmd=<show><vpn><gateway></gateway></vpn></show>&key=<api-key>
+
+Active Flows - https://<firewall-ip>/api/?type=op&cmd=<show><vpn><flow></flow></vpn></show>&key=<api-key>
