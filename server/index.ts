@@ -1,9 +1,16 @@
 console.log('Starting server...');
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import fs from 'fs';
 console.log('Imports loaded, importing panoramaService...');
 import { auditPanoramaRules } from './panoramaService.js';
 console.log('panoramaService imported successfully');
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
@@ -472,6 +479,16 @@ app.post('/api/remediate', async (req, res) => {
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+const publicPath = path.join(process.cwd(), 'public');
+if (fs.existsSync(publicPath)) {
+  app.use(express.static(publicPath));
+  app.get('*', (req, res) => {
+    if (!req.path.startsWith('/api')) {
+      res.sendFile(path.join(publicPath, 'index.html'));
+    }
+  });
+}
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`API server running on port ${PORT}`);

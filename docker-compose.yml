@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  panoruleauditor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: panoruleauditor
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - PANORAMA_URL=${PANORAMA_URL:-}
+      - PANORAMA_API_KEY=${PANORAMA_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

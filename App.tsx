@@ -1,7 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { PanoramaConfig, PanoramaRule, AuditSummary, HAPair } from './types';
-import { analyzeRulesWithAI } from './services/geminiService';
 import { RuleRow } from './components/RuleRow';
 
 const App: React.FC = () => {
@@ -33,8 +32,6 @@ const App: React.FC = () => {
   const [deviceGroups, setDeviceGroups] = useState<string[]>([]);
   const [isAuditing, setIsAuditing] = useState(false);
   const [showReport, setShowReport] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-  const [isAiLoading, setIsAiLoading] = useState(false);
   const [isProductionMode, setIsProductionMode] = useState(false);
   const [isApplyingRemediation, setIsApplyingRemediation] = useState(false);
   const [selectedRuleIds, setSelectedRuleIds] = useState<Set<string>>(new Set());
@@ -75,7 +72,6 @@ const App: React.FC = () => {
 
   const handleAudit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAiAnalysis(null);
     setIsAuditing(true);
     
     try {
@@ -121,13 +117,6 @@ const App: React.FC = () => {
     }
   };
 
-
-  const runAiAnalysis = async () => {
-    setIsAiLoading(true);
-    const analysis = await analyzeRulesWithAI(rules, config.unusedDays);
-    setAiAnalysis(analysis);
-    setIsAiLoading(false);
-  };
 
   const getDisabledDateTag = () => {
     const d = new Date();
@@ -228,26 +217,6 @@ const App: React.FC = () => {
           xPos += colWidths[3];
           doc.text(rule.action, xPos, yPos);
           yPos += 7;
-        });
-      }
-      
-      if (aiAnalysis) {
-        if (yPos > doc.internal.pageSize.getHeight() - 50) {
-          doc.addPage();
-          yPos = margin;
-        }
-        doc.setFontSize(14);
-        doc.text('AI Security Commentary', margin, yPos);
-        yPos += 10;
-        doc.setFontSize(10);
-        const lines = doc.splitTextToSize(aiAnalysis, pageWidth - 2 * margin);
-        lines.forEach((line: string) => {
-          if (yPos > doc.internal.pageSize.getHeight() - 20) {
-            doc.addPage();
-            yPos = margin;
-          }
-          doc.text(line, margin, yPos);
-          yPos += 6;
         });
       }
       
@@ -572,35 +541,14 @@ const App: React.FC = () => {
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
                 <h3 className="text-lg font-semibold text-slate-800">Audit Results</h3>
-                <div className="flex gap-2">
-                   <button 
-                    onClick={runAiAnalysis}
-                    disabled={isAiLoading}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 rounded-md transition-colors"
-                  >
-                    {isAiLoading ? 'Analyzing...' : 'AI Security Commentary'}
-                  </button>
-                  <button 
-                    onClick={handleExportPDF}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-md transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    Export PDF
-                  </button>
-                </div>
+                <button 
+                  onClick={handleExportPDF}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 rounded-md transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Export PDF
+                </button>
               </div>
-
-              {aiAnalysis && (
-                <div className="p-6 bg-slate-900 text-slate-100 border-b border-slate-800 overflow-auto max-h-96 prose prose-invert max-w-none">
-                  <div className="flex items-center gap-2 mb-4 text-blue-400">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
-                    <span className="font-semibold uppercase tracking-wider text-xs">Gemini AI Audit Intelligence</span>
-                  </div>
-                  <div className="text-sm font-light leading-relaxed whitespace-pre-wrap">
-                    {aiAnalysis}
-                  </div>
-                </div>
-              )}
 
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">

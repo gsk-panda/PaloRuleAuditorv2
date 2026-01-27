@@ -105,6 +105,32 @@ The API key must have permissions to:
 
 ## Installation
 
+### Docker Installation (Recommended)
+
+For the easiest deployment, use Docker:
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/gsk-panda/PaloRuleAuditorv2.git
+   cd PaloRuleAuditor
+   ```
+
+2. **Create environment file** (`.env`):
+   ```bash
+   cp .env.example .env
+   # Edit .env and set your API keys
+   ```
+
+3. **Start with Docker Compose:**
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Access the application:**
+   - Open `http://localhost:3001` in your browser
+
+For detailed Docker setup instructions, environment variable configuration, and troubleshooting, see **[DOCKER_SETUP.md](DOCKER_SETUP.md)**.
+
 ### Updating an Existing Installation
 
 If you already have PaloRuleAuditor installed and want to update to the latest version:
