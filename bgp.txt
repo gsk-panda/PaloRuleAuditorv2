@@ -1,0 +1,1 @@
+https://<firewall-ip>/api/?type=op&cmd=<show><routing><protocol><bgp><peer></peer></bgp></protocol></routing></show>&key=<api-key>
