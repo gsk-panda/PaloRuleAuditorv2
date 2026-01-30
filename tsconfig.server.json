@@ -3,6 +3,8 @@
   "compilerOptions": {
     "noEmit": false,
     "allowImportingTsExtensions": false,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "outDir": "dist-server",
     "rootDir": ".",
     "module": "ESNext",

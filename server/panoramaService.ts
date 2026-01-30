@@ -7,7 +7,7 @@ interface PanoramaRuleUseEntry {
   rulename?: string;
   lastused?: string;
   hitcnt?: string;
-  target?: string | Array<{ entry?: string }>;
+  target?: string | string[] | Array<{ entry?: string }>;
   modificationTimestamp?: string;
 }
 
