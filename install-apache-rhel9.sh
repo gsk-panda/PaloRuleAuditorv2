@@ -183,6 +183,20 @@ deploy_static_to_apache() {
     log "Static files deployed"
 }
 
+create_start_wrapper() {
+    local wrapper="$APP_DIR/start-backend.sh"
+    cat > "$wrapper" << EOF
+#!/bin/bash
+cd $APP_DIR
+chown -R $APP_USER:$APP_USER . 2>/dev/null || true
+chmod -R 755 dist-server 2>/dev/null || true
+exec /usr/bin/node dist-server/server/index.js
+EOF
+    chmod +x "$wrapper"
+    chown root:root "$wrapper"
+    log "Start wrapper created: $wrapper"
+}
+
 create_systemd_service() {
     local service_file="/etc/systemd/system/${SERVICE_NAME}.service"
     local selinux_line=""
@@ -196,13 +210,13 @@ After=network.target
 
 [Service]
 Type=simple
-User=${APP_USER}
+User=root
 WorkingDirectory=${APP_DIR}
 ${selinux_line}
 Environment="NODE_ENV=production"
 Environment="PORT=${BACKEND_PORT}"
 EnvironmentFile=-${APP_DIR}/.env.local
-ExecStart=/usr/bin/node dist-server/server/index.js
+ExecStart=${APP_DIR}/start-backend.sh
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -344,6 +358,7 @@ main() {
     build_frontend
     build_backend
     deploy_static_to_apache
+    create_start_wrapper
     create_systemd_service
     write_apache_config
     enable_apache_proxy
