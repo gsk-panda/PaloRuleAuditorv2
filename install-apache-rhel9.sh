@@ -188,7 +188,7 @@ WorkingDirectory=${APP_DIR}
 Environment="NODE_ENV=production"
 Environment="PORT=${BACKEND_PORT}"
 EnvironmentFile=-${APP_DIR}/.env.local
-ExecStart=/usr/bin/npx tsx server/index.ts
+ExecStart=/usr/bin/node --import tsx server/index.ts
 Restart=always
 RestartSec=10
 StandardOutput=journal
