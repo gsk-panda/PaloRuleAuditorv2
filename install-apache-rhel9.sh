@@ -267,6 +267,14 @@ fix_selinux_for_app() {
     fi
 }
 
+fix_app_permissions() {
+    log "Ensuring app files are owned by $APP_USER and readable..."
+    chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+    chmod 755 "$APP_DIR"
+    [[ -d "$APP_DIR/dist-server" ]] && chmod -R 755 "$APP_DIR/dist-server"
+    log "Permissions fixed"
+}
+
 start_services() {
     systemctl enable "$SERVICE_NAME"
     systemctl start "$SERVICE_NAME"
@@ -340,6 +348,7 @@ main() {
     write_apache_config
     enable_apache_proxy
     fix_selinux_for_app
+    fix_app_permissions
     start_services
     print_summary
 }

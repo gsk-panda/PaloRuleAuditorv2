@@ -117,11 +117,16 @@ sudo systemctl reload httpd
   Ensure `<Location "/audit/api">` is defined and that `ProxyPass`/`ProxyPassReverse` point to `http://127.0.0.1:3010/api`.
 
 - **Backend: EPERM "operation not permitted" on dist-server/server/index.js**  
-  SELinux is blocking the service. Add `SELinuxContext` so it runs unconfined:
+  If SELinux is disabled (`sestatus`), the issue is file ownership. Fix with:
+  ```bash
+  sudo chown -R panoruleauditor:panoruleauditor /opt/PaloRuleAuditor
+  sudo chmod -R 755 /opt/PaloRuleAuditor/dist-server
+  sudo systemctl restart panoruleauditor-backend
+  ```
+  If SELinux is enforcing, add `SELinuxContext` so the service runs unconfined:
   ```bash
   sudo grep -q SELinuxContext= /etc/systemd/system/panoruleauditor-backend.service || \
     sudo sed -i '/\[Service\]/a SELinuxContext=system_u:system_r:unconfined_service_t:s0' /etc/systemd/system/panoruleauditor-backend.service
   sudo systemctl daemon-reload
   sudo systemctl restart panoruleauditor-backend
   ```
-  Or re-run the install script to apply the fix automatically.
