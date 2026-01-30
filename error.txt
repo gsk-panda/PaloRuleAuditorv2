@@ -1,0 +1,19 @@
+[2026-01-30 11:41:34] System dependencies installed
+[2026-01-30 11:41:34] Installing Node.js 20...
+[2026-01-30 11:41:34] Node.js 20 is already installed
+[2026-01-30 11:41:34] User panoruleauditor already exists
+[2026-01-30 11:41:34] Setting up application in /opt/PaloRuleAuditor...
+[2026-01-30 11:41:34] Removing previous installation...
+Cloning into '/tmp/PaloRuleAuditor_clone'...
+remote: Enumerating objects: 495, done.
+remote: Counting objects: 100% (56/56), done.
+remote: Compressing objects: 100% (49/49), done.
+remote: Total 495 (delta 23), reused 24 (delta 7), pack-reused 439 (from 1)
+Receiving objects: 100% (495/495), 215.62 KiB | 1.17 MiB/s, done.
+Resolving deltas: 100% (258/258), done.
+sending incremental file list
+rsync: [sender] change_dir "/home/SNC/121135-adm/[2026-01-30 11:41:41] Cloning repository from https://github.com/gsk-panda/PaloRuleAuditorv2.git...\#012[2026-01-30 11:41:42] Repository cloned to /tmp/PaloRuleAuditor_clone\#012/tmp/PaloRuleAuditor_clone" failed: No such file or directory (2)
+
+sent 19 bytes  received 12 bytes  62.00 bytes/sec
+total size is 0  speedup is 0.00
+rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1327) [sender=3.2.5]
