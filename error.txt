@@ -14,3 +14,7 @@ Jan 30 14:01:41 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
 Jan 30 14:01:41 paweblog01d npx[837401]: sh: line 1: /opt/PaloRuleAuditor/node_modules/.bin/tsx: Operation not permitted
 Jan 30 14:01:41 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=126/n/a
 Jan 30 14:01:41 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
+
+sudo sed -i 's|ExecStart=.*|ExecStart=/usr/bin/node --import tsx server/index.ts|' /etc/systemd/system/panoruleauditor-backend.service
+sudo systemctl daemon-reload
+sudo systemctl restart panoruleauditor-backend
