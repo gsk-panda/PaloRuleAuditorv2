@@ -26,7 +26,7 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const app = express();
-const PORT = process.env.PORT || 3010;
+const PORT = Number(process.env.PORT) || 3010;
 
 app.use(cors());
 app.use(express.json());
