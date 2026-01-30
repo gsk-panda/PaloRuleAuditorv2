@@ -1,23 +1,35 @@
-Jan 30 16:23:16 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
-Jan 30 16:23:26 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 5.
-Jan 30 16:23:26 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
-Jan 30 16:23:26 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
-Jan 30 16:23:26 paweblog01d node[840991]: node:internal/fs/promises:639
-Jan 30 16:23:26 paweblog01d node[840991]:   return new FileHandle(await PromisePrototypeThen(
-Jan 30 16:23:26 paweblog01d node[840991]:                         ^
-Jan 30 16:23:26 paweblog01d node[840991]: Error: EPERM: operation not permitted, open '/opt/PaloRuleAuditor/dist-server/server/index.js'
-Jan 30 16:23:26 paweblog01d node[840991]:     at async open (node:internal/fs/promises:639:25)
-Jan 30 16:23:26 paweblog01d node[840991]:     at async readFile (node:internal/fs/promises:1246:14)
-Jan 30 16:23:26 paweblog01d node[840991]:     at async getSource (node:internal/modules/esm/load:48:14)
-Jan 30 16:23:26 paweblog01d node[840991]:     at async defaultLoad (node:internal/modules/esm/load:139:34)
-Jan 30 16:23:26 paweblog01d node[840991]:     at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:543:45)
-Jan 30 16:23:26 paweblog01d node[840991]:     at async ModuleJob._link (node:internal/modules/esm/module_job:148:19) {
-Jan 30 16:23:26 paweblog01d node[840991]:   errno: -1,
-Jan 30 16:23:26 paweblog01d node[840991]:   code: 'EPERM',
-Jan 30 16:23:26 paweblog01d node[840991]:   syscall: 'open',
-Jan 30 16:23:26 paweblog01d node[840991]:   path: '/opt/PaloRuleAuditor/dist-server/server/index.js'
-Jan 30 16:23:26 paweblog01d node[840991]: }
-Jan 30 16:23:26 paweblog01d node[840991]: Node.js v20.19.5
-Jan 30 16:23:26 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=1/FAILURE
-Jan 30 16:23:26 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
+[paweblog01d:121135-adm]-> sudo journalctl -u panoruleauditor-backend -f
+Jan 30 16:26:24 paweblog01d node[841412]:     at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:543:45)
+Jan 30 16:26:24 paweblog01d node[841412]:     at async ModuleJob._link (node:internal/modules/esm/module_job:148:19) {
+Jan 30 16:26:24 paweblog01d node[841412]:   errno: -1,
+Jan 30 16:26:24 paweblog01d node[841412]:   code: 'EPERM',
+Jan 30 16:26:24 paweblog01d node[841412]:   syscall: 'open',
+Jan 30 16:26:24 paweblog01d node[841412]:   path: '/opt/PaloRuleAuditor/dist-server/server/index.js'
+Jan 30 16:26:24 paweblog01d node[841412]: }
+Jan 30 16:26:24 paweblog01d node[841412]: Node.js v20.19.5
+Jan 30 16:26:24 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=1/FAILURE
+Jan 30 16:26:24 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
+Jan 30 16:26:34 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 1.
+Jan 30 16:26:34 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
+Jan 30 16:26:34 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
+Jan 30 16:26:34 paweblog01d node[841612]: node:internal/fs/promises:639
+Jan 30 16:26:34 paweblog01d node[841612]:   return new FileHandle(await PromisePrototypeThen(
+Jan 30 16:26:34 paweblog01d node[841612]:                         ^
+Jan 30 16:26:34 paweblog01d node[841612]: Error: EPERM: operation not permitted, open '/opt/PaloRuleAuditor/dist-server/server/index.js'
+Jan 30 16:26:34 paweblog01d node[841612]:     at async open (node:internal/fs/promises:639:25)
+Jan 30 16:26:34 paweblog01d node[841612]:     at async readFile (node:internal/fs/promises:1246:14)
+Jan 30 16:26:34 paweblog01d node[841612]:     at async getSource (node:internal/modules/esm/load:48:14)
+Jan 30 16:26:34 paweblog01d node[841612]:     at async defaultLoad (node:internal/modules/esm/load:139:34)
+Jan 30 16:26:34 paweblog01d node[841612]:     at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:543:45)
+Jan 30 16:26:34 paweblog01d node[841612]:     at async ModuleJob._link (node:internal/modules/esm/module_job:148:19) {
+Jan 30 16:26:34 paweblog01d node[841612]:   errno: -1,
+Jan 30 16:26:34 paweblog01d node[841612]:   code: 'EPERM',
+Jan 30 16:26:34 paweblog01d node[841612]:   syscall: 'open',
+Jan 30 16:26:34 paweblog01d node[841612]:   path: '/opt/PaloRuleAuditor/dist-server/server/index.js'
+Jan 30 16:26:34 paweblog01d node[841612]: }
+Jan 30 16:26:34 paweblog01d node[841612]: Node.js v20.19.5
+Jan 30 16:26:34 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=1/FAILURE
+Jan 30 16:26:34 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
 ^C
+[paweblog01d:121135-adm]-> sestatus
+SELinux status:                 disabled
