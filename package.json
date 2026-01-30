@@ -8,8 +8,9 @@
     "dev:client": "vite",
     "dev:server": "tsx watch server/index.ts",
     "build": "vite build",
+    "build:server": "tsc -p tsconfig.server.json",
     "preview": "vite preview",
-    "start": "node dist/server/index.js"
+    "start": "node dist-server/server/index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

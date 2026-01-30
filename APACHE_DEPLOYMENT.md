@@ -117,15 +117,12 @@ sudo systemctl reload httpd
   Ensure `<Location "/audit/api">` is defined and that `ProxyPass`/`ProxyPassReverse` point to `http://127.0.0.1:3001/api`.
 
 - **Backend: "Operation not permitted" (tsx, loader.mjs, or node_modules)**  
-  SELinux is blocking the service from reading app files. Apply the correct context to the **entire** app directory so the backend can read `node_modules` (including the tsx loader):
+  The install script now compiles the backend to JavaScript and runs `node dist-server/server/index.js` (no tsx at runtime). If you still see EPERM on the tsx loader, switch to the compiled backend:
   ```bash
-  sudo chcon -R -t bin_t /opt/PaloRuleAuditor
+  cd /opt/PaloRuleAuditor
+  sudo npm run build:server
+  sudo sed -i 's|ExecStart=.*|ExecStart=/usr/bin/node dist-server/server/index.js|' /etc/systemd/system/panoruleauditor-backend.service
+  sudo systemctl daemon-reload
   sudo systemctl restart panoruleauditor-backend
   ```
-  To make it persistent (RHEL with `semanage`):
-  ```bash
-  sudo semanage fcontext -a -t bin_t "/opt/PaloRuleAuditor(/.*)?"
-  sudo restorecon -R /opt/PaloRuleAuditor
-  sudo systemctl restart panoruleauditor-backend
-  ```
-  The service runs `node --import tsx server/index.ts`; Node must be able to read files under `/opt/PaloRuleAuditor/node_modules`.
+  Alternatively, fix SELinux so the service can read the app dir: `sudo chcon -R -t bin_t /opt/PaloRuleAuditor` then restart the service.
