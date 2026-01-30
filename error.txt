@@ -1,1 +1,3 @@
 Jump Box - MST-SanAntonio-Dev RDP
+
+https://10.1.0.100/api/?type=op&cmd=%3Cshow%3E%3Crule-hit-count%3E%3Cdevice-group%3E%3Centry%20name%3D%22ISS%22%3E%3Cpre-rulebase%3E%3Centry%20name%3D%22security%22%3E%3Crules%3E%3Crule-name%3E%3Centry%20name%3D%22Jump%20Box%20-%20MST-SanAntonio-Dev%20RDP%22%2F%3E%3C%2Frule-name%3E%3C%2Frules%3E%3C%2Fentry%3E%3C%2Fpre-rulebase%3E%3C%2Fentry%3E%3C%2Fdevice-group%3E%3C%2Frule-hit-count%3E%3C%2Fshow%3E&key=YOUR_API_KEY
