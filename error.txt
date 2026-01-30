@@ -18,3 +18,27 @@ Jan 30 14:01:41 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed 
 sudo sed -i 's|ExecStart=.*|ExecStart=/usr/bin/node --import tsx server/index.ts|' /etc/systemd/system/panoruleauditor-backend.service
 sudo systemctl daemon-reload
 sudo systemctl restart panoruleauditor-backend
+
+
+Jan 30 14:04:27 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
+Jan 30 14:04:37 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 18.
+Jan 30 14:04:37 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
+Jan 30 14:04:37 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
+Jan 30 14:04:37 paweblog01d node[837630]: node:internal/fs/promises:639
+Jan 30 14:04:37 paweblog01d node[837630]:   return new FileHandle(await PromisePrototypeThen(
+Jan 30 14:04:37 paweblog01d node[837630]:                         ^
+Jan 30 14:04:37 paweblog01d node[837630]: Error: EPERM: operation not permitted, open '/opt/PaloRuleAuditor/node_modules/tsx/dist/loader.mjs'
+Jan 30 14:04:37 paweblog01d node[837630]:     at async open (node:internal/fs/promises:639:25)
+Jan 30 14:04:37 paweblog01d node[837630]:     at async readFile (node:internal/fs/promises:1246:14)
+Jan 30 14:04:37 paweblog01d node[837630]:     at async getSource (node:internal/modules/esm/load:48:14)
+Jan 30 14:04:37 paweblog01d node[837630]:     at async defaultLoad (node:internal/modules/esm/load:139:34)
+Jan 30 14:04:37 paweblog01d node[837630]:     at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:543:45)
+Jan 30 14:04:37 paweblog01d node[837630]:     at async ModuleJob._link (node:internal/modules/esm/module_job:148:19) {
+Jan 30 14:04:37 paweblog01d node[837630]:   errno: -1,
+Jan 30 14:04:37 paweblog01d node[837630]:   code: 'EPERM',
+Jan 30 14:04:37 paweblog01d node[837630]:   syscall: 'open',
+Jan 30 14:04:37 paweblog01d node[837630]:   path: '/opt/PaloRuleAuditor/node_modules/tsx/dist/loader.mjs'
+Jan 30 14:04:37 paweblog01d node[837630]: }
+Jan 30 14:04:37 paweblog01d node[837630]: Node.js v20.19.5
+Jan 30 14:04:37 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=1/FAILURE
+Jan 30 14:04:37 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
