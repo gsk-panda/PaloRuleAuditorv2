@@ -21,7 +21,7 @@ APACHE_CONF_D="/etc/httpd/conf.d"
 APACHE_CONF_FILE="panoruleauditor.conf"
 
 log() {
-    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1"
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] $1" >&2
 }
 
 error() {
