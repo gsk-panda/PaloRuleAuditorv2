@@ -158,7 +158,8 @@ build_frontend() {
     log "Building frontend with base path $URL_PATH..."
     cd "$APP_DIR"
     export VITE_BASE_PATH="$URL_PATH/"
-    sudo -u "$APP_USER" -E npm run build
+    npm run build
+    chown -R "$APP_USER:$APP_USER" "$APP_DIR"
     [[ -d "$APP_DIR/dist" ]] || error "Frontend build failed: dist/ not found"
     log "Frontend built"
 }
