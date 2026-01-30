@@ -3,6 +3,8 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { PanoramaConfig, PanoramaRule, AuditSummary, HAPair } from './types';
 import { RuleRow } from './components/RuleRow';
 
+const apiBase = ((import.meta.env.BASE_URL || '/').replace(/\/?$/, '') || '') + '/api';
+
 const App: React.FC = () => {
   const [config, setConfig] = useState<PanoramaConfig>({
     url: '',
@@ -11,7 +13,7 @@ const App: React.FC = () => {
   });
 
   useEffect(() => {
-    fetch('/api/config')
+    fetch(apiBase + '/config')
       .then(res => res.json())
       .then(data => {
         if (data.panoramaUrl || data.apiKey) {
@@ -75,7 +77,7 @@ const App: React.FC = () => {
     setIsAuditing(true);
     
     try {
-      const endpoint = auditMode === 'disabled' ? '/api/audit/disabled' : '/api/audit';
+      const endpoint = auditMode === 'disabled' ? apiBase + '/audit/disabled' : apiBase + '/audit';
       const body = auditMode === 'disabled' 
         ? {
             url: config.url,
@@ -252,7 +254,7 @@ const App: React.FC = () => {
 
     setIsApplyingRemediation(true);
     try {
-      const response = await fetch('/api/remediate', {
+      const response = await fetch(apiBase + '/remediate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
