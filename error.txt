@@ -1,3 +1,145 @@
 Jump Box - MST-SanAntonio-Dev RDP
 
 https://10.1.0.100/api/?type=op&cmd=%3Cshow%3E%3Crule-hit-count%3E%3Cdevice-group%3E%3Centry%20name%3D%22ISS%22%3E%3Cpre-rulebase%3E%3Centry%20name%3D%22security%22%3E%3Crules%3E%3Crule-name%3E%3Centry%20name%3D%22Jump%20Box%20-%20MST-SanAntonio-Dev%20RDP%22%2F%3E%3C%2Frule-name%3E%3C%2Frules%3E%3C%2Fentry%3E%3C%2Fpre-rulebase%3E%3C%2Fentry%3E%3C%2Fdevice-group%3E%3C%2Frule-hit-count%3E%3C%2Fshow%3E&key=YOUR_API_KEY
+
+
+<response status="success">
+<result>
+<rule-hit-count>
+<device-group>
+<entry name="ISS">
+<rule-base>
+<entry name="security">
+<rules>
+<entry name="Jump Box - MST-SanAntonio-Dev RDP">
+<device-vsys>
+<entry name="ISS/011901019870/vsys1">
+<hit-count/>
+<last-hit-timestamp/>
+<last-reset-timestamp/>
+<first-hit-timestamp/>
+<last-receive-timestamp/>
+<rule-creation-timestamp/>
+<rule-modification-timestamp/>
+<device-state>yes</device-state>
+</entry>
+<entry name="ISS/011901052740/vsys1">
+<hit-count/>
+<last-hit-timestamp/>
+<last-reset-timestamp/>
+<first-hit-timestamp/>
+<last-receive-timestamp/>
+<rule-creation-timestamp/>
+<rule-modification-timestamp/>
+<device-state>yes</device-state>
+</entry>
+<entry name="ISS/011901023647/vsys1">
+<hit-count/>
+<last-hit-timestamp/>
+<last-reset-timestamp/>
+<first-hit-timestamp/>
+<last-receive-timestamp/>
+<rule-creation-timestamp/>
+<rule-modification-timestamp/>
+<device-state>yes</device-state>
+</entry>
+<entry name="ISS/011901024335/vsys1">
+<hit-count/>
+<last-hit-timestamp/>
+<last-reset-timestamp/>
+<first-hit-timestamp/>
+<last-receive-timestamp/>
+<rule-creation-timestamp/>
+<rule-modification-timestamp/>
+<device-state>yes</device-state>
+</entry>
+<entry name="ISS/011901020035/vsys1">
+<hit-count/>
+<last-hit-timestamp/>
+<last-reset-timestamp/>
+<first-hit-timestamp/>
+<last-receive-timestamp/>
+<rule-creation-timestamp/>
+<rule-modification-timestamp/>
+<device-state>yes</device-state>
+</entry>
+<entry name="ISS/011901042854/vsys1">
+<hit-count>4</hit-count>
+<last-hit-timestamp>1755006145</last-hit-timestamp>
+<last-reset-timestamp>0</last-reset-timestamp>
+<first-hit-timestamp>1752250959</first-hit-timestamp>
+<last-receive-timestamp>1769816347</last-receive-timestamp>
+<rule-creation-timestamp>1724788825</rule-creation-timestamp>
+<rule-modification-timestamp>1724788825</rule-modification-timestamp>
+<device-state>yes</device-state>
+</entry>
+<entry name="ISS/011901023595/vsys1">
+<hit-count>0</hit-count>
+<last-hit-timestamp>0</last-hit-timestamp>
+<last-reset-timestamp>0</last-reset-timestamp>
+<first-hit-timestamp>0</first-hit-timestamp>
+<last-receive-timestamp>1760479996</last-receive-timestamp>
+<rule-creation-timestamp>1760104497</rule-creation-timestamp>
+<rule-modification-timestamp>1760104497</rule-modification-timestamp>
+<device-state>yes</device-state>
+</entry>
+<entry name="ISS/011901019863/vsys1">
+<hit-count/>
+<last-hit-timestamp/>
+<last-reset-timestamp/>
+<first-hit-timestamp/>
+<last-receive-timestamp/>
+<rule-creation-timestamp/>
+<rule-modification-timestamp/>
+<device-state>yes</device-state>
+</entry>
+<entry name="ISS/011901007701/vsys1">
+<hit-count>0</hit-count>
+<last-hit-timestamp>0</last-hit-timestamp>
+<last-reset-timestamp>0</last-reset-timestamp>
+<first-hit-timestamp>0</first-hit-timestamp>
+<last-receive-timestamp>1742936876</last-receive-timestamp>
+<rule-creation-timestamp>1742861480</rule-creation-timestamp>
+<rule-modification-timestamp>1742861480</rule-modification-timestamp>
+<device-state>yes</device-state>
+</entry>
+<entry name="ISS/011901007958/vsys1">
+<hit-count>0</hit-count>
+<last-hit-timestamp>0</last-hit-timestamp>
+<last-reset-timestamp>0</last-reset-timestamp>
+<first-hit-timestamp>0</first-hit-timestamp>
+<last-receive-timestamp>1752107050</last-receive-timestamp>
+<rule-creation-timestamp>1752019573</rule-creation-timestamp>
+<rule-modification-timestamp>1752019573</rule-modification-timestamp>
+<device-state>yes</device-state>
+</entry>
+<entry name="ISS/011901042877/vsys1">
+<hit-count/>
+<last-hit-timestamp/>
+<last-reset-timestamp/>
+<first-hit-timestamp/>
+<last-receive-timestamp/>
+<rule-creation-timestamp/>
+<rule-modification-timestamp/>
+<device-state>yes</device-state>
+</entry>
+<entry name="ISS/011901001726/vsys1">
+<hit-count/>
+<last-hit-timestamp/>
+<last-reset-timestamp/>
+<first-hit-timestamp/>
+<last-receive-timestamp/>
+<rule-creation-timestamp/>
+<rule-modification-timestamp/>
+<device-state>yes</device-state>
+</entry>
+</device-vsys>
+</entry>
+</rules>
+</entry>
+</rule-base>
+</entry>
+</device-group>
+</rule-hit-count>
+</result>
+</response>
