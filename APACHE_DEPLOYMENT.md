@@ -116,11 +116,16 @@ sudo systemctl reload httpd
 - **API calls fail**  
   Ensure `<Location "/audit/api">` is defined and that `ProxyPass`/`ProxyPassReverse` point to `http://127.0.0.1:3001/api`.
 
-- **Backend: "Operation not permitted" on tsx / node_modules**  
-  The service is now configured to run `node --import tsx` (no execution of `node_modules/.bin/tsx`). If you still see this error, update the service and restart:
+- **Backend: "Operation not permitted" (tsx, loader.mjs, or node_modules)**  
+  SELinux is blocking the service from reading app files. Apply the correct context to the **entire** app directory so the backend can read `node_modules` (including the tsx loader):
   ```bash
-  sudo sed -i 's|ExecStart=.*|ExecStart=/usr/bin/node --import tsx server/index.ts|' /etc/systemd/system/panoruleauditor-backend.service
-  sudo systemctl daemon-reload
+  sudo chcon -R -t bin_t /opt/PaloRuleAuditor
   sudo systemctl restart panoruleauditor-backend
   ```
-  Alternatively, if you prefer to fix SELinux instead: `sudo chcon -R -t bin_t /opt/PaloRuleAuditor/node_modules` then restart the service.
+  To make it persistent (RHEL with `semanage`):
+  ```bash
+  sudo semanage fcontext -a -t bin_t "/opt/PaloRuleAuditor(/.*)?"
+  sudo restorecon -R /opt/PaloRuleAuditor
+  sudo systemctl restart panoruleauditor-backend
+  ```
+  The service runs `node --import tsx server/index.ts`; Node must be able to read files under `/opt/PaloRuleAuditor/node_modules`.

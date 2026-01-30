@@ -237,19 +237,19 @@ enable_apache_proxy() {
     log "Ensure these are enabled in Apache: LoadModule proxy_module; LoadModule proxy_http_module"
 }
 
-fix_selinux_for_node_modules() {
+fix_selinux_for_app() {
     if ! command -v getenforce &>/dev/null || [[ "$(getenforce 2>/dev/null)" != "Enforcing" ]]; then
         return 0
     fi
-    log "Setting SELinux context so backend can execute node_modules binaries..."
-    if [[ -d "$APP_DIR/node_modules" ]]; then
+    log "Setting SELinux context so backend can read and run app files..."
+    if [[ -d "$APP_DIR" ]]; then
         if command -v semanage &>/dev/null; then
-            semanage fcontext -a -t bin_t "${APP_DIR}/node_modules(/.*)?" 2>/dev/null || true
-            restorecon -R "$APP_DIR/node_modules" 2>/dev/null || true
+            semanage fcontext -a -t bin_t "${APP_DIR}(/.*)?" 2>/dev/null || true
+            restorecon -R "$APP_DIR" 2>/dev/null || true
         else
-            chcon -R -t bin_t "$APP_DIR/node_modules" 2>/dev/null || true
+            chcon -R -t bin_t "$APP_DIR" 2>/dev/null || true
         fi
-        log "SELinux context updated for node_modules"
+        log "SELinux context updated for $APP_DIR"
     fi
 }
 
@@ -324,7 +324,7 @@ main() {
     create_systemd_service
     write_apache_config
     enable_apache_proxy
-    fix_selinux_for_node_modules
+    fix_selinux_for_app
     start_services
     print_summary
 }
