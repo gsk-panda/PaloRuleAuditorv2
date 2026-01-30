@@ -1,8 +1,8 @@
 #!/bin/bash
 
-echo "Killing processes on ports 3000 and 3001..."
+echo "Killing processes on ports 3000 and 3010..."
 
-for port in 3000 3001; do
+for port in 3000 3010; do
   pid=$(lsof -ti:$port 2>/dev/null)
   if [ -n "$pid" ]; then
     echo "Killing process $pid on port $port"

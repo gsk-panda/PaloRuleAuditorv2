@@ -36,9 +36,9 @@ COPY --from=backend-builder /app/tsconfig.json ./
 COPY --from=frontend-builder /app/dist ./public
 
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=3010
 
-EXPOSE 3001
+EXPOSE 3010
 
 USER node
 

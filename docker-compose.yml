@@ -7,15 +7,15 @@ services:
       dockerfile: Dockerfile
     container_name: panoruleauditor
     ports:
-      - "3001:3001"
+      - "3010:3010"
     environment:
       - NODE_ENV=production
-      - PORT=3001
+      - PORT=3010
       - PANORAMA_URL=${PANORAMA_URL:-}
       - PANORAMA_API_KEY=${PANORAMA_API_KEY:-}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3001/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3010/health"]
       interval: 30s
       timeout: 10s
       retries: 3

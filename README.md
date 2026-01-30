@@ -127,7 +127,7 @@ For the easiest deployment, use Docker:
    ```
 
 4. **Access the application:**
-   - Open `http://localhost:3001` in your browser
+   - Open `http://localhost:3010` in your browser
 
 For detailed Docker setup instructions, environment variable configuration, and troubleshooting, see **[DOCKER_SETUP.md](DOCKER_SETUP.md)**.
 
@@ -180,7 +180,7 @@ For detailed update instructions, troubleshooting, and rollback procedures, see 
    npm run dev
    ```
 
-   This starts both the frontend (Vite) on `http://localhost:3000` and the backend (Express) on `http://localhost:3001`.
+   This starts both the frontend (Vite) on `http://localhost:3000` and the backend (Express) on `http://localhost:3010`.
 
 ### Production Installation (RHEL 9)
 
@@ -231,7 +231,7 @@ The script will:
 - Create a dedicated system user (`panoruleauditor`)
 - Set up the application in `/opt/PaloRuleAuditor`
 - Build the frontend and deploy to `/var/www/html/audit`
-- Configure backend as a systemd service on port 3001
+- Configure backend as a systemd service on port 3010
 - **Prompt for Panorama URL and API key** and store in `/opt/PaloRuleAuditor/.config`
 - Create Apache virtual host configuration
 - Set up proxy rules for API calls
@@ -318,7 +318,7 @@ The application follows a client-server architecture:
 ```
 ┌─────────────────┐         ┌──────────────────┐         ┌─────────────────┐
 │   React Client  │ ◄─────► │  Express Server  │ ◄─────► │  Panorama API   │
-│   (Port 3000)   │  HTTP   │   (Port 3001)    │  HTTPS  │   (External)    │
+│   (Port 3000)   │  HTTP   │   (Port 3010)    │  HTTPS  │   (External)    │
 └─────────────────┘         └──────────────────┘         └─────────────────┘
          │                           │
          │                           │
@@ -1416,7 +1416,7 @@ All XPath queries use the standard Panorama device name `localhost.localdomain`:
 - **Cause**: No rules match the criteria, or device groups have no rules
 - **Solution**: Verify device groups exist and contain security rules in pre-rulebase
 
-#### "Port 3001 is already in use"
+#### "Port 3010 is already in use"
 - **Cause**: Another process is using the backend port
 - **Solution**: Stop the existing process or change the PORT environment variable
 

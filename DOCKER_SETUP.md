@@ -23,8 +23,8 @@ This guide explains how to run Palo Alto Panorama Rule Auditor as a self-contain
    ```
 
 3. **Access the application**:
-   - Open your browser to `http://localhost:3001`
-   - The frontend is served from the backend on port 3001
+   - Open your browser to `http://localhost:3010`
+   - The frontend is served from the backend on port 3010
 
 4. **View logs**:
    ```bash
@@ -47,7 +47,7 @@ This guide explains how to run Palo Alto Panorama Rule Auditor as a self-contain
    ```bash
    docker run -d \
      --name panoruleauditor \
-     -p 3001:3001 \
+     -p 3010:3010 \
      -e PANORAMA_URL=https://panorama.example.com \
      -e PANORAMA_API_KEY=your_panorama_api_key_here \
      --restart unless-stopped \
@@ -55,7 +55,7 @@ This guide explains how to run Palo Alto Panorama Rule Auditor as a self-contain
    ```
 
 3. **Access the application**:
-   - Open your browser to `http://localhost:3001`
+   - Open your browser to `http://localhost:3010`
 
 4. **View logs**:
    ```bash
@@ -84,7 +84,7 @@ None of these are strictly required at container startup, but you'll need them f
 
 ### Optional Variables
 
-- **PORT**: Backend server port (default: `3001`)
+- **PORT**: Backend server port (default: `3010`)
   - Only change if you need a different port
   - Remember to update the port mapping in docker-compose.yml or docker run command
 
@@ -102,7 +102,7 @@ Set environment variables when starting the container. These will be available t
 ### Method 2: Web UI Configuration
 
 1. Start the container
-2. Open `http://localhost:3001` in your browser
+2. Open `http://localhost:3010` in your browser
 3. Enter Panorama URL and API key in the web interface
 4. The configuration is stored in the container's filesystem (`.config` file)
 
@@ -129,7 +129,7 @@ services:
 ```bash
 docker run -d \
   --name panoruleauditor \
-  -p 3001:3001 \
+  -p 3010:3010 \
   -v $(pwd)/config:/app/.config \
   panoruleauditor:latest
 ```
@@ -150,9 +150,9 @@ To run on a different port (e.g., 8080):
 1. Update `docker-compose.yml`:
    ```yaml
    ports:
-     - "8080:3001"
+     - "8080:3010"
    environment:
-     - PORT=3001
+     - PORT=3010
    ```
 
 2. Access at `http://localhost:8080`
@@ -162,8 +162,8 @@ To run on a different port (e.g., 8080):
 ```bash
 docker run -d \
   --name panoruleauditor \
-  -p 8080:3001 \
-  -e PORT=3001 \
+  -p 8080:3010 \
+  -e PORT=3010 \
   panoruleauditor:latest
 ```
 
@@ -178,7 +178,7 @@ docker ps
 
 Or manually:
 ```bash
-curl http://localhost:3001/health
+curl http://localhost:3010/health
 ```
 
 ## Troubleshooting
@@ -192,9 +192,9 @@ curl http://localhost:3001/health
 
 2. **Verify port availability**:
    ```bash
-   netstat -tuln | grep 3001
+   netstat -tuln | grep 3010
    # or on Linux
-   ss -tuln | grep 3001
+   ss -tuln | grep 3010
    ```
 
 3. **Check Docker resources**:
@@ -216,7 +216,7 @@ curl http://localhost:3001/health
 
 3. **Test connectivity**:
    ```bash
-   curl http://localhost:3001/health
+   curl http://localhost:3010/health
    ```
 
 ### Panorama connection issues
@@ -265,7 +265,7 @@ docker build -t panoruleauditor:latest .
 
 2. **Network Access**: Ensure the container can reach your Panorama management interface over HTTPS.
 
-3. **Firewall Rules**: Consider restricting access to port 3001 to authorized networks only.
+3. **Firewall Rules**: Consider restricting access to port 3010 to authorized networks only.
 
 4. **Container Security**: Run the container as a non-root user (already configured in the Dockerfile).
 

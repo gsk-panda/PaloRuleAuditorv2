@@ -17,7 +17,7 @@ The script will:
 - Create user `panoruleauditor` and install the app under `/opt/PaloRuleAuditor`
 - Build the frontend with base path `/audit/`
 - Deploy static files to `/var/www/html/audit`
-- Create systemd service `panoruleauditor-backend` (port 3001)
+- Create systemd service `panoruleauditor-backend` (port 3010)
 - Write Apache config to `/etc/httpd/conf.d/panoruleauditor.conf`
 - Optionally prompt for Panorama URL and API key (or configure later in the UI)
 
@@ -35,7 +35,7 @@ sudo ./install-apache-rhel9.sh --help
 
 - `--url-path PATH`   URL path (default: `/audit`)
 - `--web-root PATH`   Directory for static files (default: `/var/www/html/audit`)
-- `--backend-port N`  Backend port (default: `3001`)
+- `--backend-port N`  Backend port (default: `3010`)
 
 Example with a different path:
 
@@ -65,8 +65,8 @@ Copy `apache-panoruleauditor.conf` into your config tree and include it, or past
 ```apache
 # Proxy API to Node backend
 <Location "/audit/api">
-    ProxyPass http://127.0.0.1:3001/api
-    ProxyPassReverse http://127.0.0.1:3001/api
+    ProxyPass http://127.0.0.1:3010/api
+    ProxyPassReverse http://127.0.0.1:3010/api
     Require all granted
 </Location>
 
@@ -108,13 +108,13 @@ sudo systemctl reload httpd
 ## Troubleshooting
 
 - **502 / Proxy Error**  
-  Backend not running or wrong port. Check: `systemctl status panoruleauditor-backend` and that `PORT` in `/opt/PaloRuleAuditor/.env.local` matches the port in the Apache `ProxyPass` (default 3001).
+  Backend not running or wrong port. Check: `systemctl status panoruleauditor-backend` and that `PORT` in `/opt/PaloRuleAuditor/.env.local` matches the port in the Apache `ProxyPass` (default 3010).
 
 - **404 for /audit/**  
   Apache is not serving the alias or the static files are missing. Check that `/var/www/html/audit` exists and contains `index.html`, and that the `Alias` and `Directory` block are loaded.
 
 - **API calls fail**  
-  Ensure `<Location "/audit/api">` is defined and that `ProxyPass`/`ProxyPassReverse` point to `http://127.0.0.1:3001/api`.
+  Ensure `<Location "/audit/api">` is defined and that `ProxyPass`/`ProxyPassReverse` point to `http://127.0.0.1:3010/api`.
 
 - **Backend: "Operation not permitted" (tsx, loader.mjs, or node_modules)**  
   The install script now compiles the backend to JavaScript and runs `node dist-server/server/index.js` (no tsx at runtime). If you still see EPERM on the tsx loader, switch to the compiled backend:
