@@ -236,17 +236,17 @@ const App: React.FC = () => {
       return;
     }
 
-    const rulesToProcess = rules.filter(r => 
-      r.action === 'DISABLE' && selectedRuleIds.has(r.id)
-    );
+    const rulesToProcess = auditMode === 'disabled'
+      ? rules.filter(r => r.action === 'DISABLE' && selectedRuleIds.has(r.id))
+      : rules.filter(r => (r.action === 'DISABLE' || r.action === 'UNTARGET') && selectedRuleIds.has(r.id));
     
     if (rulesToProcess.length === 0) {
       alert('No rules selected for remediation');
       return;
     }
 
-    const action = auditMode === 'disabled' ? 'delete' : 'disable';
-    const actionText = auditMode === 'disabled' ? 'delete' : 'disable and tag';
+    const action = auditMode === 'disabled' ? 'delete' : 'disable/untarget';
+    const actionText = auditMode === 'disabled' ? 'delete' : 'disable or untarget and tag';
     
     if (!confirm(`Are you sure you want to ${actionText} ${rulesToProcess.length} rule(s)? This action cannot be undone.`)) {
       return;
@@ -264,7 +264,9 @@ const App: React.FC = () => {
           apiKey: config.apiKey,
           rules: rulesToProcess.map(r => ({
             name: r.name,
-            deviceGroup: r.deviceGroup
+            deviceGroup: r.deviceGroup,
+            action: r.action,
+            targets: r.targets
           })),
           tag: getDisabledDateTag(),
           auditMode: auditMode
@@ -279,7 +281,7 @@ const App: React.FC = () => {
       const result = await response.json();
       const successMessage = auditMode === 'disabled' 
         ? `Successfully deleted ${result.deletedCount || result.disabledCount} rules.`
-        : `Successfully disabled ${result.disabledCount} rules and added tags.`;
+        : `Successfully disabled ${result.disabledCount} rules, untargeted ${result.untargetedCount || 0} rules, and added tags.`;
       alert(successMessage);
     } catch (error) {
       console.error('Remediation failed:', error);
@@ -557,12 +559,14 @@ const App: React.FC = () => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
-                        {auditMode === 'disabled' && (
+                        {(auditMode === 'disabled' || auditMode === 'unused') && (
                           <input
                             type="checkbox"
-                            checked={rules.length > 0 && rules.filter(r => r.action === 'DISABLE').every(r => selectedRuleIds.has(r.id))}
+                            checked={rules.length > 0 && rules.filter(r => (auditMode === 'disabled' ? r.action === 'DISABLE' : (r.action === 'DISABLE' || r.action === 'UNTARGET'))).every(r => selectedRuleIds.has(r.id))}
                             onChange={(e) => {
-                              const rulesToToggle = rules.filter(r => r.action === 'DISABLE');
+                              const rulesToToggle = auditMode === 'disabled'
+                                ? rules.filter(r => r.action === 'DISABLE')
+                                : rules.filter(r => r.action === 'DISABLE' || r.action === 'UNTARGET');
                               if (e.target.checked) {
                                 setSelectedRuleIds(new Set(rulesToToggle.map(r => r.id)));
                               } else {
@@ -609,7 +613,11 @@ const App: React.FC = () => {
                   </li>
                   <li className="flex gap-3">
                     <span className="h-5 w-5 rounded bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">2</span>
-                    <span>Full Disable: 0 hits across all targets for {config.unusedDays} days. Tag: <code className="bg-slate-200 px-1 rounded">{getDisabledDateTag()}</code>.</span>
+                    <span>Untarget: Remove rule from firewalls with no hits in {config.unusedDays} days. Rule stays enabled on firewalls that have hits.</span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="h-5 w-5 rounded bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">3</span>
+                    <span>Full Disable: Only when all targets are untargeted (0 hits on all). Tag: <code className="bg-slate-200 px-1 rounded">{getDisabledDateTag()}</code>.</span>
                   </li>
                 </ul>
               </div>
@@ -637,12 +645,12 @@ const App: React.FC = () => {
       </main>
 
       {/* Floating Action Button */}
-      {showReport && summary.toDisable > 0 && (
+      {showReport && (summary.toDisable > 0 || (auditMode === 'unused' && summary.toUntarget > 0)) && (
         <div className="fixed bottom-8 right-8 z-40">
           <button 
             className={`${isProductionMode ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-400 cursor-not-allowed'} text-white font-bold py-4 px-8 rounded-full shadow-2xl flex items-center gap-2 transform hover:scale-105 transition-all disabled:transform-none`}
             onClick={handleApplyRemediation}
-            disabled={!isProductionMode || isApplyingRemediation || rules.filter(r => r.action === 'DISABLE' && selectedRuleIds.has(r.id)).length === 0}
+            disabled={!isProductionMode || isApplyingRemediation || (auditMode === 'disabled' ? rules.filter(r => r.action === 'DISABLE' && selectedRuleIds.has(r.id)).length === 0 : rules.filter(r => (r.action === 'DISABLE' || r.action === 'UNTARGET') && selectedRuleIds.has(r.id)).length === 0)}
           >
             {isApplyingRemediation ? (
               <>
@@ -656,7 +664,7 @@ const App: React.FC = () => {
               <>
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                 {isProductionMode 
-                  ? `${auditMode === 'disabled' ? 'Delete' : 'Apply Remediation'} (${rules.filter(r => r.action === 'DISABLE' && selectedRuleIds.has(r.id)).length} selected)`
+                  ? `${auditMode === 'disabled' ? 'Delete' : 'Apply Remediation'} (${auditMode === 'disabled' ? rules.filter(r => r.action === 'DISABLE' && selectedRuleIds.has(r.id)).length : rules.filter(r => (r.action === 'DISABLE' || r.action === 'UNTARGET') && selectedRuleIds.has(r.id)).length} selected)`
                   : 'Enable Production Mode to Apply'}
               </>
             )}

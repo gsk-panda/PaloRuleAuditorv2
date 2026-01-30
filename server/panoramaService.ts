@@ -304,13 +304,45 @@ export async function auditPanoramaRules(
                         if (vsysEntry['all-connected'] === 'yes') {
                           allConnected = true;
                         } else if (vsysEntry.name) {
-                          const deviceName = vsysEntry.name.split('/')[0];
-                          if (deviceName && !targets.includes(deviceName)) {
-                            targets.push(deviceName);
+                          const parts = vsysEntry.name.split('/');
+                          const deviceId = parts.length >= 2 ? parts[1] : parts[0];
+                          if (deviceId && !targets.includes(deviceId)) {
+                            targets.push(deviceId);
                           }
                         }
                       });
-                    } else {
+                      
+                      deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
+                        const perDeviceHitCount = parseInt(vsysEntry['hit-count'] || '0', 10);
+                        const lastHitTs = vsysEntry['last-hit-timestamp'];
+                        const modTs = vsysEntry['rule-modification-timestamp'];
+                        let lastUsedDate: string | undefined;
+                        if (lastHitTs && parseInt(lastHitTs) !== 0) {
+                          lastUsedDate = new Date(parseInt(lastHitTs) * 1000).toISOString();
+                        } else if (modTs) {
+                          lastUsedDate = new Date(parseInt(modTs) * 1000).toISOString();
+                        }
+                        let deviceId: string | undefined;
+                        if (vsysEntry.name) {
+                          const parts = vsysEntry.name.split('/');
+                          deviceId = parts.length >= 2 ? parts[1] : parts[0];
+                        }
+                        if (!deviceId) return;
+                        const perTarget: PanoramaRuleUseEntry = {
+                          devicegroup: dgName,
+                          rulebase: rulebaseType,
+                          rulename: ruleName,
+                          lastused: lastUsedDate,
+                          hitcnt: perDeviceHitCount.toString(),
+                          target: [deviceId],
+                          modificationTimestamp: modTs
+                        };
+                        entries.push(perTarget);
+                      });
+                      return;
+                    }
+                    
+                    {
                       const lastHitTimestamp = ruleEntry['last-hit-timestamp'];
                       const modificationTimestamp = ruleEntry['rule-modification-timestamp'];
                       const hitCount = ruleEntry['hit-count'] || ruleEntry['hitcount'] || '0';
@@ -431,7 +463,8 @@ export async function auditPanoramaRules(
           }
         } else if (Array.isArray(entry.target)) {
           entry.target.forEach(t => {
-            if (t.entry && t.entry !== 'all') targets.push(t.entry);
+            if (typeof t === 'string' && t !== 'all') targets.push(t);
+            else if (t && typeof t === 'object' && 'entry' in t && (t as { entry: string }).entry !== 'all') targets.push((t as { entry: string }).entry);
           });
         }
       }

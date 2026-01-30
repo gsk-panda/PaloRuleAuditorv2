@@ -240,9 +240,10 @@ app.post('/api/remediate', async (req, res) => {
 
     const panoramaDeviceName = 'localhost.localdomain';
     const isDeleteMode = String(auditMode) === 'disabled';
-    console.log(`Remediation mode: ${isDeleteMode ? 'DELETE' : 'DISABLE'}, auditMode value: "${auditMode}"`);
+    console.log(`Remediation mode: ${isDeleteMode ? 'DELETE' : 'DISABLE/UNTARGET'}, auditMode value: "${auditMode}"`);
     let disabledCount = 0;
     let deletedCount = 0;
+    let untargetedCount = 0;
     const errors: string[] = [];
 
     const { XMLParser, XMLBuilder } = await import('fast-xml-parser');
@@ -342,82 +343,104 @@ app.post('/api/remediate', async (req, res) => {
           deletedCount++;
           console.log(`Successfully deleted rule "${rule.name}" in device group "${rule.deviceGroup}"`);
         } else {
-          console.log(`[DISABLE MODE] Processing rule "${rule.name}" in device group "${rule.deviceGroup}"`);
-          const disableElement = '<disabled>yes</disabled>';
-          const disableUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(disableElement)}&key=${apiKey}`;
-          
-          console.log(`Disabling rule "${rule.name}" in device group "${rule.deviceGroup}"`);
-          const disableResponse = await fetch(disableUrl);
-          
-          if (!disableResponse.ok) {
-            const errorText = await disableResponse.text();
-            errors.push(`Failed to disable rule "${rule.name}": ${errorText.substring(0, 200)}`);
-            continue;
-          }
+          const isUntarget = rule.action === 'UNTARGET' && rule.targets && Array.isArray(rule.targets);
+          const devicesToKeep = isUntarget
+            ? (rule.targets as { name: string; hasHits: boolean }[]).filter(t => t.hasHits).map(t => t.name)
+            : [];
 
-          const disableResult = await disableResponse.text();
-          if (disableResult.includes('<response status="error"')) {
-            errors.push(`Error disabling rule "${rule.name}": ${disableResult.substring(0, 200)}`);
-            continue;
-          }
-
-          const getCurrentRuleUrl = `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(xpath)}&key=${apiKey}`;
-          const getResponse = await fetch(getCurrentRuleUrl);
-          
-          if (!getResponse.ok) {
-            console.log(`Warning: Could not fetch rule "${rule.name}" to add tag, but rule was disabled`);
-            disabledCount++;
-            continue;
-          }
-
-          const ruleXml = await getResponse.text();
-          const ruleData = parser.parse(ruleXml);
-          const ruleEntry = ruleData.response?.result?.entry;
-          
-          if (!ruleEntry) {
-            console.log(`Warning: Rule "${rule.name}" not found in response, but rule was disabled`);
-            disabledCount++;
-            continue;
-          }
-
-          const existingTags: string[] = [];
-          if (ruleEntry.tag?.member) {
-            const members = Array.isArray(ruleEntry.tag.member) 
-              ? ruleEntry.tag.member 
-              : [ruleEntry.tag.member];
-            existingTags.push(...members.map((m: any) => {
-              if (typeof m === 'string') return m;
-              if (m['_text']) return m['_text'];
-              if (m['#text']) return m['#text'];
-              return String(m);
-            }).filter(Boolean));
-          }
-
-          if (!existingTags.includes(tag)) {
-            existingTags.push(tag);
-            
-            const tagElement = existingTags.length === 1 
-              ? `<tag><member>${existingTags[0]}</member></tag>`
-              : `<tag>${existingTags.map(t => `<member>${t}</member>`).join('')}</tag>`;
-            
-            const tagUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(tagElement)}&key=${apiKey}`;
-            
-            console.log(`Adding tag to rule "${rule.name}"`);
-            const tagResponse = await fetch(tagUrl);
-            
-            if (!tagResponse.ok) {
-              const errorText = await tagResponse.text();
-              console.error(`Warning: Failed to add tag to rule "${rule.name}": ${errorText.substring(0, 200)}`);
+          if (isUntarget && devicesToKeep.length > 0) {
+            console.log(`[UNTARGET MODE] Processing rule "${rule.name}" in device group "${rule.deviceGroup}" - untargeting from devices with no hits`);
+            const getRuleUrl = `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(xpath)}&key=${apiKey}`;
+            const getResponse = await fetch(getRuleUrl);
+            if (!getResponse.ok) {
+              errors.push(`Failed to fetch rule "${rule.name}": ${getResponse.statusText}`);
+              continue;
+            }
+            const ruleXml = await getResponse.text();
+            const ruleData = parser.parse(ruleXml);
+            const ruleEntry = ruleData.response?.result?.entry;
+            if (!ruleEntry) {
+              errors.push(`Rule "${rule.name}" not found`);
+              continue;
+            }
+            const escapeXmlAttr = (s: string) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+            const targetElement = `<target><devices>${devicesToKeep.map(d => `<entry name="${escapeXmlAttr(d)}"/>`).join('')}</devices></target>`;
+            const setTargetUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(targetElement)}&key=${apiKey}`;
+            const setResponse = await fetch(setTargetUrl);
+            if (!setResponse.ok) {
+              const errorText = await setResponse.text();
+              errors.push(`Failed to untarget rule "${rule.name}": ${errorText.substring(0, 200)}`);
+              continue;
+            }
+            const setResult = await setResponse.text();
+            if (setResult.includes('<response status="error"')) {
+              errors.push(`Error untargeting rule "${rule.name}": ${setResult.substring(0, 200)}`);
+              continue;
+            }
+            untargetedCount++;
+            console.log(`Successfully untargeted rule "${rule.name}" - kept devices: ${devicesToKeep.join(', ')}`);
+          } else {
+            const shouldDisable = !isUntarget || devicesToKeep.length === 0;
+            if (shouldDisable) {
+              console.log(`[DISABLE MODE] Processing rule "${rule.name}" in device group "${rule.deviceGroup}"`);
             } else {
-              const tagResult = await tagResponse.text();
-              if (tagResult.includes('<response status="error"')) {
-                console.error(`Warning: Error adding tag to rule "${rule.name}": ${tagResult.substring(0, 200)}`);
+              console.log(`[DISABLE MODE] Processing rule "${rule.name}" - no devices to keep, disabling rule`);
+            }
+            const disableElement = '<disabled>yes</disabled>';
+            const disableUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(disableElement)}&key=${apiKey}`;
+            const disableResponse = await fetch(disableUrl);
+            if (!disableResponse.ok) {
+              const errorText = await disableResponse.text();
+              errors.push(`Failed to disable rule "${rule.name}": ${errorText.substring(0, 200)}`);
+              continue;
+            }
+            const disableResult = await disableResponse.text();
+            if (disableResult.includes('<response status="error"')) {
+              errors.push(`Error disabling rule "${rule.name}": ${disableResult.substring(0, 200)}`);
+              continue;
+            }
+            const getCurrentRuleUrl = `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(xpath)}&key=${apiKey}`;
+            const getResponse = await fetch(getCurrentRuleUrl);
+            if (!getResponse.ok) {
+              disabledCount++;
+              continue;
+            }
+            const ruleXml = await getResponse.text();
+            const ruleData = parser.parse(ruleXml);
+            const ruleEntry = ruleData.response?.result?.entry;
+            if (!ruleEntry) {
+              disabledCount++;
+              continue;
+            }
+            const existingTags: string[] = [];
+            if (ruleEntry.tag?.member) {
+              const members = Array.isArray(ruleEntry.tag.member) ? ruleEntry.tag.member : [ruleEntry.tag.member];
+              existingTags.push(...members.map((m: any) => {
+                if (typeof m === 'string') return m;
+                if (m['_text']) return m['_text'];
+                if (m['#text']) return m['#text'];
+                return String(m);
+              }).filter(Boolean));
+            }
+            if (!existingTags.includes(tag)) {
+              existingTags.push(tag);
+              const tagElement = existingTags.length === 1
+                ? `<tag><member>${existingTags[0]}</member></tag>`
+                : `<tag>${existingTags.map(t => `<member>${t}</member>`).join('')}</tag>`;
+              const tagUrl = `${url}/api/?type=config&action=set&xpath=${encodeURIComponent(xpath)}&element=${encodeURIComponent(tagElement)}&key=${apiKey}`;
+              const tagResponse = await fetch(tagUrl);
+              if (!tagResponse.ok) {
+                console.error(`Warning: Failed to add tag to rule "${rule.name}"`);
+              } else {
+                const tagResult = await tagResponse.text();
+                if (tagResult.includes('<response status="error"')) {
+                  console.error(`Warning: Error adding tag to rule "${rule.name}"`);
+                }
               }
             }
+            disabledCount++;
+            console.log(`Successfully disabled rule "${rule.name}" in device group "${rule.deviceGroup}"`);
           }
-
-          disabledCount++;
-          console.log(`Successfully disabled rule "${rule.name}" in device group "${rule.deviceGroup}"`);
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -430,12 +453,12 @@ app.post('/api/remediate', async (req, res) => {
       console.error('Remediation errors:', errors);
     }
 
-    const totalProcessed = isDeleteMode ? deletedCount : disabledCount;
+    const totalProcessed = isDeleteMode ? deletedCount : (disabledCount + untargetedCount);
     if (totalProcessed > 0) {
       console.log('Committing configuration changes to Panorama...');
       const commitDescription = isDeleteMode
         ? `Deleted ${deletedCount} disabled firewall rules`
-        : `Disabled ${disabledCount} unused firewall rules and added tag ${tag}`;
+        : `Disabled ${disabledCount} rules and untargeted ${untargetedCount} rules, added tag ${tag}`;
       const commitCmd = `<commit><description>${commitDescription}</description></commit>`;
       const commitUrl = `${url}/api/?type=commit&cmd=${encodeURIComponent(commitCmd)}&key=${apiKey}`;
       
@@ -464,6 +487,7 @@ app.post('/api/remediate', async (req, res) => {
     res.json({ 
       disabledCount: isDeleteMode ? 0 : disabledCount,
       deletedCount: isDeleteMode ? deletedCount : 0,
+      untargetedCount: isDeleteMode ? 0 : untargetedCount,
       totalRules: rules.length,
       errors: errors.length > 0 ? errors : undefined
     });

@@ -70,7 +70,7 @@ export const RuleRow: React.FC<RuleRowProps> = ({ rule, auditMode = 'unused', is
 
   return (
     <tr className="hover:bg-gray-50 border-b border-gray-100 transition-colors">
-      {auditMode === 'disabled' && rule.action === 'DISABLE' && (
+      {(auditMode === 'disabled' && rule.action === 'DISABLE') || (auditMode === 'unused' && (rule.action === 'DISABLE' || rule.action === 'UNTARGET')) ? (
         <td className="px-6 py-4 whitespace-nowrap">
           <input
             type="checkbox"
@@ -79,8 +79,7 @@ export const RuleRow: React.FC<RuleRowProps> = ({ rule, auditMode = 'unused', is
             className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
           />
         </td>
-      )}
-      {auditMode === 'disabled' && rule.action !== 'DISABLE' && (
+      ) : (
         <td className="px-6 py-4 whitespace-nowrap"></td>
       )}
       <td className="px-6 py-4 whitespace-nowrap">
