@@ -1,44 +1,20 @@
-Jan 30 14:01:18 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
-Jan 30 14:01:20 paweblog01d npx[837375]: sh: line 1: /opt/PaloRuleAuditor/node_modules/.bin/tsx: Operation not permitted
-Jan 30 14:01:20 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=126/n/a
-Jan 30 14:01:20 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
-Jan 30 14:01:30 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 1.
-Jan 30 14:01:30 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
-Jan 30 14:01:30 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
-Jan 30 14:01:30 paweblog01d npx[837387]: sh: line 1: /opt/PaloRuleAuditor/node_modules/.bin/tsx: Operation not permitted
-Jan 30 14:01:30 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=126/n/a
-Jan 30 14:01:30 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
-Jan 30 14:01:41 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 2.
-Jan 30 14:01:41 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
-Jan 30 14:01:41 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
-Jan 30 14:01:41 paweblog01d npx[837401]: sh: line 1: /opt/PaloRuleAuditor/node_modules/.bin/tsx: Operation not permitted
-Jan 30 14:01:41 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=126/n/a
-Jan 30 14:01:41 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
+[2026-01-30 16:10:51] Frontend built
+[2026-01-30 16:10:51] Building backend (TypeScript to JavaScript)...
 
-sudo sed -i 's|ExecStart=.*|ExecStart=/usr/bin/node --import tsx server/index.ts|' /etc/systemd/system/panoruleauditor-backend.service
-sudo systemctl daemon-reload
-sudo systemctl restart panoruleauditor-backend
+> panorama-rule-auditor@1.0.0 build:server
+> tsc -p tsconfig.server.json
+
+server/index.ts:493:27 - error TS2769: No overload matches this call.
+  Overload 1 of 6, '(port: number, hostname: string, backlog: number, callback?: () => void): Server<typeof IncomingMessage, typeof ServerResponse>', gave the following error.
+    Argument of type 'string | 3010' is not assignable to parameter of type 'number'.
+      Type 'string' is not assignable to type 'number'.
+  Overload 2 of 6, '(port: number, hostname: string, callback?: () => void): Server<typeof IncomingMessage, typeof ServerResponse>', gave the following error.
+    Argument of type 'string | 3010' is not assignable to parameter of type 'number'.
+      Type 'string' is not assignable to type 'number'.
+
+493 const server = app.listen(PORT, '0.0.0.0', () => {
+                              ~~~~
 
 
-Jan 30 14:04:27 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
-Jan 30 14:04:37 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 18.
-Jan 30 14:04:37 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
-Jan 30 14:04:37 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
-Jan 30 14:04:37 paweblog01d node[837630]: node:internal/fs/promises:639
-Jan 30 14:04:37 paweblog01d node[837630]:   return new FileHandle(await PromisePrototypeThen(
-Jan 30 14:04:37 paweblog01d node[837630]:                         ^
-Jan 30 14:04:37 paweblog01d node[837630]: Error: EPERM: operation not permitted, open '/opt/PaloRuleAuditor/node_modules/tsx/dist/loader.mjs'
-Jan 30 14:04:37 paweblog01d node[837630]:     at async open (node:internal/fs/promises:639:25)
-Jan 30 14:04:37 paweblog01d node[837630]:     at async readFile (node:internal/fs/promises:1246:14)
-Jan 30 14:04:37 paweblog01d node[837630]:     at async getSource (node:internal/modules/esm/load:48:14)
-Jan 30 14:04:37 paweblog01d node[837630]:     at async defaultLoad (node:internal/modules/esm/load:139:34)
-Jan 30 14:04:37 paweblog01d node[837630]:     at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:543:45)
-Jan 30 14:04:37 paweblog01d node[837630]:     at async ModuleJob._link (node:internal/modules/esm/module_job:148:19) {
-Jan 30 14:04:37 paweblog01d node[837630]:   errno: -1,
-Jan 30 14:04:37 paweblog01d node[837630]:   code: 'EPERM',
-Jan 30 14:04:37 paweblog01d node[837630]:   syscall: 'open',
-Jan 30 14:04:37 paweblog01d node[837630]:   path: '/opt/PaloRuleAuditor/node_modules/tsx/dist/loader.mjs'
-Jan 30 14:04:37 paweblog01d node[837630]: }
-Jan 30 14:04:37 paweblog01d node[837630]: Node.js v20.19.5
-Jan 30 14:04:37 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=1/FAILURE
-Jan 30 14:04:37 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
+
+Found 1 error in server/index.ts:493
