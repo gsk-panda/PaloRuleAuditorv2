@@ -1,13 +1,16 @@
-Jan 30 13:56:00 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
-Jan 30 13:56:01 paweblog01d npx[836628]: sh: line 1: /opt/PaloRuleAuditor/node_modules/.bin/tsx: Operation not permitted
-Jan 30 13:56:01 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=126/n/a
-Jan 30 13:56:01 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
-Jan 30 13:56:11 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 615.
-Jan 30 13:56:11 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
-Jan 30 13:56:11 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
-Jan 30 13:56:12 paweblog01d npx[836642]: sh: line 1: /opt/PaloRuleAuditor/node_modules/.bin/tsx: Operation not permitted
-Jan 30 13:56:12 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=126/n/a
-Jan 30 13:56:12 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
-Jan 30 13:56:22 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 616.
-Jan 30 13:56:22 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
-Jan 30 13:56:22 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
+Jan 30 14:01:18 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
+Jan 30 14:01:20 paweblog01d npx[837375]: sh: line 1: /opt/PaloRuleAuditor/node_modules/.bin/tsx: Operation not permitted
+Jan 30 14:01:20 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=126/n/a
+Jan 30 14:01:20 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
+Jan 30 14:01:30 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 1.
+Jan 30 14:01:30 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
+Jan 30 14:01:30 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
+Jan 30 14:01:30 paweblog01d npx[837387]: sh: line 1: /opt/PaloRuleAuditor/node_modules/.bin/tsx: Operation not permitted
+Jan 30 14:01:30 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=126/n/a
+Jan 30 14:01:30 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
+Jan 30 14:01:41 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 2.
+Jan 30 14:01:41 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
+Jan 30 14:01:41 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
+Jan 30 14:01:41 paweblog01d npx[837401]: sh: line 1: /opt/PaloRuleAuditor/node_modules/.bin/tsx: Operation not permitted
+Jan 30 14:01:41 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=126/n/a
+Jan 30 14:01:41 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
