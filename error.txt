@@ -1,19 +1,28 @@
-[2026-01-30 11:41:34] System dependencies installed
-[2026-01-30 11:41:34] Installing Node.js 20...
-[2026-01-30 11:41:34] Node.js 20 is already installed
-[2026-01-30 11:41:34] User panoruleauditor already exists
-[2026-01-30 11:41:34] Setting up application in /opt/PaloRuleAuditor...
-[2026-01-30 11:41:34] Removing previous installation...
-Cloning into '/tmp/PaloRuleAuditor_clone'...
-remote: Enumerating objects: 495, done.
-remote: Counting objects: 100% (56/56), done.
-remote: Compressing objects: 100% (49/49), done.
-remote: Total 495 (delta 23), reused 24 (delta 7), pack-reused 439 (from 1)
-Receiving objects: 100% (495/495), 215.62 KiB | 1.17 MiB/s, done.
-Resolving deltas: 100% (258/258), done.
-sending incremental file list
-rsync: [sender] change_dir "/home/SNC/121135-adm/[2026-01-30 11:41:41] Cloning repository from https://github.com/gsk-panda/PaloRuleAuditorv2.git...\#012[2026-01-30 11:41:42] Repository cloned to /tmp/PaloRuleAuditor_clone\#012/tmp/PaloRuleAuditor_clone" failed: No such file or directory (2)
+[2026-01-30 11:59:07] Installing npm dependencies...
 
-sent 19 bytes  received 12 bytes  62.00 bytes/sec
-total size is 0  speedup is 0.00
-rsync error: some files/attrs were not transferred (see previous errors) (code 23) at main.c(1327) [sender=3.2.5]
+added 213 packages, and audited 214 packages in 12s
+
+36 packages are looking for funding
+  run `npm fund` for details
+
+3 vulnerabilities (2 moderate, 1 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues (including breaking changes), run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+[2026-01-30 11:59:26] npm dependencies installed
+[2026-01-30 11:59:26] Created /opt/PaloRuleAuditor/.env.local
+
+Panorama URL (e.g. https://panorama.example.com, leave empty to skip): https://10.1.0.100
+Panorama API key: LUFRPT1Rd0kzTmtpWUpGWENCOGpBMUJQRE4xV2NVNEE9bkhyQlliV2hlVHpGcjdHbWZTdVdweTVIK0IrbldBUjFGbEJKMFI5TUd5Q3E1VkVrakJmK3p1bkcwN2dobjM4cHFQSzJYTnA5RmRZek8xcit0bzNRL2c9PQ==
+[2026-01-30 12:00:22] Panorama config saved to /opt/PaloRuleAuditor/.config
+[2026-01-30 12:00:22] Building frontend with base path /audit...
+
+> panorama-rule-auditor@1.0.0 build
+> vite build
+
+sh: line 1: /opt/PaloRuleAuditor/node_modules/.bin/vite: Operation not permitted
