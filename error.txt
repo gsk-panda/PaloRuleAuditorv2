@@ -1,22 +1,23 @@
-Jan 30 16:19:20 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 2.
-Jan 30 16:19:20 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
-Jan 30 16:19:20 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
-Jan 30 16:19:21 paweblog01d node[840328]: node:internal/fs/promises:639
-Jan 30 16:19:21 paweblog01d node[840328]:   return new FileHandle(await PromisePrototypeThen(
-Jan 30 16:19:21 paweblog01d node[840328]:                         ^
-Jan 30 16:19:21 paweblog01d node[840328]: Error: EPERM: operation not permitted, open '/opt/PaloRuleAuditor/dist-server/server/index.js'
-Jan 30 16:19:21 paweblog01d node[840328]:     at async open (node:internal/fs/promises:639:25)
-Jan 30 16:19:21 paweblog01d node[840328]:     at async readFile (node:internal/fs/promises:1246:14)
-Jan 30 16:19:21 paweblog01d node[840328]:     at async getSource (node:internal/modules/esm/load:48:14)
-Jan 30 16:19:21 paweblog01d node[840328]:     at async defaultLoad (node:internal/modules/esm/load:139:34)
-Jan 30 16:19:21 paweblog01d node[840328]:     at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:543:45)
-Jan 30 16:19:21 paweblog01d node[840328]:     at async ModuleJob._link (node:internal/modules/esm/module_job:148:19) {
-Jan 30 16:19:21 paweblog01d node[840328]:   errno: -1,
-Jan 30 16:19:21 paweblog01d node[840328]:   code: 'EPERM',
-Jan 30 16:19:21 paweblog01d node[840328]:   syscall: 'open',
-Jan 30 16:19:21 paweblog01d node[840328]:   path: '/opt/PaloRuleAuditor/dist-server/server/index.js'
-Jan 30 16:19:21 paweblog01d node[840328]: }
-Jan 30 16:19:21 paweblog01d node[840328]: Node.js v20.19.5
-Jan 30 16:19:21 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=1/FAILURE
-Jan 30 16:19:21 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
+Jan 30 16:23:16 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
+Jan 30 16:23:26 paweblog01d systemd[1]: panoruleauditor-backend.service: Scheduled restart job, restart counter is at 5.
+Jan 30 16:23:26 paweblog01d systemd[1]: Stopped PaloRuleAuditor Backend API.
+Jan 30 16:23:26 paweblog01d systemd[1]: Started PaloRuleAuditor Backend API.
+Jan 30 16:23:26 paweblog01d node[840991]: node:internal/fs/promises:639
+Jan 30 16:23:26 paweblog01d node[840991]:   return new FileHandle(await PromisePrototypeThen(
+Jan 30 16:23:26 paweblog01d node[840991]:                         ^
+Jan 30 16:23:26 paweblog01d node[840991]: Error: EPERM: operation not permitted, open '/opt/PaloRuleAuditor/dist-server/server/index.js'
+Jan 30 16:23:26 paweblog01d node[840991]:     at async open (node:internal/fs/promises:639:25)
+Jan 30 16:23:26 paweblog01d node[840991]:     at async readFile (node:internal/fs/promises:1246:14)
+Jan 30 16:23:26 paweblog01d node[840991]:     at async getSource (node:internal/modules/esm/load:48:14)
+Jan 30 16:23:26 paweblog01d node[840991]:     at async defaultLoad (node:internal/modules/esm/load:139:34)
+Jan 30 16:23:26 paweblog01d node[840991]:     at async ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:543:45)
+Jan 30 16:23:26 paweblog01d node[840991]:     at async ModuleJob._link (node:internal/modules/esm/module_job:148:19) {
+Jan 30 16:23:26 paweblog01d node[840991]:   errno: -1,
+Jan 30 16:23:26 paweblog01d node[840991]:   code: 'EPERM',
+Jan 30 16:23:26 paweblog01d node[840991]:   syscall: 'open',
+Jan 30 16:23:26 paweblog01d node[840991]:   path: '/opt/PaloRuleAuditor/dist-server/server/index.js'
+Jan 30 16:23:26 paweblog01d node[840991]: }
+Jan 30 16:23:26 paweblog01d node[840991]: Node.js v20.19.5
+Jan 30 16:23:26 paweblog01d systemd[1]: panoruleauditor-backend.service: Main process exited, code=exited, status=1/FAILURE
+Jan 30 16:23:26 paweblog01d systemd[1]: panoruleauditor-backend.service: Failed with result 'exit-code'.
 ^C
