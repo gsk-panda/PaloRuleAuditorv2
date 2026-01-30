@@ -117,9 +117,11 @@ sudo systemctl reload httpd
   Ensure `<Location "/audit/api">` is defined and that `ProxyPass`/`ProxyPassReverse` point to `http://127.0.0.1:3010/api`.
 
 - **Backend: EPERM "operation not permitted" on dist-server/server/index.js**  
-  SELinux is blocking the service from reading app files. Fix the context:
+  SELinux is blocking the service. Add `SELinuxContext` so it runs unconfined:
   ```bash
-  sudo chcon -R -t usr_t /opt/PaloRuleAuditor
+  sudo grep -q SELinuxContext= /etc/systemd/system/panoruleauditor-backend.service || \
+    sudo sed -i '/\[Service\]/a SELinuxContext=system_u:system_r:unconfined_service_t:s0' /etc/systemd/system/panoruleauditor-backend.service
+  sudo systemctl daemon-reload
   sudo systemctl restart panoruleauditor-backend
   ```
-  If the problem persists, check for AVC denials: `sudo ausearch -m avc -ts recent` or `sudo sealert -a`.
+  Or re-run the install script to apply the fix automatically.

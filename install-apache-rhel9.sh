@@ -185,6 +185,10 @@ deploy_static_to_apache() {
 
 create_systemd_service() {
     local service_file="/etc/systemd/system/${SERVICE_NAME}.service"
+    local selinux_line=""
+    if command -v getenforce &>/dev/null && [[ "$(getenforce 2>/dev/null)" == "Enforcing" ]]; then
+        selinux_line="SELinuxContext=system_u:system_r:unconfined_service_t:s0"
+    fi
     cat > "$service_file" << EOF
 [Unit]
 Description=PaloRuleAuditor Backend API
@@ -194,6 +198,7 @@ After=network.target
 Type=simple
 User=${APP_USER}
 WorkingDirectory=${APP_DIR}
+${selinux_line}
 Environment="NODE_ENV=production"
 Environment="PORT=${BACKEND_PORT}"
 EnvironmentFile=-${APP_DIR}/.env.local
