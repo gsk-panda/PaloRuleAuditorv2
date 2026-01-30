@@ -253,10 +253,10 @@ fix_selinux_for_app() {
     log "Setting SELinux context so backend can read and run app files..."
     if [[ -d "$APP_DIR" ]]; then
         if command -v semanage &>/dev/null; then
-            semanage fcontext -a -t bin_t "${APP_DIR}(/.*)?" 2>/dev/null || true
+            semanage fcontext -a -t usr_t "${APP_DIR}(/.*)?" 2>/dev/null || true
             restorecon -R "$APP_DIR" 2>/dev/null || true
         else
-            chcon -R -t bin_t "$APP_DIR" 2>/dev/null || true
+            chcon -R -t usr_t "$APP_DIR" 2>/dev/null || true
         fi
         log "SELinux context updated for $APP_DIR"
     fi
