@@ -75,6 +75,7 @@ const parser = new XMLParser({
 });
 
 const CONFIG_PAGE_LIMIT = 2000;
+const RULE_HIT_COUNT_CHUNK_SIZE = 20;
 
 export async function fetchConfigPaginated(
   panoramaUrl: string,
@@ -268,35 +269,58 @@ export async function auditPanoramaRules(
         }
 
         try {
-          const ruleNameEntries = ruleNames.map(name => `<entry name="${name}"/>`).join('');
-          const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase>`;
-          const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
-          const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
-          console.log(`    Querying hit counts for ${ruleNames.length} rules in device group "${dgName}"`);
-          
-          const response = await fetch(apiUrl);
-          if (!response.ok) {
-            console.error(`    Batch query failed: ${response.status} ${response.statusText}`);
+          console.log(`    Querying hit counts for ${ruleNames.length} rules in device group "${dgName}" (in chunks of ${RULE_HIT_COUNT_CHUNK_SIZE})`);
+          const allChunkRuleEntries: any[] = [];
+          for (let i = 0; i < ruleNames.length; i += RULE_HIT_COUNT_CHUNK_SIZE) {
+            const chunk = ruleNames.slice(i, i + RULE_HIT_COUNT_CHUNK_SIZE);
+            const ruleNameEntries = chunk.map(name => `<entry name="${name}"/>`).join('');
+            const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase>`;
+            const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
+            const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+              console.error(`    Chunk ${Math.floor(i / RULE_HIT_COUNT_CHUNK_SIZE) + 1} failed: ${response.status} ${response.statusText}`);
+              continue;
+            }
+            const xmlText = await response.text();
+            if (xmlText.includes('<response status="error"')) {
+              const msgMatch = xmlText.match(/<msg[^>]*>([\s\S]*?)<\/msg>/);
+              const msg = msgMatch ? msgMatch[1].trim().substring(0, 300) : xmlText.substring(0, 300);
+              console.error(`    Chunk ${Math.floor(i / RULE_HIT_COUNT_CHUNK_SIZE) + 1} error response: ${msg}`);
+              continue;
+            }
+            const data: PanoramaResponse = parser.parse(xmlText);
+            const ruleHitCount = data.response?.result?.['rule-hit-count'];
+            if (!ruleHitCount?.['device-group']?.entry) continue;
+            const chunkDgs = Array.isArray(ruleHitCount['device-group'].entry)
+              ? ruleHitCount['device-group'].entry
+              : [ruleHitCount['device-group'].entry];
+            chunkDgs.forEach((dg: PanoramaDeviceGroupEntry) => {
+              const collectRuleEntries = (ruleBase: PanoramaRuleBaseEntry | PanoramaRuleBaseEntry[] | undefined) => {
+                if (!ruleBase) return;
+                const bases = Array.isArray(ruleBase) ? ruleBase : [ruleBase];
+                bases.forEach((rb: PanoramaRuleBaseEntry) => {
+                  if (rb.rules?.entry) {
+                    const ents = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
+                    allChunkRuleEntries.push(...ents);
+                  }
+                });
+              };
+              collectRuleEntries(dg['pre-rulebase']?.entry);
+              collectRuleEntries(dg['rule-base']?.entry);
+            });
+          }
+          if (allChunkRuleEntries.length === 0) {
+            console.error(`    No hit count data for device group "${dgName}" (all chunks failed or empty)`);
             continue;
           }
+          const merged: PanoramaDeviceGroupEntry = {
+            'pre-rulebase': {
+              entry: { name: 'security', rules: { entry: allChunkRuleEntries } }
+            }
+          };
+          const deviceGroups = [merged];
 
-          const xmlText = await response.text();
-          if (xmlText.includes('<response status="error"')) {
-            console.error(`    Batch query returned error response`);
-            continue;
-          }
-
-          const data: PanoramaResponse = parser.parse(xmlText);
-          const ruleHitCount = data.response?.result?.['rule-hit-count'];
-          if (!ruleHitCount?.['device-group']?.entry) {
-            console.error(`    No hit count data in batch response`);
-            continue;
-          }
-
-          const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
-            ? ruleHitCount['device-group'].entry
-            : [ruleHitCount['device-group'].entry];
-          
           deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
             const processRuleBase = (ruleBase: PanoramaRuleBaseEntry | PanoramaRuleBaseEntry[], rulebaseType: string) => {
               const ruleBaseEntries = Array.isArray(ruleBase) ? ruleBase : [ruleBase];
@@ -706,7 +730,7 @@ export async function auditDisabledRules(
         console.log(`  Found ${rules.length} disabled rules in "${dgName}"`);
         deviceGroupsSet.add(dgName);
 
-        console.log(`  Querying hit counts for ${rules.length} disabled rules (batched)...`);
+        console.log(`  Querying hit counts for ${rules.length} disabled rules (chunked)...`);
         
         const ruleNames: string[] = [];
         for (let i = 0; i < rules.length; i++) {
@@ -722,84 +746,70 @@ export async function auditDisabledRules(
           continue;
         }
 
+        const ruleDataMap = new Map<string, { modificationTimestamp?: string; hitCount: number }>();
+
         try {
-          const ruleNameEntries = ruleNames.map(name => `<entry name="${name}"/>`).join('');
-          const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase>`;
-          const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
-          const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
-          console.log(`    Querying hit counts for ${ruleNames.length} disabled rules in device group "${dgName}"`);
-          
-          const response = await fetch(apiUrl);
-          if (!response.ok) {
-            console.error(`    Batch query failed: ${response.status} ${response.statusText}`);
-            continue;
-          }
-
-          const xmlText = await response.text();
-          if (xmlText.includes('<response status="error"')) {
-            console.error(`    Batch query returned error response`);
-            continue;
-          }
-
-          const data: PanoramaResponse = parser.parse(xmlText);
-          const ruleHitCount = data.response?.result?.['rule-hit-count'];
-          
-          const ruleDataMap = new Map<string, { modificationTimestamp?: string; hitCount: number }>();
-          
-          if (ruleHitCount?.['device-group']?.entry) {
+          for (let i = 0; i < ruleNames.length; i += RULE_HIT_COUNT_CHUNK_SIZE) {
+            const chunk = ruleNames.slice(i, i + RULE_HIT_COUNT_CHUNK_SIZE);
+            const ruleNameEntries = chunk.map(name => `<entry name="${name}"/>`).join('');
+            const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase>`;
+            const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
+            const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+            const response = await fetch(apiUrl);
+            if (!response.ok) {
+              console.error(`    Chunk ${Math.floor(i / RULE_HIT_COUNT_CHUNK_SIZE) + 1} failed: ${response.status} ${response.statusText}`);
+              continue;
+            }
+            const xmlText = await response.text();
+            if (xmlText.includes('<response status="error"')) {
+              const msgMatch = xmlText.match(/<msg[^>]*>([\s\S]*?)<\/msg>/);
+              const msg = msgMatch ? msgMatch[1].trim().substring(0, 300) : xmlText.substring(0, 300);
+              console.error(`    Chunk ${Math.floor(i / RULE_HIT_COUNT_CHUNK_SIZE) + 1} error: ${msg}`);
+              continue;
+            }
+            const data: PanoramaResponse = parser.parse(xmlText);
+            const ruleHitCount = data.response?.result?.['rule-hit-count'];
+            if (!ruleHitCount?.['device-group']?.entry) continue;
             const deviceGroups = Array.isArray(ruleHitCount['device-group'].entry)
               ? ruleHitCount['device-group'].entry
               : [ruleHitCount['device-group'].entry];
-            
             deviceGroups.forEach((dg: PanoramaDeviceGroupEntry) => {
-              const processRuleBase = (ruleBase: PanoramaRuleBaseEntry | PanoramaRuleBaseEntry[]) => {
+              const processRuleBase = (ruleBase: PanoramaRuleBaseEntry | PanoramaRuleBaseEntry[] | undefined) => {
+                if (!ruleBase) return;
                 const ruleBaseEntries = Array.isArray(ruleBase) ? ruleBase : [ruleBase];
                 ruleBaseEntries.forEach((rb: PanoramaRuleBaseEntry) => {
                   if (rb.rules?.entry) {
                     const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
                     ruleEntries.forEach((ruleEntry: any) => {
                       const ruleName = ruleEntry?.name || ruleEntry?.['@_name'];
-                      if (!ruleName || !ruleNames.includes(ruleName)) {
-                        return;
-                      }
-
+                      if (!ruleName || !ruleNames.includes(ruleName)) return;
                       let modificationTimestamp: string | undefined;
                       let hitCount = 0;
-                      
                       if (ruleEntry['device-vsys']?.entry) {
-                        const deviceVsysEntries = Array.isArray(ruleEntry['device-vsys'].entry) 
-                          ? ruleEntry['device-vsys'].entry 
+                        const deviceVsysEntries = Array.isArray(ruleEntry['device-vsys'].entry)
+                          ? ruleEntry['device-vsys'].entry
                           : [ruleEntry['device-vsys'].entry];
-                        
                         deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
                           const ts = vsysEntry['rule-modification-timestamp'];
                           if (ts && (!modificationTimestamp || parseInt(ts) > parseInt(modificationTimestamp || '0'))) {
                             modificationTimestamp = ts;
                           }
-                          const hitCountStr = vsysEntry['hit-count'] || '0';
-                          hitCount += parseInt(hitCountStr, 10);
+                          hitCount += parseInt(vsysEntry['hit-count'] || '0', 10);
                         });
                       } else {
                         const ts = ruleEntry['rule-modification-timestamp'];
                         if (ts && (!modificationTimestamp || parseInt(ts) > parseInt(modificationTimestamp || '0'))) {
                           modificationTimestamp = ts;
                         }
-                        const hitCountStr = ruleEntry['hit-count'] || '0';
-                        hitCount += parseInt(hitCountStr, 10);
+                        hitCount += parseInt(ruleEntry['hit-count'] || '0', 10);
                       }
-                      
                       ruleDataMap.set(ruleName, { modificationTimestamp, hitCount });
                     });
                   }
                 });
               };
-
-              if (dg['pre-rulebase']?.entry) {
-                processRuleBase(dg['pre-rulebase'].entry);
-              }
-              if (dg['rule-base']?.entry) {
-                processRuleBase(dg['rule-base'].entry);
-              }
+              processRuleBase(dg['pre-rulebase']?.entry);
+              processRuleBase(dg['rule-base']?.entry);
             });
           }
           
