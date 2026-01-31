@@ -160,7 +160,7 @@ app.post('/api/audit/preview', async (req, res) => {
   }
 });
 
-const LONG_REQUEST_MS = 30 * 60 * 1000;
+const LONG_REQUEST_MS = 60 * 60 * 1000;
 
 app.post('/api/audit', async (req, res) => {
   req.setTimeout(LONG_REQUEST_MS);

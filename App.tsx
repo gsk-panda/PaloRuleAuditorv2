@@ -93,7 +93,7 @@ const App: React.FC = () => {
           };
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000);
+      const timeoutId = setTimeout(() => controller.abort(), 60 * 60 * 1000);
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -314,7 +314,7 @@ const App: React.FC = () => {
     setIsApplyingRemediation(true);
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000);
+      const timeoutId = setTimeout(() => controller.abort(), 60 * 60 * 1000);
       const response = await fetch(apiBase + '/remediate', {
         method: 'POST',
         headers: {

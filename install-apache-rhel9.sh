@@ -241,7 +241,7 @@ write_apache_config() {
 <Location "${URL_PATH}/api">
     ProxyPass http://127.0.0.1:${BACKEND_PORT}/api
     ProxyPassReverse http://127.0.0.1:${BACKEND_PORT}/api
-    ProxyTimeout 1800
+    ProxyTimeout 3600
     Require all granted
 </Location>
 

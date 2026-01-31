@@ -280,6 +280,9 @@ export async function auditPanoramaRules(
           console.log(`    Querying hit counts for ${uniqueRuleNames.length} rules in device group "${dgName}" (in chunks of ${RULE_HIT_COUNT_CHUNK_SIZE})`);
           const allChunkRuleEntries: any[] = [];
           for (let i = 0; i < uniqueRuleNames.length; i += RULE_HIT_COUNT_CHUNK_SIZE) {
+            if ((i + 1) % 25 === 0 || i + 1 === uniqueRuleNames.length) {
+              onProgress?.(`Processing device group: ${dgName} (${i + 1}/${uniqueRuleNames.length} rules)`);
+            }
             const chunk = uniqueRuleNames.slice(i, i + RULE_HIT_COUNT_CHUNK_SIZE);
             const ruleNameEntries = chunk.map(name => `<entry name="${name}"/>`).join('');
             const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase>`;
@@ -766,6 +769,9 @@ export async function auditDisabledRules(
 
         try {
           for (let i = 0; i < uniqueRuleNames.length; i += RULE_HIT_COUNT_CHUNK_SIZE) {
+            if ((i + 1) % 25 === 0 || i + 1 === uniqueRuleNames.length) {
+              onProgress?.(`Processing device group: ${dgName} (${i + 1}/${uniqueRuleNames.length} rules)`);
+            }
             const chunk = uniqueRuleNames.slice(i, i + RULE_HIT_COUNT_CHUNK_SIZE);
             const ruleNameEntries = chunk.map(name => `<entry name="${name}"/>`).join('');
             const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase>`;
