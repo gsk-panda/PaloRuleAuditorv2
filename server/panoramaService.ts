@@ -57,6 +57,17 @@ interface PanoramaDeviceVsysEntry {
   'all-connected'?: string;
 }
 
+function parseTs(val: unknown): number | undefined {
+  if (val === undefined || val === null || val === '') return undefined;
+  const n = parseInt(String(val), 10);
+  return isNaN(n) ? undefined : n;
+}
+
+function parseHitCount(val: unknown): number {
+  const n = parseInt(String(val ?? 0), 10);
+  return isNaN(n) ? 0 : n;
+}
+
 interface PanoramaRuleHitCountEntry {
   name?: string;
   'rule-state'?: string;
@@ -356,18 +367,18 @@ export async function auditPanoramaRules(
                         : [ruleEntry['device-vsys'].entry];
                       
                       deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
-                        const hitCount = parseInt(vsysEntry['hit-count'] || '0', 10);
+                        const hitCount = parseHitCount(vsysEntry['hit-count']);
                         totalHitCount += hitCount;
                         
-                        const lastHitTs = vsysEntry['last-hit-timestamp'];
-                        const modTs = vsysEntry['rule-modification-timestamp'];
+                        const lastHitTs = parseTs(vsysEntry['last-hit-timestamp']);
+                        const modTs = parseTs(vsysEntry['rule-modification-timestamp']);
                         
-                        if (lastHitTs && (!latestLastHitTimestamp || parseInt(lastHitTs) > parseInt(latestLastHitTimestamp))) {
-                          latestLastHitTimestamp = lastHitTs;
+                        if (lastHitTs !== undefined && lastHitTs > 0 && (!latestLastHitTimestamp || lastHitTs > parseInt(latestLastHitTimestamp || '0'))) {
+                          latestLastHitTimestamp = String(lastHitTs);
                         }
                         
-                        if (modTs && (!latestModificationTimestamp || parseInt(modTs) > parseInt(latestModificationTimestamp))) {
-                          latestModificationTimestamp = modTs;
+                        if (modTs !== undefined && (!latestModificationTimestamp || modTs > parseInt(latestModificationTimestamp || '0'))) {
+                          latestModificationTimestamp = String(modTs);
                         }
                         
                         if (vsysEntry['all-connected'] === 'yes') {
@@ -382,14 +393,14 @@ export async function auditPanoramaRules(
                       });
                       
                       deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
-                        const perDeviceHitCount = parseInt(vsysEntry['hit-count'] || '0', 10);
-                        const lastHitTs = vsysEntry['last-hit-timestamp'];
-                        const modTs = vsysEntry['rule-modification-timestamp'];
+                        const perDeviceHitCount = parseHitCount(vsysEntry['hit-count']);
+                        const lastHitTs = parseTs(vsysEntry['last-hit-timestamp']);
+                        const modTs = parseTs(vsysEntry['rule-modification-timestamp']);
                         let lastUsedDate: string | undefined;
-                        if (lastHitTs && parseInt(lastHitTs) !== 0) {
-                          lastUsedDate = new Date(parseInt(lastHitTs) * 1000).toISOString();
-                        } else if (modTs) {
-                          lastUsedDate = new Date(parseInt(modTs) * 1000).toISOString();
+                        if (perDeviceHitCount > 0 && lastHitTs !== undefined && lastHitTs > 0) {
+                          lastUsedDate = new Date(lastHitTs * 1000).toISOString();
+                        } else if (modTs !== undefined) {
+                          lastUsedDate = new Date(modTs * 1000).toISOString();
                         }
                         let deviceId: string | undefined;
                         if (vsysEntry.name) {
@@ -404,7 +415,7 @@ export async function auditPanoramaRules(
                           lastused: lastUsedDate,
                           hitcnt: perDeviceHitCount.toString(),
                           target: [deviceId],
-                          modificationTimestamp: modTs
+                          modificationTimestamp: modTs !== undefined ? String(modTs) : undefined
                         };
                         entries.push(perTarget);
                       });
@@ -412,24 +423,22 @@ export async function auditPanoramaRules(
                     }
                     
                     {
-                      const lastHitTimestamp = ruleEntry['last-hit-timestamp'];
-                      const modificationTimestamp = ruleEntry['rule-modification-timestamp'];
-                      const hitCount = ruleEntry['hit-count'] || ruleEntry['hitcount'] || '0';
-                      totalHitCount = parseInt(hitCount, 10);
-                      latestLastHitTimestamp = lastHitTimestamp;
-                      latestModificationTimestamp = modificationTimestamp;
-                      if (ruleEntry['all-connected'] === 'yes') {
-                        allConnected = true;
-                      }
+                      const lastHitTs = parseTs(ruleEntry['last-hit-timestamp']);
+                      const modTs = parseTs(ruleEntry['rule-modification-timestamp']);
+                      totalHitCount = parseHitCount(ruleEntry['hit-count'] || ruleEntry['hitcount']);
+                      if (lastHitTs !== undefined && lastHitTs > 0) latestLastHitTimestamp = String(lastHitTs);
+                      if (modTs !== undefined) latestModificationTimestamp = String(modTs);
+                      if (ruleEntry['all-connected'] === 'yes') allConnected = true;
                     }
                     
                     let lastUsedDate: string | undefined;
                     let useModificationTimestamp = false;
-                    
-                    if (latestLastHitTimestamp && parseInt(latestLastHitTimestamp) !== 0) {
-                      lastUsedDate = new Date(parseInt(latestLastHitTimestamp) * 1000).toISOString();
-                    } else if (latestModificationTimestamp) {
-                      lastUsedDate = new Date(parseInt(latestModificationTimestamp) * 1000).toISOString();
+                    const lht = parseTs(latestLastHitTimestamp);
+                    const lmt = parseTs(latestModificationTimestamp);
+                    if (lht !== undefined && lht > 0) {
+                      lastUsedDate = new Date(lht * 1000).toISOString();
+                    } else if (lmt !== undefined) {
+                      lastUsedDate = new Date(lmt * 1000).toISOString();
                       useModificationTimestamp = true;
                     }
                     
@@ -562,16 +571,17 @@ export async function auditPanoramaRules(
         targets.push('all');
       }
       
+      const entryHitCount = parseInt(entry.hitcnt || '0', 10);
       targets.forEach(targetName => {
         const existingTarget = rule.targets.find(t => t.name === targetName);
         if (existingTarget) {
-          existingTarget.hitCount += hitCount;
+          existingTarget.hitCount += entryHitCount;
           existingTarget.hasHits = existingTarget.hitCount > 0;
         } else {
           rule.targets.push({
             name: targetName,
-            hasHits: false,
-            hitCount: 0,
+            hasHits: entryHitCount > 0,
+            hitCount: entryHitCount,
             haPartner: haMap.get(targetName) || undefined,
           });
         }
@@ -812,18 +822,18 @@ export async function auditDisabledRules(
                           ? ruleEntry['device-vsys'].entry
                           : [ruleEntry['device-vsys'].entry];
                         deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
-                          const ts = vsysEntry['rule-modification-timestamp'];
-                          if (ts && (!modificationTimestamp || parseInt(ts) > parseInt(modificationTimestamp || '0'))) {
-                            modificationTimestamp = ts;
+                          const ts = parseTs(vsysEntry['rule-modification-timestamp']);
+                          if (ts !== undefined && (!modificationTimestamp || ts > parseInt(modificationTimestamp || '0'))) {
+                            modificationTimestamp = String(ts);
                           }
-                          hitCount += parseInt(vsysEntry['hit-count'] || '0', 10);
+                          hitCount += parseHitCount(vsysEntry['hit-count']);
                         });
                       } else {
-                        const ts = ruleEntry['rule-modification-timestamp'];
-                        if (ts && (!modificationTimestamp || parseInt(ts) > parseInt(modificationTimestamp || '0'))) {
-                          modificationTimestamp = ts;
+                        const ts = parseTs(ruleEntry['rule-modification-timestamp']);
+                        if (ts !== undefined && (!modificationTimestamp || ts > parseInt(modificationTimestamp || '0'))) {
+                          modificationTimestamp = String(ts);
                         }
-                        hitCount += parseInt(ruleEntry['hit-count'] || '0', 10);
+                        hitCount += parseHitCount(ruleEntry['hit-count']);
                       }
                       ruleDataMap.set(ruleName, { modificationTimestamp, hitCount });
                     });
