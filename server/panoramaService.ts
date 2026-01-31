@@ -75,7 +75,7 @@ const parser = new XMLParser({
 });
 
 const CONFIG_PAGE_LIMIT = 2000;
-const RULE_HIT_COUNT_CHUNK_SIZE = 20;
+const RULE_HIT_COUNT_CHUNK_SIZE = 1;
 
 export async function fetchConfigPaginated(
   panoramaUrl: string,
