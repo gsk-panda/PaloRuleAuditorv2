@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
 console.log('Imports loaded, importing panoramaService...');
-import { auditPanoramaRules } from './panoramaService.js';
+import { auditPanoramaRules, fetchConfigPaginated } from './panoramaService.js';
 console.log('panoramaService imported successfully');
 
 const __filename = fileURLToPath(import.meta.url);
@@ -94,70 +94,57 @@ app.post('/api/audit/preview', async (req, res) => {
     });
     
     const panoramaDeviceName = 'localhost.localdomain';
-    
-    const deviceGroupsUrl = `${url}/api/?type=config&action=get&xpath=/config/devices/entry[@name='${panoramaDeviceName}']/device-group&key=${apiKey}`;
+    const deviceGroupXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group`;
     apiCalls.push({
-      url: deviceGroupsUrl,
-      description: 'Fetch device groups list',
+      url: `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(deviceGroupXpath)}&key=${apiKey}`,
+      description: 'Fetch device groups list (paginated)',
       xmlCommand: undefined
     });
 
     try {
-      const dgResponse = await fetch(deviceGroupsUrl);
-      if (dgResponse.ok) {
-        const dgXml = await dgResponse.text();
-        const dgData = parser.parse(dgXml);
-        const deviceGroupResult = dgData.response?.result?.['device-group'];
-        let deviceGroupNames: string[] = [];
-        if (deviceGroupResult?.entry) {
-          const entries = Array.isArray(deviceGroupResult.entry) 
-            ? deviceGroupResult.entry 
-            : [deviceGroupResult.entry];
-          deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
-        }
+      const dgData = await fetchConfigPaginated(url, apiKey, deviceGroupXpath);
+      const deviceGroupResult = dgData.response?.result?.['device-group'];
+      let deviceGroupNames: string[] = [];
+      if (deviceGroupResult?.entry) {
+        const entries = Array.isArray(deviceGroupResult.entry)
+          ? deviceGroupResult.entry
+          : [deviceGroupResult.entry];
+        deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
+      }
 
-        for (const dgName of deviceGroupNames) {
-          try {
-            const preConfigUrl = `${url}/api/?type=config&action=get&xpath=/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules&key=${apiKey}`;
-            apiCalls.push({
-              url: preConfigUrl,
-              description: `Fetch pre-rulebase rules for device group "${dgName}"`,
-              xmlCommand: undefined
-            });
-            const preConfigResponse = await fetch(preConfigUrl);
-            if (preConfigResponse.ok) {
-              const preConfigXml = await preConfigResponse.text();
-              const preConfigData = parser.parse(preConfigXml);
-              
-              let rules: any[] = [];
-              if (preConfigData.response?.result?.rules?.entry) {
-                rules = Array.isArray(preConfigData.response.result.rules.entry)
-                  ? preConfigData.response.result.rules.entry
-                  : [preConfigData.response.result.rules.entry];
-              } else if (preConfigData.response?.result?.entry?.rules?.entry) {
-                rules = Array.isArray(preConfigData.response.result.entry.rules.entry)
-                  ? preConfigData.response.result.entry.rules.entry
-                  : [preConfigData.response.result.entry.rules.entry];
-              }
-              
-              if (rules.length > 0) {
-                const ruleNames = rules.map(r => r.name || r['@_name'] || r['name']).filter(Boolean);
-                if (ruleNames.length > 0) {
-                  const ruleNameEntries = ruleNames.map(name => `<entry name="${name}"/>`).join('');
-                  const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase>`;
-                  const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
-                  const apiUrl = `${url}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
-                  apiCalls.push({
-                    url: apiUrl,
-                    description: `Query rule-hit-count for ${ruleNames.length} rules in pre-rulebase of device group "${dgName}" (batched)`,
-                    xmlCommand: xmlCmd
-                  });
-                }
-              }
-            }
-          } catch (error) {
-            console.error(`Error generating preview for device group ${dgName}:`, error);
+      for (const dgName of deviceGroupNames) {
+        try {
+          const preRulesXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules`;
+          apiCalls.push({
+            url: `${url}/api/?type=config&action=get&xpath=${encodeURIComponent(preRulesXpath)}&key=${apiKey}`,
+            description: `Fetch pre-rulebase rules for device group "${dgName}" (paginated)`,
+            xmlCommand: undefined
+          });
+          const preConfigData = await fetchConfigPaginated(url, apiKey, preRulesXpath);
+          const result = preConfigData.response?.result;
+          let rules: any[] = [];
+          if (result?.rules?.entry) {
+            rules = Array.isArray(result.rules.entry) ? result.rules.entry : [result.rules.entry];
+          } else if (result?.entry?.rules?.entry) {
+            rules = Array.isArray(result.entry.rules.entry) ? result.entry.rules.entry : [result.entry.rules.entry];
           }
+
+          if (rules.length > 0) {
+            const ruleNames = rules.map(r => r.name || r['@_name'] || r['name']).filter(Boolean);
+            if (ruleNames.length > 0) {
+              const ruleNameEntries = ruleNames.map(name => `<entry name="${name}"/>`).join('');
+              const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase>`;
+              const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
+              const apiUrl = `${url}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+              apiCalls.push({
+                url: apiUrl,
+                description: `Query rule-hit-count for ${ruleNames.length} rules in pre-rulebase of device group "${dgName}" (batched)`,
+                xmlCommand: xmlCmd
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Error generating preview for device group ${dgName}:`, error);
         }
       }
     } catch (error) {

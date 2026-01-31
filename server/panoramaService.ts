@@ -74,6 +74,64 @@ const parser = new XMLParser({
   parseAttributeValue: true,
 });
 
+const CONFIG_PAGE_LIMIT = 2000;
+
+export async function fetchConfigPaginated(
+  panoramaUrl: string,
+  apiKey: string,
+  xpath: string
+): Promise<{ response?: { result?: any } }> {
+  const baseUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=${encodeURIComponent(xpath)}&key=${apiKey}`;
+  let offset = 0;
+  const allEntries: any[] = [];
+  let entryKey: string | null = null;
+
+  while (true) {
+    const url = offset === 0 ? baseUrl : `${baseUrl}&limit=${CONFIG_PAGE_LIMIT}&offset=${offset}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Config get failed: ${res.status} ${res.statusText} - ${errText.substring(0, 300)}`);
+    }
+    const xml = await res.text();
+    const data = parser.parse(xml);
+    const result = data.response?.result;
+    if (!result) {
+      if (offset === 0) return data;
+      break;
+    }
+    const totalAttr = result['total-count'] ?? result['total_count'];
+    const countAttr = result['count'];
+    if (entryKey == null) {
+      if (result.rules?.entry != null) entryKey = 'rules';
+      else if (result['device-group']?.entry != null) entryKey = 'device-group';
+      else {
+        if (offset === 0) return data;
+        break;
+      }
+    }
+    const container = entryKey === 'rules' ? result.rules : result['device-group'];
+    const entries = container?.entry != null
+      ? (Array.isArray(container.entry) ? container.entry : [container.entry])
+      : [];
+    allEntries.push(...entries);
+    const total = totalAttr != null ? Number(totalAttr) : null;
+    const count = countAttr != null ? Number(countAttr) : entries.length;
+    if (total != null && total <= allEntries.length) break;
+    if (count === 0 || entries.length === 0) break;
+    offset += CONFIG_PAGE_LIMIT;
+  }
+
+  if (entryKey == null || allEntries.length === 0) {
+    return { response: { result: entryKey === 'rules' ? { rules: { entry: [] } } : { 'device-group': { entry: [] } } } };
+  }
+  const merged =
+    entryKey === 'rules'
+      ? { rules: { entry: allEntries } }
+      : { 'device-group': { entry: allEntries } };
+  return { response: { result: merged } };
+}
+
 function hasProtectTag(rule: any): boolean {
   if (!rule.tag) {
     return false;
@@ -112,33 +170,20 @@ export async function auditPanoramaRules(
     const panoramaDeviceName = 'localhost.localdomain';
 
     console.log('Step 1: Fetching device groups list...');
-    const deviceGroupsUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry[@name='${panoramaDeviceName}']/device-group&key=${apiKey}`;
-    console.log('API Call - Device Groups:', deviceGroupsUrl);
-    
+    const deviceGroupXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group`;
+    console.log('API Call - Device Groups (paginated):', deviceGroupXpath);
     let deviceGroupNames: string[] = [];
     try {
-      const dgResponse = await fetch(deviceGroupsUrl);
-      console.log(`Device Groups API Response Status: ${dgResponse.status} ${dgResponse.statusText}`);
-      if (dgResponse.ok) {
-        const dgXml = await dgResponse.text();
-        console.log(`Device Groups API Response length: ${dgXml.length} chars`);
-        const dgData = parser.parse(dgXml);
-        console.log('Parsed device groups data structure:', JSON.stringify(dgData.response?.result, null, 2));
-        
-        const deviceGroupResult = dgData.response?.result?.['device-group'];
-        if (deviceGroupResult?.entry) {
-          const entries = Array.isArray(deviceGroupResult.entry) 
-            ? deviceGroupResult.entry 
-            : [deviceGroupResult.entry];
-          deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
-          console.log(`Found ${deviceGroupNames.length} device groups:`, deviceGroupNames);
-        } else {
-          console.log('Device Groups API response structure:', JSON.stringify(dgData.response, null, 2));
-        }
+      const dgData = await fetchConfigPaginated(panoramaUrl, apiKey, deviceGroupXpath);
+      const deviceGroupResult = dgData.response?.result?.['device-group'];
+      if (deviceGroupResult?.entry) {
+        const entries = Array.isArray(deviceGroupResult.entry)
+          ? deviceGroupResult.entry
+          : [deviceGroupResult.entry];
+        deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
+        console.log(`Found ${deviceGroupNames.length} device groups:`, deviceGroupNames);
       } else {
-        const errorText = await dgResponse.text();
-        console.error(`Device Groups API error: ${dgResponse.status} ${dgResponse.statusText}`);
-        console.error(`Error response: ${errorText.substring(0, 500)}`);
+        console.log('Device Groups API response structure:', JSON.stringify(dgData.response, null, 2));
       }
     } catch (error) {
       console.error('Could not fetch device groups list:', error);
@@ -164,30 +209,19 @@ export async function auditPanoramaRules(
       
       try {
         console.log(`Step 2: Fetching pre-rulebase rules for device group "${dgName}"...`);
-        const preConfigUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules&key=${apiKey}`;
-        console.log(`  Pre-rulebase config URL: ${preConfigUrl}`);
-        const preConfigResponse = await fetch(preConfigUrl);
-        console.log(`  Pre-rulebase response status: ${preConfigResponse.status} ${preConfigResponse.statusText}`);
-        
-        if (!preConfigResponse.ok) {
-          const errorText = await preConfigResponse.text();
-          console.error(`  Pre-rulebase fetch failed: ${errorText.substring(0, 500)}`);
-          continue;
-        }
-
-        const preConfigXml = await preConfigResponse.text();
-        const preConfigData = parser.parse(preConfigXml);
-        console.log(`  Pre-rulebase parsed structure:`, JSON.stringify(preConfigData.response?.result, null, 2));
-        
+        const preRulesXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules`;
         let rules: any[] = [];
-        if (preConfigData.response?.result?.rules?.entry) {
-          rules = Array.isArray(preConfigData.response.result.rules.entry)
-            ? preConfigData.response.result.rules.entry
-            : [preConfigData.response.result.rules.entry];
-        } else if (preConfigData.response?.result?.entry?.rules?.entry) {
-          rules = Array.isArray(preConfigData.response.result.entry.rules.entry)
-            ? preConfigData.response.result.entry.rules.entry
-            : [preConfigData.response.result.entry.rules.entry];
+        try {
+          const preConfigData = await fetchConfigPaginated(panoramaUrl, apiKey, preRulesXpath);
+          const result = preConfigData.response?.result;
+          if (result?.rules?.entry) {
+            rules = Array.isArray(result.rules.entry) ? result.rules.entry : [result.rules.entry];
+          } else if (result?.entry?.rules?.entry) {
+            rules = Array.isArray(result.entry.rules.entry) ? result.entry.rules.entry : [result.entry.rules.entry];
+          }
+        } catch (err) {
+          console.error(`  Pre-rulebase fetch failed:`, err instanceof Error ? err.message : err);
+          continue;
         }
         
         rules.forEach((rule: any) => {
@@ -588,33 +622,20 @@ export async function auditDisabledRules(
     const panoramaDeviceName = 'localhost.localdomain';
 
     console.log('Step 1: Fetching device groups list...');
-    const deviceGroupsUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry[@name='${panoramaDeviceName}']/device-group&key=${apiKey}`;
-    console.log('API Call - Device Groups:', deviceGroupsUrl);
-    
+    const deviceGroupXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group`;
+    console.log('API Call - Device Groups (paginated):', deviceGroupXpath);
     let deviceGroupNames: string[] = [];
     try {
-      const dgResponse = await fetch(deviceGroupsUrl);
-      console.log(`Device Groups API Response Status: ${dgResponse.status} ${dgResponse.statusText}`);
-      if (dgResponse.ok) {
-        const dgXml = await dgResponse.text();
-        console.log(`Device Groups API Response length: ${dgXml.length} chars`);
-        const dgData = parser.parse(dgXml);
-        console.log('Parsed device groups data structure:', JSON.stringify(dgData.response?.result, null, 2));
-        
-        const deviceGroupResult = dgData.response?.result?.['device-group'];
-        if (deviceGroupResult?.entry) {
-          const entries = Array.isArray(deviceGroupResult.entry) 
-            ? deviceGroupResult.entry 
-            : [deviceGroupResult.entry];
-          deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
-          console.log(`Found ${deviceGroupNames.length} device groups:`, deviceGroupNames);
-        } else {
-          console.log('Device Groups API response structure:', JSON.stringify(dgData.response, null, 2));
-        }
+      const dgData = await fetchConfigPaginated(panoramaUrl, apiKey, deviceGroupXpath);
+      const deviceGroupResult = dgData.response?.result?.['device-group'];
+      if (deviceGroupResult?.entry) {
+        const entries = Array.isArray(deviceGroupResult.entry)
+          ? deviceGroupResult.entry
+          : [deviceGroupResult.entry];
+        deviceGroupNames = entries.map((e: any) => e.name || e['@_name']).filter(Boolean);
+        console.log(`Found ${deviceGroupNames.length} device groups:`, deviceGroupNames);
       } else {
-        const errorText = await dgResponse.text();
-        console.error(`Device Groups API error: ${dgResponse.status} ${dgResponse.statusText}`);
-        console.error(`Error response: ${errorText.substring(0, 500)}`);
+        console.log('Device Groups API response structure:', JSON.stringify(dgData.response, null, 2));
       }
     } catch (error) {
       console.error('Could not fetch device groups list:', error);
@@ -642,29 +663,19 @@ export async function auditDisabledRules(
       
       try {
         console.log(`Fetching pre-rulebase rules for device group "${dgName}"...`);
-        const preConfigUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules&key=${apiKey}`;
-        console.log(`  Pre-rulebase config URL: ${preConfigUrl}`);
-        const preConfigResponse = await fetch(preConfigUrl);
-        console.log(`  Pre-rulebase response status: ${preConfigResponse.status} ${preConfigResponse.statusText}`);
-        
-        if (!preConfigResponse.ok) {
-          const errorText = await preConfigResponse.text();
-          console.error(`  Pre-rulebase fetch failed: ${errorText.substring(0, 500)}`);
-          continue;
-        }
-
-        const preConfigXml = await preConfigResponse.text();
-        const preConfigData = parser.parse(preConfigXml);
-        
+        const preRulesXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules`;
         let rules: any[] = [];
-        if (preConfigData.response?.result?.rules?.entry) {
-          rules = Array.isArray(preConfigData.response.result.rules.entry)
-            ? preConfigData.response.result.rules.entry
-            : [preConfigData.response.result.rules.entry];
-        } else if (preConfigData.response?.result?.entry?.rules?.entry) {
-          rules = Array.isArray(preConfigData.response.result.entry.rules.entry)
-            ? preConfigData.response.result.entry.rules.entry
-            : [preConfigData.response.result.entry.rules.entry];
+        try {
+          const preConfigData = await fetchConfigPaginated(panoramaUrl, apiKey, preRulesXpath);
+          const result = preConfigData.response?.result;
+          if (result?.rules?.entry) {
+            rules = Array.isArray(result.rules.entry) ? result.rules.entry : [result.rules.entry];
+          } else if (result?.entry?.rules?.entry) {
+            rules = Array.isArray(result.entry.rules.entry) ? result.entry.rules.entry : [result.entry.rules.entry];
+          }
+        } catch (err) {
+          console.error(`  Pre-rulebase fetch failed:`, err instanceof Error ? err.message : err);
+          continue;
         }
         
         const protectedRuleSet = new Set<string>();
