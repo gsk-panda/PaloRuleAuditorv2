@@ -1,648 +1,124 @@
-﻿[paweblog01d:121135-adm]-> sudo journalctl -u panoruleauditor-backend -f
-
-Jan 30 17:35:33 paweblog01d start-backend.sh[843969]:   'DataCenter',       'DevNet',
-
-Jan 30 17:35:33 paweblog01d start-backend.sh[843969]:   'Development',      'DevelopmentColo',
-Jan 30 17:35:33 paweblog01d start-backend.sh[843969]:   'Edge',             'HGT',
-Jan 30 17:35:33 paweblog01d start-backend.sh[843969]:   'HQ',               'IMS',
-Jan 30 17:35:33 paweblog01d start-backend.sh[843969]:   'ISR',              'ISS',
-Jan 30 17:35:33 paweblog01d start-backend.sh[843969]:   'LOU',              'MACE',
-
-Jan 30 17:35:33 paweblog01d start-backend.sh[843969]:   'SSG',              'Solarwinds',
-
-Jan 30 17:35:33 paweblog01d start-backend.sh[843969]:   'WM1'
-
-Jan 30 17:35:33 paweblog01d start-backend.sh[843969]: ]
-
-Jan 30 17:35:33 paweblog01d start-backend.sh[843969]: Audit completed: 1 rules, 23 device groups
-
-Jan 30 17:36:52 paweblog01d start-backend.sh[843969]: Received audit request
-Jan 30 17:36:52 paweblog01d start-backend.sh[843969]: Calling auditPanoramaRules...
-Jan 30 17:36:52 paweblog01d start-backend.sh[843969]: Step 1: Fetching device groups list...
-
-Jan 30 17:36:52 paweblog01d start-backend.sh[843969]: API Call - Device Groups (paginated): /config/devices/entry[@name='localhost.localdomain']/device-group
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]: Found 30 device groups: [
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'CRP',               'COLO',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'HGT',               'LOU',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'All SNC Firewalls', 'Lab',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'Development',       'ISR',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'ISS',               'Corporate',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'SSG',               'AWS GovCloud',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'DevelopmentColo',   'IMS',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'Azure GovCloud',    'HQ',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'Edge',              'WM1',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'DataCenter',        'AWS-Commercial',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'Solution',          'Solarwinds',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'Ed',                'TRNST-AZC',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'DevNet',            'MACE',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'CyberLab',          'Azure Commercial',
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]:   'Azure VA MST UKE',  'Demo_Environment'
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]: ]
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]: Step 2: Processing 30 device groups...
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]: === Processing Device Group: CRP ===
-Jan 30 17:36:55 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "CRP"...
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "VIS - Webex"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "VIS - Sal-ExtConnect"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "VIS - GS Redmine"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "VIS - Storefront"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Public Space Web-1"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDE - DejeroServer"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDE - Access Everything"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ALL DMZ - Default Internet"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ALL DMZ - SMTP"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ1 - WebEx"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ1 - Airwatch SEG"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ2 - eHealth"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - NTP Sync"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - Proofpoint to Management"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - Proofpoint to Master - L7"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - Netscaler to Splunk ICMP"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - ProofpointTest"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - Proofpoint Test"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - ProofpointTest spktin01"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - Nexpose Syslog"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ4 - SBC SIP-TLS OUT"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ4 - SBC SIP OUT Redsky"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ4 - SBC SIP-TLS OUT-1"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - Airwatch MDM POC"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ8 - salstproxy01"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ8 - AirWatch POC"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ8 - AirWatch SEG"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ8 - AirWatch VPN to AppSvrs"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ8 - AirWatch VPN to ST Mtg-1"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "RQ - Ping CRP"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "RQ - Thycotic DC Access CRP"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "RQ - SIEM Access CRP"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "RQ - Jumpbox"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SAP - SAP DCs to Shavlik Temp"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SAP - SAP DCs to Shavlik"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SAP-TShoot Allow"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ12 - SAP Splunk Logging"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - ReliaQuest VPN CRP"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - AWS GovCloud"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Anyconnect VPN Ping"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - DejeroServer"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - salpubweb02 Careers"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Webex"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Portal"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Sal-ExtConnect"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - GS Redmine"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - FTP New"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - FTP New-1"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Inbound SMTP"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Storefront"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - SBC Redsky"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Public Space Web"
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Exchange MS to 80"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Bomgar"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Proofpoint Test"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:   Found 61 rules in pre-rulebase for "CRP"
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 61 rules (batched)...
-
-Jan 30 17:36:56 paweblog01d start-backend.sh[843969]:     Querying hit counts for 61 rules in device group "CRP"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]: === Processing Device Group: COLO ===
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "COLO"...
-
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Block FTP Server - Disabled CHG0046403"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "VIS - ExtConnect"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDE - Solidworks licensing"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Inside - Allow all"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "All DMZ - Default Internet_p"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "All DMZ - SMTP_p"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ1 - SMTP Out - L7"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ1 - coloper01 - L7"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ1 - Proofpoint2 - L7"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - NTP Sync"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - Nexpose Syslog"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ4 - SBC SIP-TLS Out"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ4 - SBC SIP Out Redsky"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ8 - AirWatch Fix"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ8 - AirWatch SEG"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ8 - AirWatch SEG Test"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "RQ - Ping COLO"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "RQ - Thycotic DC Access COLO"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "RQ - SIEM Access COLO"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "RQ - Jumpbox"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - ReliaQuest VPN COLO"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - AWS GovCloud"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - AnyConnect VPN Ping"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Metrocell Test"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Public SMTP"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - MMIS"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - COL ExtConnect"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - SBC Redsky"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Exchange MS to 443"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Exchange MS to 80-1"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Exchange MS Block"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Bomgar"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - Test with Securance"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - F5 spaceplane redirect"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Inside - NICE CX1"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:   Found 99 rules in pre-rulebase for "COLO"
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 99 rules (batched)...
-Jan 30 17:36:57 paweblog01d start-backend.sh[843969]:     Querying hit counts for 99 rules in device group "COLO"
-
-Jan 30 17:36:58 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:36:58 paweblog01d start-backend.sh[843969]: === Processing Device Group: HGT ===
-Jan 30 17:36:58 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "HGT"...
-
-Jan 30 17:36:58 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ1 - ARL-E EPDM"
-Jan 30 17:36:58 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ1 - ARL-E Domain Access"
-Jan 30 17:36:58 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - AnyConnect-Temp"
-Jan 30 17:36:58 paweblog01d start-backend.sh[843969]:   Found 5 rules in pre-rulebase for "HGT"
-Jan 30 17:36:58 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 5 rules (batched)...
-
-Jan 30 17:36:58 paweblog01d start-backend.sh[843969]:     Querying hit counts for 5 rules in device group "HGT"
-
-Jan 30 17:36:59 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:36:59 paweblog01d start-backend.sh[843969]: === Processing Device Group: LOU ===
-Jan 30 17:36:59 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "LOU"...
-Jan 30 17:36:59 paweblog01d start-backend.sh[843969]:   Found 28 rules in pre-rulebase for "LOU"
-Jan 30 17:36:59 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 28 rules (batched)...
-Jan 30 17:36:59 paweblog01d start-backend.sh[843969]:     Querying hit counts for 28 rules in device group "LOU"
-Jan 30 17:37:00 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:00 paweblog01d start-backend.sh[843969]: === Processing Device Group: All SNC Firewalls ===
-
-Jan 30 17:37:00 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "All SNC Firewalls"...
-
-Jan 30 17:37:01 paweblog01d start-backend.sh[843969]:   Step 3: No enabled rules found for device group "All SNC Firewalls" - skipping
-Jan 30 17:37:01 paweblog01d start-backend.sh[843969]: === Processing Device Group: Lab ===
-Jan 30 17:37:01 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "Lab"...
-Jan 30 17:37:01 paweblog01d start-backend.sh[843969]:   Step 3: No enabled rules found for device group "Lab" - skipping
-Jan 30 17:37:01 paweblog01d start-backend.sh[843969]: === Processing Device Group: Development ===
-Jan 30 17:37:01 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "Development"...
-
-Jan 30 17:37:02 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Internal SQL 1433"
-Jan 30 17:37:02 paweblog01d start-backend.sh[843969]:   Found 42 rules in pre-rulebase for "Development"
-Jan 30 17:37:02 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 42 rules (batched)...
-Jan 30 17:37:02 paweblog01d start-backend.sh[843969]:     Querying hit counts for 42 rules in device group "Development"
-Jan 30 17:37:02 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:02 paweblog01d start-backend.sh[843969]: === Processing Device Group: ISR ===
-Jan 30 17:37:02 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "ISR"...
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS - GTFederal to VL320"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR - IAS Dev Meraki hub test rule"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR - IAS Dev Meraki hub test rule-1"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR - IAS Dev Meraki hub test rule-2"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR - DEV to Azure-1"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR - AWS to Dev"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR - CEN-A1 to BAPKI01P"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR - MultibandTransceivers"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR - A1 Dev - jiraeng01d"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR - Dev Black Lantern to NTP"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR - Dev to Internal Bandwidth hog"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR - CEN SVN to CEN-Dev"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AKS Cluster to Black Lantern Devices Prod"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISR- Internet DENY P93"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:   Found 104 rules in pre-rulebase for "ISR"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 104 rules (batched)...
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:     Querying hit counts for 104 rules in device group "ISR"
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]: === Processing Device Group: ISS ===
-Jan 30 17:37:03 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "ISS"...
-
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST OB1 Dev BLOCK-2"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST OB1 Dev BLOCK"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST OB1 Dev Defender Repo"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST OB1 Dev Microsoft IPs"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST OB1 Dev Microsoft URLs"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST OB1 Dev Redhat"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST OB1 Dev DHCP"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST OB1 Dev BLOCK-1"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS DEV to IdM Server"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS - BEA DEV to MATLAB License Server"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Jump Box - MST-Bend-Dev  - RMN-DEV"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Jump Box - MST-Bend-Dev  - RMN-DEV-RDP"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS FolDev to Foleng01 license server"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS - 311 312 412 to COLO and RMN NTP"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS SAO DEV to DMZ7 Glassfish"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS - SAO DEV to GRE DEV"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS - GRE DEV to SAO DEV"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS DEV to Splunk"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS Folsom Dev Allow All"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "BEA MatLab to Matlab License Server"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS CRP NLS to HTTPS"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS CRP 91 to Internal logging rule"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS CRP 95 to Internal logging rule"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS BED Dev to Splunk"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS BED Dev to 10.200.17.39"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS BED Dev to Bed Servers"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS BED Dev to Inet CrowdStike"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS BED Internet BLOCK"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SNC Corp to MST-Sparks550-Crypto Dev"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SNC Corp to MST-Sparks550-Crypto Dev RDP"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SNC Corp to MST-Sparks250-Navy-Test"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SNC Corp to MST-Sparks250-Navy-Test-RDP"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SNC Corp to MST-Sparks550-NLS_Lab"
-
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SNC Corp to MST-Sparks550-NLS_Lab RDP"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SNC Corp to MST-Sparks250-Navy-Test -OLD"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SNC Corp to MST-Sparks250-Navy-Test RDP-OLD"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS- SAO Site to SAO DEV"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS - SAO Site to SAO DEV KVM"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS - SAO DEV to GRE DEV Inside"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS - GRE DEV to SAO DEV Inside"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ISS CORP to SAO-GRE DEV"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EIS FOL Internal to Dev Allow"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Inside to VLAN91 logging"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Inside to VLAN95 logging"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DEV to Sonarqube.eng02"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Thousand Eyes Throughput Test"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Thousand Eyes Throughput Test Return"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Thousand Eyes Throughput Test Ping"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:   Found 200 rules in pre-rulebase for "ISS"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 200 rules (batched)...
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:     Querying hit counts for 200 rules in device group "ISS"
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]:     Batch query failed: 414 Request-URI Too Long
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]: === Processing Device Group: Corporate ===
-Jan 30 17:37:04 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "Corporate"...
-
-Jan 30 17:37:05 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Inside - All Access_LOU"
-Jan 30 17:37:05 paweblog01d start-backend.sh[843969]:   Found 7 rules in pre-rulebase for "Corporate"
-Jan 30 17:37:05 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 7 rules (batched)...
-Jan 30 17:37:05 paweblog01d start-backend.sh[843969]:     Querying hit counts for 7 rules in device group "Corporate"
-
-Jan 30 17:37:05 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:05 paweblog01d start-backend.sh[843969]: === Processing Device Group: SSG ===
-Jan 30 17:37:05 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "SSG"...
-
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SSG - Inside Nexpose Console"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Nexpose to Puppet"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Puppet to Nexpose"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Nexpose to Splunk"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Splunk to Nexpose"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Nexpose to Ansible"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Ansible to Nexpose"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Nexpose to AD"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AD to Nexpose"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SSG - Inbound from Odyssey POC"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SSG - VAIL Outbound to Odyssey"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Block RFC 1918 Inbound"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:   Found 75 rules in pre-rulebase for "SSG"
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 75 rules (batched)...
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:     Querying hit counts for 75 rules in device group "SSG"
-
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]: === Processing Device Group: AWS GovCloud ===
-Jan 30 17:37:06 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "AWS GovCloud"...
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "crplab to elastic test"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "zScaler App-Connectors to sncconfluencedev"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AWSTunnels-new"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Orchestrator TACACS Auth"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Block Untrust to F5 vIPs"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Veeam access to IAS Program Servers"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IAS Program Servers access to Veeam"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AWS - ThousandEyes"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IAS Artifactory to Python Repo"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IAS Artifactory to Ubuntu ports"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AKE MBSE PROD and TEST to IAS Artifactory"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "B2 SIL to AWS IAS"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Cofense Triage Rule"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IMS Nuget"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IMS Internet routed to Stack"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "CyberstackToDataLake"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Azure_SSO"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "EDW URL"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Atlassian update access"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "JIRA-Training"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Cyber DNS"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SAOC IDE VM to IAS Artifact - AWS Side"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "VLAN 314 Valiant Storm to AWS Resources"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Crowdstrike"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "CommVault Master Agent"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Zerto Replication"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Cofense Vision licensing URL"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Cofense licensing"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AWS Nexpose Scan Console"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "PLM Data Migration1"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "PLM Code Deploy"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Allow GitHub 3ds oracle microsoft solidworks"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Allow 10.173.88.99 to internet"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Absolute to AWSCyberUtil03"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AWS Internal Dependencies"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AWS Time Stamp"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Nexpose Scanner"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DataLakeToInternet"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ITServicesToPLM"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ITServicesToPLM-FileShare"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ITServicesToPLM-SQL"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AzureToAWS"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SDWAN_Lab-to-SNC"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IT Services to SecOps"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SecOps to Public via 80"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ITOps-to-SNC"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AWS - Artifactory Access"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AWS - ENG02 LDAP Access"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SNCtoSS"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Cyber Logstash"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SStoSNC"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Email Protection System"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "F5 to Internet"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "F5 and Silverpeak syslog"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "F5 and Silverpeak netflow"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "GetVPN Routers to Internet"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IAS eDR access to Panostat URLs"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "ENG02_to_AWS"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "BlockDMZtoAnywhere"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "BitBucket-to-SonarQube"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Allow TRAX NonProd GovEast"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Allow Everything to TRAX NonProd GovEast"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Allow MACE DevNet to NVD.NIST.GOV"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Allow loopback.1 outbound https"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "NonProd P90 to IAS AWS resources"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AISera - find blocked URLs"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:   Found 96 rules in pre-rulebase for "AWS GovCloud"
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 96 rules (batched)...
-Jan 30 17:37:07 paweblog01d start-backend.sh[843969]:     Querying hit counts for 96 rules in device group "AWS GovCloud"
-
-Jan 30 17:37:08 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:08 paweblog01d start-backend.sh[843969]: === Processing Device Group: DevelopmentColo ===
-Jan 30 17:37:08 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "DevelopmentColo"...
-Jan 30 17:37:08 paweblog01d start-backend.sh[843969]:   Found 47 rules in pre-rulebase for "DevelopmentColo"
-Jan 30 17:37:08 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 47 rules (batched)...
-Jan 30 17:37:08 paweblog01d start-backend.sh[843969]:     Querying hit counts for 47 rules in device group "DevelopmentColo"
-
-Jan 30 17:37:09 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:09 paweblog01d start-backend.sh[843969]: === Processing Device Group: IMS ===
-Jan 30 17:37:09 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "IMS"...
-Jan 30 17:37:09 paweblog01d start-backend.sh[843969]:   Found 81 rules in pre-rulebase for "IMS"
-Jan 30 17:37:09 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 81 rules (batched)...
-
-Jan 30 17:37:09 paweblog01d start-backend.sh[843969]:     Querying hit counts for 81 rules in device group "IMS"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]: === Processing Device Group: Azure GovCloud ===
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "Azure GovCloud"...
-
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "CAPEv2  access"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "zScaler App Connector Internet"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Azure-TX-BGP"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SPC Citrix Internet Access"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "VNG NTP"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "VNG IKE"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Netbeez"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Azure Project Server SAOC"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Azure Artifactory to Linux Repo"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Crowdstrike"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SilverPeak Orchestrator to Internet"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Commvault Azure"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Commvault Azure-1"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Cofense Access  _2"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Azure-VDI-443-outbound TEST"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "CapeV2 -80-443"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Azure-VDI-80"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Azure- ThousandEyes"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IAS Dev-IoT Hubs"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "VDI-Chrome Update"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "FIPS Node Images Kubernetes Cluster"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST Dev to MSFT Activation"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DevSecOps to Kubernetes"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Veeam Backups 25 - 443"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Veeam Backups 443 - 80"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Veeam Backups URL 443 - 80"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Veeam Backups URL Outlook"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Azure-to-Valor_VPL"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Azure-RubyGems Access"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "W365 Domain-Inbound UDP-1"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IT Baseline W365 Domain-Outbound DNS"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IT Baseline W365 SCCM-Outbound UDP"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IT Baseline W365 SCCM-Outbound UDP DP"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IT Baseline W365 Cyber-Outbound UDP-TCP"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IT Baseline W365 Cyber2-Outbound UDP-TCP"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "W365 CA Outbound Server VLANs"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IT Baseline W365 Outbound  PLM"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AVD to Devworks Expanded"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Sparks Modi to Apriso and PLM - AZ"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IT Baseline Win365 Qualsys2"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "SAOC access to PowerBI - CC"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outbound to graph.microsoft.com"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST Spectral DevNet"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST Spectral DevNet - SSH Mgmt"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST Spectral DevNet - Satellite"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST Spectral DevNet - to Satellite"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST Spectral DevNet - to artifactory"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "MST Spectral DevNet - github"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Eng DevNet Tools Artifacts"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Avepointapp01p - outbound access to approved Internet sites"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Eng DevNet Tools Artifactory 5432"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Eng DevNet Tools Artifactory 1433"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Eng DevNet Tools Git"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IRAD RF Agile Comms Azure - RMN ISS"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Azure TRAX DNS"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Azure TRAX VPN Clients"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:   Found 137 rules in pre-rulebase for "Azure GovCloud"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 137 rules (batched)...
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:     Querying hit counts for 137 rules in device group "Azure GovCloud"
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]:     Batch query failed: 414 Request-URI Too Long
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]: === Processing Device Group: HQ ===
-
-Jan 30 17:37:10 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "HQ"...
-Jan 30 17:37:11 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "IT-to-Inside-HTTPS-UPS"
-Jan 30 17:37:11 paweblog01d start-backend.sh[843969]:   Found 30 rules in pre-rulebase for "HQ"
-Jan 30 17:37:11 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 30 rules (batched)...
-Jan 30 17:37:11 paweblog01d start-backend.sh[843969]:     Querying hit counts for 30 rules in device group "HQ"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]: === Processing Device Group: Edge ===
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "Edge"...
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Cyber - Block Elevated Account Internet Access"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDE - AnyConnect Mgmt Tunnel - Test Windows Hello Client"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDE - Block Streaming Clovis"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDE - Allow TRAX to DNS"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Doulos Acess II Temp"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDE - Allow uncommon ports Black Lantern"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDE - Allow RDP to TRAX Server"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "O365 Share Hybrid Inbnd 80 443"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "O365 Common Hybrid Inbnd 80 443"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "O365 SBC"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "O365 SBC-1"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Amcrestview Test"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "O365 Share Hybrid to MSFT365"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Inside 10.2.11.0 to rockyftp"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDEv2 - 5k allow Apple push"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDE - SP allow 10.141.69.117-305"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - UKE Nettitude Assessment"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "TEMP - Allow inside to VX11 C-Track controller"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:   Found 45 rules in pre-rulebase for "Edge"
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 45 rules (batched)...
-
-Jan 30 17:37:12 paweblog01d start-backend.sh[843969]:     Querying hit counts for 45 rules in device group "Edge"
-
-Jan 30 17:37:13 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:13 paweblog01d start-backend.sh[843969]: === Processing Device Group: WM1 ===
-Jan 30 17:37:13 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "WM1"...
-Jan 30 17:37:13 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside - TacLane Ping - TEMP"
-Jan 30 17:37:13 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ1 - DNS to Internal Mail"
-Jan 30 17:37:13 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ2 - Domain and Web"
-Jan 30 17:37:13 paweblog01d start-backend.sh[843969]:   Found 27 rules in pre-rulebase for "WM1"
-Jan 30 17:37:13 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 27 rules (batched)...
-Jan 30 17:37:13 paweblog01d start-backend.sh[843969]:     Querying hit counts for 27 rules in device group "WM1"
-
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]: === Processing Device Group: DataCenter ===
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "DataCenter"...
-
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Temp Tshoot"
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Solarwinds - Splunk1"
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Solarwinds - Splunk2"
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDE - 4kv2 deny 10.2.9.73-515"
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "INSIDE - 50kv2 deny 10.2.9.73-2"
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - Allow Nexpose DMZ to AWS"
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "AWS - Nexpose to Console"
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DMZ3 - Allow Nexpose DMZ to AWS-1"
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]:   Found 15 rules in pre-rulebase for "DataCenter"
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 15 rules (batched)...
-Jan 30 17:37:14 paweblog01d start-backend.sh[843969]:     Querying hit counts for 15 rules in device group "DataCenter"
-Jan 30 17:37:15 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:15 paweblog01d start-backend.sh[843969]: === Processing Device Group: AWS-Commercial ===
-Jan 30 17:37:15 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "AWS-Commercial"...
-Jan 30 17:37:15 paweblog01d start-backend.sh[843969]:   Found 1 rules in pre-rulebase for "AWS-Commercial"
-Jan 30 17:37:15 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 1 rules (batched)...
-Jan 30 17:37:15 paweblog01d start-backend.sh[843969]:     Querying hit counts for 1 rules in device group "AWS-Commercial"
-Jan 30 17:37:16 paweblog01d start-backend.sh[843969]:     Rule "INSIDE - Default Internet Access": Last Hit Timestamp: undefined, Modification Timestamp: undefined, Total Hit Count: 0, Last Used: undefined
-Jan 30 17:37:16 paweblog01d start-backend.sh[843969]: === Processing Device Group: Solution ===
-Jan 30 17:37:16 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "Solution"...
-Jan 30 17:37:17 paweblog01d start-backend.sh[843969]:   Step 3: No enabled rules found for device group "Solution" - skipping
-Jan 30 17:37:17 paweblog01d start-backend.sh[843969]: === Processing Device Group: Solarwinds ===
-Jan 30 17:37:17 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "Solarwinds"...
-
-Jan 30 17:37:17 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Solarwinds - Splunk1-1"
-Jan 30 17:37:17 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Solarwinds - Splunk2-1"
-Jan 30 17:37:17 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Solarwinds - AWS Solar Winds Monitoring-1"
-Jan 30 17:37:17 paweblog01d start-backend.sh[843969]:   Found 35 rules in pre-rulebase for "Solarwinds"
-Jan 30 17:37:17 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 35 rules (batched)...
-Jan 30 17:37:17 paweblog01d start-backend.sh[843969]:     Querying hit counts for 35 rules in device group "Solarwinds"
-
-Jan 30 17:37:18 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:18 paweblog01d start-backend.sh[843969]: === Processing Device Group: Ed ===
-Jan 30 17:37:18 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "Ed"...
-Jan 30 17:37:18 paweblog01d start-backend.sh[843969]:   Step 3: No enabled rules found for device group "Ed" - skipping
-Jan 30 17:37:18 paweblog01d start-backend.sh[843969]: === Processing Device Group: TRNST-AZC ===
-Jan 30 17:37:18 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "TRNST-AZC"...
-Jan 30 17:37:19 paweblog01d start-backend.sh[843969]:   Step 3: No enabled rules found for device group "TRNST-AZC" - skipping
-Jan 30 17:37:19 paweblog01d start-backend.sh[843969]: === Processing Device Group: DevNet ===
-Jan 30 17:37:19 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "DevNet"...
-Jan 30 17:37:19 paweblog01d start-backend.sh[843969]:   Found 8 rules in pre-rulebase for "DevNet"
-Jan 30 17:37:19 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 8 rules (batched)...
-Jan 30 17:37:19 paweblog01d start-backend.sh[843969]:     Querying hit counts for 8 rules in device group "DevNet"
-Jan 30 17:37:20 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:20 paweblog01d start-backend.sh[843969]: === Processing Device Group: MACE ===
-Jan 30 17:37:20 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "MACE"...
-
-Jan 30 17:37:20 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DevNet MACE Troubleshooting-1"
-Jan 30 17:37:20 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DevNet MACE Temp Wide Open"
-Jan 30 17:37:20 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DevNet MACE Temp Wide Open-1"
-Jan 30 17:37:20 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "DevNet MACE auth to Corp DCs"
-Jan 30 17:37:20 paweblog01d start-backend.sh[843969]:   Found 14 rules in pre-rulebase for "MACE"
-Jan 30 17:37:20 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 14 rules (batched)...
-Jan 30 17:37:20 paweblog01d start-backend.sh[843969]:     Querying hit counts for 14 rules in device group "MACE"
-Jan 30 17:37:21 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:21 paweblog01d start-backend.sh[843969]: === Processing Device Group: CyberLab ===
-Jan 30 17:37:21 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "CyberLab"...
-Jan 30 17:37:22 paweblog01d start-backend.sh[843969]:   Step 3: No enabled rules found for device group "CyberLab" - skipping
-Jan 30 17:37:22 paweblog01d start-backend.sh[843969]: === Processing Device Group: Azure Commercial ===
-Jan 30 17:37:22 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "Azure Commercial"...
-
-Jan 30 17:37:22 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Allow GitHub"
-Jan 30 17:37:22 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "NIAR-IPSec"
-Jan 30 17:37:22 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "NIAR Connectivity"
-Jan 30 17:37:22 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "GitHub Verification"
-Jan 30 17:37:22 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "TestBox Mgmt"
-Jan 30 17:37:22 paweblog01d start-backend.sh[843969]:   Found 2 rules in pre-rulebase for "Azure Commercial"
-Jan 30 17:37:22 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 2 rules (batched)...
-Jan 30 17:37:22 paweblog01d start-backend.sh[843969]:     Querying hit counts for 2 rules in device group "Azure Commercial"
-
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]: === Processing Device Group: Azure VA MST UKE ===
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "Azure VA MST UKE"...
-
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside Testing"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Outside from SNC"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Nettitude Destination IPs"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Allow Weird IPs"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Virtual Desktop URLs 4"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Virtual Desktop URLs 6"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "W365 Internet - 25 443 IPs"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "W365 Internet - 80 443 IPs"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Teams EDL IP"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Intune EDL IP"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Intune Manual URL"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "M365 EDL URL"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "M365 EDL IP"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Skipping disabled rule: "Qualys URLs"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:   Found 20 rules in pre-rulebase for "Azure VA MST UKE"
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]: Step 4: Querying hit counts for 20 rules (batched)...
-Jan 30 17:37:23 paweblog01d start-backend.sh[843969]:     Querying hit counts for 20 rules in device group "Azure VA MST UKE"
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:     Batch query returned error response
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: === Processing Device Group: Demo_Environment ===
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: Step 2: Fetching pre-rulebase rules for device group "Demo_Environment"...
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   Step 3: No enabled rules found for device group "Demo_Environment" - skipping
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: Step 5: Filtering rules by unused days (90 days)...
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: Collected 23 device groups: [
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'AWS GovCloud',     'AWS-Commercial',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'Azure Commercial', 'Azure GovCloud',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'Azure VA MST UKE', 'COLO',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'CRP',              'Corporate',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'DataCenter',       'DevNet',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'Development',      'DevelopmentColo',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'Edge',             'HGT',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'HQ',               'IMS',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'ISR',              'ISS',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'LOU',              'MACE',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'SSG',              'Solarwinds',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'WM1'
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: ]
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: Found 1 rule entries before filtering
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: Filtering rules that haven't been hit since 2025-11-02T00:37:24.770Z (90 days ago)
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: Filtered 1 entries down to 1 unused rules
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: Entry 0: {
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   "devicegroup": "AWS-Commercial",
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   "rulebase": "rule-base",
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   "rulename": "INSIDE - Default Internet Access",
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   "hitcnt": "0"
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: }
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: Returning 1 unused rules and 23 device groups: [
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'AWS GovCloud',     'AWS-Commercial',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'Azure Commercial', 'Azure GovCloud',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'Azure VA MST UKE', 'COLO',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'CRP',              'Corporate',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'DataCenter',       'DevNet',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'Development',      'DevelopmentColo',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'Edge',             'HGT',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'HQ',               'IMS',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'ISR',              'ISS',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'LOU',              'MACE',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'SSG',              'Solarwinds',
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]:   'WM1'
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: ]
-Jan 30 17:37:24 paweblog01d start-backend.sh[843969]: Audit completed: 1 rules, 23 device groups
+Jan 30 17:44:43 paweblog01d start-backend.sh[844524]:     Chunk 2 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> Development -> pre-rulebase -> security -> rules -> rule-name -> DevNet Identity Mgmt  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> Development -> pre-rulebase -> security -> rules -> rule-name  is un
+Jan 30 17:44:43 paweblog01d start-backend.sh[844524]:     Chunk 3 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> Development -> pre-rulebase -> security -> rules -> rule-name -> DevNet Identity CleanUp-1  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> Development -> pre-rulebase -> security -> rules -> rule-name
+Jan 30 17:44:43 paweblog01d start-backend.sh[844524]:     No hit count data for device group "Development" (all chunks failed or empty)
+Jan 30 17:44:43 paweblog01d start-backend.sh[844524]: === Processing Device Group: ISR ===
+
+Jan 30 17:44:43 paweblog01d start-backend.sh[844524]: Step 2: Fetching pre-rulebase rules for device group "ISR"...
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS - GTFederal to VL320"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR - IAS Dev Meraki hub test rule"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR - IAS Dev Meraki hub test rule-1"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR - IAS Dev Meraki hub test rule-2"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR - DEV to Azure-1"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR - AWS to Dev"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR - CEN-A1 to BAPKI01P"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR - MultibandTransceivers"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR - A1 Dev - jiraeng01d"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR - Dev Black Lantern to NTP"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR - Dev to Internal Bandwidth hog"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR - CEN SVN to CEN-Dev"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "AKS Cluster to Black Lantern Devices Prod"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISR- Internet DENY P93"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:   Found 104 rules in pre-rulebase for "ISR"
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]: Step 4: Querying hit counts for 104 rules (batched)...
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:     Querying hit counts for 104 rules in device group "ISR" (in chunks of 20)
+Jan 30 17:44:44 paweblog01d start-backend.sh[844524]:     Chunk 1 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> rule-name -> MFA migration - HID Digital Persona to Yubikey  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> rule-n
+Jan 30 17:44:45 paweblog01d start-backend.sh[844524]:     Chunk 2 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> rule-name -> RMN VLAN 313 to CRP 444 VLAN 91 ANSYS Scade License  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> r
+Jan 30 17:44:46 paweblog01d start-backend.sh[844524]:     Chunk 3 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> rule-name -> ISR - Citrix Server Farm  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> rule-name  is unexpected ]]>
+Jan 30 17:44:46 paweblog01d start-backend.sh[844524]:     Chunk 4 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> rule-name -> ISR - Meraki Tunnel  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> rule-name  is unexpected ]]></lin
+Jan 30 17:44:47 paweblog01d start-backend.sh[844524]:     Chunk 5 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> rule-name -> ISR - Internal to B2 RDP  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> rule-name  is unexpected ]]>
+Jan 30 17:44:47 paweblog01d start-backend.sh[844524]:     Chunk 6 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> rule-name -> FAY - Allow outbound Internet  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISR -> pre-rulebase -> security -> rules -> rule-name  is unexpecte
+Jan 30 17:44:47 paweblog01d start-backend.sh[844524]:     No hit count data for device group "ISR" (all chunks failed or empty)
+Jan 30 17:44:47 paweblog01d start-backend.sh[844524]: === Processing Device Group: ISS ===
+Jan 30 17:44:47 paweblog01d start-backend.sh[844524]: Step 2: Fetching pre-rulebase rules for device group "ISS"...
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "MST OB1 Dev BLOCK-2"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "MST OB1 Dev BLOCK"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "MST OB1 Dev Defender Repo"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "MST OB1 Dev Microsoft IPs"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "MST OB1 Dev Microsoft URLs"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "MST OB1 Dev Redhat"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "MST OB1 Dev DHCP"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "MST OB1 Dev BLOCK-1"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS DEV to IdM Server"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS - BEA DEV to MATLAB License Server"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Jump Box - MST-Bend-Dev  - RMN-DEV"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Jump Box - MST-Bend-Dev  - RMN-DEV-RDP"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS FolDev to Foleng01 license server"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS - 311 312 412 to COLO and RMN NTP"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS SAO DEV to DMZ7 Glassfish"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS - SAO DEV to GRE DEV"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS - GRE DEV to SAO DEV"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS DEV to Splunk"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS Folsom Dev Allow All"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "BEA MatLab to Matlab License Server"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS CRP NLS to HTTPS"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS CRP 91 to Internal logging rule"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS CRP 95 to Internal logging rule"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS BED Dev to Splunk"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS BED Dev to 10.200.17.39"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS BED Dev to Bed Servers"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS BED Dev to Inet CrowdStike"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS BED Internet BLOCK"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "SNC Corp to MST-Sparks550-Crypto Dev"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "SNC Corp to MST-Sparks550-Crypto Dev RDP"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "SNC Corp to MST-Sparks250-Navy-Test"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "SNC Corp to MST-Sparks250-Navy-Test-RDP"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "SNC Corp to MST-Sparks550-NLS_Lab"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "SNC Corp to MST-Sparks550-NLS_Lab RDP"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "SNC Corp to MST-Sparks250-Navy-Test -OLD"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "SNC Corp to MST-Sparks250-Navy-Test RDP-OLD"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS- SAO Site to SAO DEV"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS - SAO Site to SAO DEV KVM"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS - SAO DEV to GRE DEV Inside"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS - GRE DEV to SAO DEV Inside"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "ISS CORP to SAO-GRE DEV"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "EIS FOL Internal to Dev Allow"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Inside to VLAN91 logging"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Inside to VLAN95 logging"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "DEV to Sonarqube.eng02"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Thousand Eyes Throughput Test"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Thousand Eyes Throughput Test Return"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Thousand Eyes Throughput Test Ping"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:   Found 200 rules in pre-rulebase for "ISS"
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]: Step 4: Querying hit counts for 200 rules (batched)...
+Jan 30 17:44:48 paweblog01d start-backend.sh[844524]:     Querying hit counts for 200 rules in device group "ISS" (in chunks of 20)
+Jan 30 17:44:49 paweblog01d start-backend.sh[844524]:     Chunk 1 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name -> Colo ISS - lgogpu01 to idm01-1  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name  is unexpect
+Jan 30 17:44:49 paweblog01d start-backend.sh[844524]:     Chunk 2 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name -> TarnHus to HER Dev  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name  is unexpected ]]></line
+Jan 30 17:44:50 paweblog01d start-backend.sh[844524]:     Chunk 3 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name -> MST Spectral 321 User VLANs RDP  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name  is unexpec
+Jan 30 17:44:50 paweblog01d start-backend.sh[844524]:     Chunk 4 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name -> FOL and Remote Zscaler access to FOL DEV Cobra Lab  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> ru
+Jan 30 17:44:51 paweblog01d start-backend.sh[844524]:     Chunk 5 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name -> ISS - DEV to SVN  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name  is unexpected ]]></line><
+Jan 30 17:44:51 paweblog01d start-backend.sh[844524]:     Chunk 6 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name -> Ansible to BEA VLAN 200  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name  is unexpected ]]><
+Jan 30 17:44:52 paweblog01d start-backend.sh[844524]:     Chunk 7 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name -> RMN ISR VLAN 313 to CRP 444 VLAN 91 ANSYS Scade License  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules
+Jan 30 17:44:52 paweblog01d start-backend.sh[844524]:     Chunk 8 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name -> SNC Corp to Sparks444-Dev-Nevada_Lab-Bastion  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-nam
+Jan 30 17:44:53 paweblog01d start-backend.sh[844524]:     Chunk 9 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name -> ISS Internal to Bamboo  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name  is unexpected ]]></
+Jan 30 17:44:53 paweblog01d start-backend.sh[844524]:     Chunk 10 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name -> EIS FolSNC to FolMODI  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> ISS -> pre-rulebase -> security -> rules -> rule-name  is unexpected ]]></l
+Jan 30 17:44:53 paweblog01d start-backend.sh[844524]:     No hit count data for device group "ISS" (all chunks failed or empty)
+Jan 30 17:44:53 paweblog01d start-backend.sh[844524]: === Processing Device Group: Corporate ===
+
+Jan 30 17:44:53 paweblog01d start-backend.sh[844524]: Step 2: Fetching pre-rulebase rules for device group "Corporate"...
+Jan 30 17:44:54 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Inside - All Access_LOU"
+Jan 30 17:44:54 paweblog01d start-backend.sh[844524]:   Found 7 rules in pre-rulebase for "Corporate"
+Jan 30 17:44:54 paweblog01d start-backend.sh[844524]: Step 4: Querying hit counts for 7 rules (batched)...
+Jan 30 17:44:54 paweblog01d start-backend.sh[844524]:     Querying hit counts for 7 rules in device group "Corporate" (in chunks of 20)
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:     Chunk 1 error response: <line><![CDATA[ show -> rule-hit-count -> device-group -> Corporate -> pre-rulebase -> security -> rules -> rule-name -> INSIDE - ADT Security  is a duplicate node]]></line><line><![CDATA[ show -> rule-hit-count -> device-group -> Corporate -> pre-rulebase -> security -> rules -> rule-name  is unexp
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:     No hit count data for device group "Corporate" (all chunks failed or empty)
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]: === Processing Device Group: SSG ===
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]: Step 2: Fetching pre-rulebase rules for device group "SSG"...
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "SSG - Inside Nexpose Console"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Nexpose to Puppet"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Puppet to Nexpose"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Nexpose to Splunk"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Splunk to Nexpose"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Nexpose to Ansible"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Ansible to Nexpose"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Nexpose to AD"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "AD to Nexpose"
+
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "SSG - Inbound from Odyssey POC"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "SSG - VAIL Outbound to Odyssey"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Skipping disabled rule: "Block RFC 1918 Inbound"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:   Found 75 rules in pre-rulebase for "SSG"
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]: Step 4: Querying hit counts for 75 rules (batched)...
+
+Jan 30 17:44:55 paweblog01d start-backend.sh[844524]:     Querying hit counts for 75 rules in device group "SSG" (in chunks of 20)
+^C
+[paweblog01d:121135-adm]-> 
