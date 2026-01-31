@@ -1,14 +1,13 @@
-added 213 packages, and audited 214 packages in 12s
-
-36 packages are looking for funding
-  run `npm fund` for details
-
-4 vulnerabilities (2 moderate, 1 high, 1 critical)
-
-To address issues that do not require attention, run:
-  npm audit fix
-
-To address all issues (including breaking changes), run:
-  npm audit fix --force
-
-Run `npm audit` for details.
+Examples for these would be enough to design the SSH-based flow:
+1. From Panorama (SSH to Panorama)
+A command that shows rule hit counts, ideally for a single device group (e.g. the one you used for the API test, like ISS or CRP), so we see:
+How the CLI is invoked (exact command and any options).
+How the output is structured: rule name, hit count, last-hit time (or similar), and how device/target is identified (e.g. serial, hostname, vsys).
+Example of what we’re looking for:
+Command: e.g. show rule-hit-count device-group <name> or show device-group <name> rule-hit-count (exact syntax from your version).
+Raw output: a full paste of the result for one device group.
+2. From a managed firewall (SSH to one firewall)
+The same kind of rule hit count command, but run on one firewall (so we see the per-device view):
+Exact command (e.g. show rule-hit-count or whatever your PAN-OS version uses).
+Raw output: a full paste so we can see how rule names, hit counts, and timestamps (and vsys if present) are printed.
+We’d use (1) to see if we can get “all rules in device group X” in one shot from Panorama, and (2) to see the per-firewall format in case we need to SSH to each firewall and correlate back to device groups. So the one example we’d want first is: the Panorama SSH command and full output for one device group; then, if you can, the same for one firewall.
