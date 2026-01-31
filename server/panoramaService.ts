@@ -268,11 +268,16 @@ export async function auditPanoramaRules(
           continue;
         }
 
+        const uniqueRuleNames = [...new Set(ruleNames)];
+        if (uniqueRuleNames.length < ruleNames.length) {
+          console.log(`    Deduplicating rule names for hit-count request: ${ruleNames.length} -> ${uniqueRuleNames.length}`);
+        }
+
         try {
-          console.log(`    Querying hit counts for ${ruleNames.length} rules in device group "${dgName}" (in chunks of ${RULE_HIT_COUNT_CHUNK_SIZE})`);
+          console.log(`    Querying hit counts for ${uniqueRuleNames.length} rules in device group "${dgName}" (in chunks of ${RULE_HIT_COUNT_CHUNK_SIZE})`);
           const allChunkRuleEntries: any[] = [];
-          for (let i = 0; i < ruleNames.length; i += RULE_HIT_COUNT_CHUNK_SIZE) {
-            const chunk = ruleNames.slice(i, i + RULE_HIT_COUNT_CHUNK_SIZE);
+          for (let i = 0; i < uniqueRuleNames.length; i += RULE_HIT_COUNT_CHUNK_SIZE) {
+            const chunk = uniqueRuleNames.slice(i, i + RULE_HIT_COUNT_CHUNK_SIZE);
             const ruleNameEntries = chunk.map(name => `<entry name="${name}"/>`).join('');
             const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase>`;
             const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
@@ -329,7 +334,7 @@ export async function auditPanoramaRules(
                   const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
                   ruleEntries.forEach((ruleEntry: any) => {
                     const ruleName = ruleEntry?.name || ruleEntry?.['@_name'];
-                    if (!ruleName || !ruleNames.includes(ruleName)) {
+                    if (!ruleName || !uniqueRuleNames.includes(ruleName)) {
                       return;
                     }
 
@@ -746,11 +751,16 @@ export async function auditDisabledRules(
           continue;
         }
 
+        const uniqueRuleNames = [...new Set(ruleNames)];
+        if (uniqueRuleNames.length < ruleNames.length) {
+          console.log(`    Deduplicating rule names for hit-count request: ${ruleNames.length} -> ${uniqueRuleNames.length}`);
+        }
+
         const ruleDataMap = new Map<string, { modificationTimestamp?: string; hitCount: number }>();
 
         try {
-          for (let i = 0; i < ruleNames.length; i += RULE_HIT_COUNT_CHUNK_SIZE) {
-            const chunk = ruleNames.slice(i, i + RULE_HIT_COUNT_CHUNK_SIZE);
+          for (let i = 0; i < uniqueRuleNames.length; i += RULE_HIT_COUNT_CHUNK_SIZE) {
+            const chunk = uniqueRuleNames.slice(i, i + RULE_HIT_COUNT_CHUNK_SIZE);
             const ruleNameEntries = chunk.map(name => `<entry name="${name}"/>`).join('');
             const rulebaseXml = `<pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase>`;
             const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}">${rulebaseXml}</entry></device-group></rule-hit-count></show>`;
@@ -782,7 +792,7 @@ export async function auditDisabledRules(
                     const ruleEntries = Array.isArray(rb.rules.entry) ? rb.rules.entry : [rb.rules.entry];
                     ruleEntries.forEach((ruleEntry: any) => {
                       const ruleName = ruleEntry?.name || ruleEntry?.['@_name'];
-                      if (!ruleName || !ruleNames.includes(ruleName)) return;
+                      if (!ruleName || !uniqueRuleNames.includes(ruleName)) return;
                       let modificationTimestamp: string | undefined;
                       let hitCount = 0;
                       if (ruleEntry['device-vsys']?.entry) {
