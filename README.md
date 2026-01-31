@@ -1,6 +1,6 @@
 # Palo Alto Panorama Rule Auditor
 
-A comprehensive web application for auditing, analyzing, and managing firewall rules in Palo Alto Networks Panorama deployments. Identify unused rules, manage disabled rules, and automate remediation with confidence through detailed dry-run reports and AI-powered analysis.
+A comprehensive web application for auditing, analyzing, and managing firewall rules in Palo Alto Networks Panorama deployments. Identify unused rules, manage disabled rules, and automate remediation with confidence through detailed dry-run reports.
 
 ## Table of Contents
 
@@ -14,7 +14,6 @@ A comprehensive web application for auditing, analyzing, and managing firewall r
 - [Audit Modes](#audit-modes)
 - [Remediation Options](#remediation-options)
 - [Export & Reporting](#export--reporting)
-- [AI Analysis](#ai-analysis)
 - [High Availability (HA) Pair Support](#high-availability-ha-pair-support)
 - [API Reference](#api-reference)
 - [Troubleshooting](#troubleshooting)
@@ -30,7 +29,6 @@ Palo Alto Panorama Rule Auditor helps network administrators:
 - **Analyze rule usage patterns** across device groups and managed firewalls
 - **Automate remediation** with production mode for disabling or deleting rules
 - **Generate comprehensive reports** in PDF format for documentation and compliance
-- **Leverage AI analysis** for security impact assessment and recommendations
 
 The application provides a modern web interface with dry-run capabilities, ensuring you can review all changes before applying them to your Panorama configuration.
 
@@ -55,12 +53,7 @@ The application provides a modern web interface with dry-run capabilities, ensur
   - Real-time audit summaries with statistics
   - Detailed rule listings with hit counts and timestamps
   - Device group discovery and display
-  - PDF export with full audit details and AI analysis
-
-- **AI-Powered Analysis**
-  - Security impact assessment using Google Gemini AI
-  - Recommendations for rule management
-  - Example API commands for remediation actions
+  - PDF export with full audit details
 
 - **High Availability Support**
   - HA pair definition via text file upload
@@ -169,13 +162,7 @@ For detailed update instructions, troubleshooting, and rollback procedures, see 
    npm install
    ```
 
-3. **Configure environment variables:**
-   Create a `.env.local` file (optional for AI features):
-   ```bash
-   API_KEY=your_gemini_api_key_here
-   ```
-
-4. **Start the development server:**
+3. **Start the development server:**
    ```bash
    npm run dev
    ```
@@ -311,6 +298,51 @@ pa-01:pa-02
 
 ## Architecture & Data Flow
 
+### How It Works (Flowchart)
+
+```mermaid
+flowchart TB
+  subgraph User["User"]
+    A[Configure Panorama URL, API key, thresholds]
+    B[Select audit mode: Unused or Disabled rules]
+    C[Generate Dry Run Report]
+    D[Review results]
+    E[Optional: Apply Remediation]
+  end
+
+  subgraph Frontend["React Frontend"]
+    F[POST /api/audit or /api/audit/disabled]
+    G[Display rules, stats, device groups]
+    H[POST /api/remediate]
+  end
+
+  subgraph Backend["Express Backend"]
+    I[Validate request]
+    J[Fetch device groups - paginated]
+    K[Fetch rules per device group - paginated]
+    L[Filter Shared rules]
+    M[Query rule-hit-count - one rule per API call]
+    N[Compute actions: DISABLE, UNTARGET, KEEP, etc.]
+    O[Return JSON]
+    P[Disable/delete rules, tag, commit]
+  end
+
+  subgraph Panorama["Panorama XML API"]
+    Q[config get/set/delete]
+    R[op rule-hit-count]
+    S[commit]
+  end
+
+  A --> B --> C --> F
+  F --> I --> J --> Q
+  J --> K --> Q
+  K --> L --> M --> R
+  M --> N --> O --> G --> D
+  D --> E --> H --> P
+  P --> Q
+  P --> S
+```
+
 ### System Architecture
 
 The application follows a client-server architecture:
@@ -419,11 +451,11 @@ The application follows a client-server architecture:
    - Creates set of Shared rule names
    - Filters out any device group rules with matching names
 
-8. **Batched Hit Count Query** (for all rules in device group)
+8. **Rule Hit Count Query** (one rule per API call)
    ```
    API Call: GET /api/?type=op&cmd={xmlCommand}&key={apiKey}
    
-   XML Command:
+   XML Command (one rule per request):
    <show>
      <rule-hit-count>
        <device-group>
@@ -473,12 +505,10 @@ The application follows a client-server architecture:
      </result>
    </response>
    ```
-   - **Single batched API call** queries hit statistics for all rules in the device group
-   - Response contains hit data for all queried rules
+   - **One API call per rule** (chunk size 1) to avoid 414 Request-URI Too Long and duplicate-node errors from Panorama
    - Handles nested `device-vsys` entries (aggregates across all devices)
    - Extracts `hit-count`, `last-hit-timestamp`, `rule-modification-timestamp` for each rule
    - If `last-hit-timestamp = 0`, uses `rule-modification-timestamp` as fallback
-   - **Performance**: Reduces API calls from N (one per rule) to 1 per device group
 
 9. **Target Processing & HA Pair Mapping**
    - For each rule, processes target information:
@@ -564,11 +594,11 @@ The application follows a client-server architecture:
    - **Filters IN only rules where `<disabled>yes</disabled>`**
    - Extracts rule names
 
-7. **Batched Hit Count Query for Disabled Rules** (all rules in device group)
+7. **Rule Hit Count Query for Disabled Rules** (one rule per API call)
    ```
    API Call: GET /api/?type=op&cmd={xmlCommand}&key={apiKey}
    ```
-   - Same XML command structure as unused rules
+   - Same XML command structure as unused rules; one rule per request
    - Queries `rule-hit-count` API for each disabled rule
    - Extracts `rule-modification-timestamp` (represents when rule was disabled)
 
@@ -706,7 +736,6 @@ interface PanoramaRule {
   lastHitDate: string;          // ISO timestamp of last hit (or modification)
   targets: FirewallTarget[];    // Array of firewall targets
   action: RuleAction;           // 'DISABLE' | 'UNTARGET' | 'HA-PROTECTED' | 'PROTECTED' | 'KEEP' | 'IGNORE'
-  suggestedActionNotes?: string; // Optional AI-generated notes
   isShared: boolean;            // Whether rule is from Shared device group
 }
 ```
@@ -827,14 +856,12 @@ For each rule:
    - Reduces redundant API calls
 
 3. **Memory Management**
-   - Rules processed in batches (all in memory for current implementation)
-   - Large deployments may require streaming/chunking for very large rule sets
-   - Consider pagination for deployments with 1000+ rules
+   - Rules processed in chunks (one rule per hit-count API call)
+   - Device group and rule config fetches use pagination when Panorama returns total-count
+   - Large deployments may take several minutes due to one API call per rule for hit counts
 
 4. **Optimization Strategies**
-   - Batch API calls where possible (Panorama supports batch operations)
    - Use `useMemo` for expensive calculations (summary statistics)
-   - Lazy load AI analysis (only when requested)
    - PDF generation on-demand (not pre-computed)
 
 ### State Management
@@ -850,8 +877,6 @@ For each rule:
 - `disabledDays`: Threshold for disabled rules mode
 - `haPairs`: Array of HA pair definitions
 - `showReport`: Boolean to control report display
-- `aiAnalysis`: AI-generated analysis text (nullable)
-- `isAiLoading`: Loading state for AI analysis
 - `isProductionMode`: Boolean for production/dry-run mode
 
 **State Updates:**
@@ -929,14 +954,9 @@ User Input → State Update → API Call → Response → State Update → UI Re
    - Review hit statistics and last hit dates
    - Use checkboxes to select/deselect rules for remediation (disabled rules mode only)
 
-4. **Optional: AI Analysis**
-   - Click "AI Security Commentary" button
-   - Review AI-generated security impact assessment
-   - Use recommendations to inform remediation decisions
-
 5. **Export Report (Optional)**
    - Click "Export PDF" to generate a comprehensive PDF report
-   - Includes summary, rule details, and AI analysis (if generated)
+   - Includes summary and rule details
 
 6. **Apply Remediation (Production Mode)**
    - Enable "Production Mode" checkbox
@@ -952,18 +972,13 @@ User Input → State Update → API Call → Response → State Update → UI Re
 Identifies security rules that haven't been hit within the specified threshold period.
 
 **Process:**
-1. Discovers all device groups in Panorama
-2. Fetches pre-rulebase security rules from each device group
-3. **Batches all rules per device group** and queries hit counts in a single API call (optimized)
+1. Discovers all device groups in Panorama (paginated when needed)
+2. Fetches pre-rulebase security rules from each device group (paginated when needed)
+3. Queries rule-hit-count **one rule per API call** (chunk size 1) to avoid 414 and duplicate-node errors
 4. Filters out rules from "Shared" device group
 5. Filters out rules with the same name as Shared rules
 6. Identifies rules with 0 hits or last hit beyond threshold
 7. Handles rules with `last-hit-timestamp = 0` by using `rule-modification-timestamp`
-
-**Performance Optimization:**
-- All rules in a device group are queried in a single batched API call
-- Reduces API calls from N (one per rule) to 1 per device group
-- Significantly improves performance for device groups with many rules
 
 **Remediation Actions:**
 - **DISABLE**: Rules with 0 hits across all targets (or both HA pair members). For HA pairs, both must have 0 hits.
@@ -978,17 +993,13 @@ Identifies security rules that haven't been hit within the specified threshold p
 Locates rules that have been disabled for more than the specified threshold.
 
 **Process:**
-1. Discovers all device groups in Panorama
-2. Fetches pre-rulebase security rules
+1. Discovers all device groups in Panorama (paginated when needed)
+2. Fetches pre-rulebase security rules (paginated when needed)
 3. Filters for rules with `<disabled>yes</disabled>`
-4. **Batches all disabled rules per device group** and queries rule-hit-count API in a single call (optimized)
+4. Queries rule-hit-count **one rule per API call** (chunk size 1) for disabled rules
 5. Extracts `rule-modification-timestamp` (disabled date) for each rule
 6. Identifies rules disabled longer than threshold
 7. Displays disabled date instead of last hit date
-
-**Performance Optimization:**
-- All disabled rules in a device group are queried in a single batched API call
-- Reduces API calls significantly for device groups with many disabled rules
 
 **Remediation Actions:**
 - **DELETE**: Selected rules are permanently deleted from Panorama
@@ -1083,16 +1094,10 @@ Generate comprehensive PDF reports with:
   - Hit counts and last hit dates
   - Proposed actions
 
-- **AI Analysis** (if generated)
-  - Security impact assessment
-  - Recommendations
-  - Example API commands
-
 **Usage:**
 1. Generate an audit report
-2. Optionally run AI analysis
-3. Click "Export PDF" button
-4. PDF downloads automatically with filename: `panorama-audit-YYYY-MM-DD.pdf`
+2. Click "Export PDF" button
+3. PDF downloads automatically with filename: `panorama-audit-YYYY-MM-DD.pdf`
 
 ### On-Screen Reports
 
@@ -1104,31 +1109,6 @@ The web interface displays:
 - **Hit Statistics**: Total hits and last hit dates per rule
 - **Target Status**: HA pair awareness and target status indicators
 - **Action Badges**: Color-coded proposed actions
-
-## AI Analysis
-
-### Google Gemini Integration
-
-The application integrates with Google Gemini AI to provide security analysis and recommendations.
-
-**Features:**
-- Analyzes all rules in the audit results
-- Identifies rules that should be disabled
-- Identifies rules needing partial untargeting
-- Provides security impact assessment
-- Generates example API commands
-- Returns analysis in Markdown format
-
-**Requirements:**
-- Optional: Set `API_KEY` environment variable with Gemini API key
-- If not configured, AI analysis button is still available but will show "unavailable" message
-
-**Usage:**
-1. Generate an audit report
-2. Click "AI Security Commentary" button
-3. Wait for analysis (button shows "Analyzing..." state)
-4. Review the generated analysis in the expanded panel
-5. Analysis is included in PDF exports if generated
 
 ## High Availability (HA) Pair Support
 
@@ -1497,8 +1477,8 @@ For issues, questions, or feature requests:
 
 ### Version History
 
-- **Latest**: Added checkbox selection for disabled rules, delete functionality, improved error handling
-- **Previous**: Initial release with unused rules auditing, AI analysis, PDF export
+- **Latest**: Pagination for device groups and rules; rule-hit-count one-per-rule (chunk size 1); checkbox selection for disabled rules, delete functionality, improved error handling
+- **Previous**: Initial release with unused rules auditing, PDF export
 
 ---
 
@@ -1506,14 +1486,8 @@ For issues, questions, or feature requests:
 
 ## Additional Documentation
 
-For detailed technical information, see:
-
-- **[TECHNICAL_DOCUMENTATION.md](./TECHNICAL_DOCUMENTATION.md)**: Comprehensive technical documentation including:
-  - Complete data flow diagrams
-  - Detailed API integration patterns
-  - Processing algorithms
-  - Error handling strategies
-  - Performance characteristics
-  - Security implementation details
-
-- **[SINGLE_FIREWALL_MIGRATION.md](./SINGLE_FIREWALL_MIGRATION.md)**: Guide for adapting the application to work with single Palo Alto firewalls instead of Panorama
+- **[DOCKER_SETUP.md](./DOCKER_SETUP.md)**: Docker and Docker Compose setup, environment variables, and troubleshooting
+- **[DEPLOYMENT_UPDATE.md](./DEPLOYMENT_UPDATE.md)**: Updating an existing installation, rollback procedures
+- **[APACHE_DEPLOYMENT.md](./APACHE_DEPLOYMENT.md)**: Deploying behind Apache (e.g. RHEL 9 with install-apache-rhel9.sh)
+- **[TECHNICAL_DOCUMENTATION.md](./TECHNICAL_DOCUMENTATION.md)**: Data flow, API integration, processing algorithms, error handling, performance, security
+- **[SINGLE_FIREWALL_MIGRATION.md](./SINGLE_FIREWALL_MIGRATION.md)**: Adapting the application for single Palo Alto firewalls instead of Panorama

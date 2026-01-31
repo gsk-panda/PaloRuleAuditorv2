@@ -160,7 +160,11 @@ app.post('/api/audit/preview', async (req, res) => {
   }
 });
 
+const LONG_REQUEST_MS = 30 * 60 * 1000;
+
 app.post('/api/audit', async (req, res) => {
+  req.setTimeout(LONG_REQUEST_MS);
+  res.setTimeout(LONG_REQUEST_MS);
   try {
     console.log('Received audit request');
     const { url, apiKey, unusedDays, haPairs } = req.body;
@@ -186,6 +190,8 @@ app.post('/api/audit', async (req, res) => {
 });
 
 app.post('/api/audit/disabled', async (req, res) => {
+  req.setTimeout(LONG_REQUEST_MS);
+  res.setTimeout(LONG_REQUEST_MS);
   try {
     console.log('Received disabled rules audit request');
     const { url, apiKey, disabledDays } = req.body;
@@ -212,6 +218,8 @@ app.post('/api/audit/disabled', async (req, res) => {
 });
 
 app.post('/api/remediate', async (req, res) => {
+  req.setTimeout(LONG_REQUEST_MS);
+  res.setTimeout(LONG_REQUEST_MS);
   try {
     console.log('Received remediation request');
     const { url, apiKey, rules, tag, auditMode } = req.body;

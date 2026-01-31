@@ -32,7 +32,6 @@ This document provides detailed technical information about the Palo Alto Panora
 
 **External Services:**
 - Palo Alto Panorama XML API - Configuration and operational data
-- Google Gemini AI (optional) - Security analysis
 
 ### Application Structure
 
@@ -44,8 +43,6 @@ PaloRuleAuditor/
 ├── server/
 │   ├── index.ts            # Express server and API endpoints
 │   └── panoramaService.ts  # Panorama API integration logic
-├── services/
-│   └── geminiService.ts    # AI analysis service
 ├── types.ts                # TypeScript type definitions
 ├── vite.config.ts          # Vite configuration
 └── package.json           # Dependencies and scripts
@@ -63,13 +60,11 @@ PaloRuleAuditor/
 - State management
 - API communication
 - PDF export generation
-- AI analysis triggering
 
 **Key Functions:**
 - `handleAudit()`: Initiates audit process
 - `handleApplyRemediation()`: Applies remediation actions
 - `handleExportPDF()`: Generates PDF report
-- `runAiAnalysis()`: Triggers AI analysis
 - `handleRuleSelection()`: Manages checkbox selection
 
 **State Management:**
@@ -118,17 +113,6 @@ PaloRuleAuditor/
 - Hit count aggregation
 - HA pair processing
 - Action determination
-
-#### services/geminiService.ts (AI Analysis)
-
-**Function:**
-- `analyzeRulesWithAI()`: Sends rule data to Gemini AI for analysis
-
-**Process:**
-1. Formats rule data as JSON
-2. Constructs analysis prompt
-3. Calls Gemini API
-4. Returns Markdown-formatted analysis
 
 ## Data Flow Diagrams
 
@@ -578,37 +562,28 @@ User Alert/Notification
 
 ### API Call Count
 
-For a typical audit (optimized with batching):
-- 1 call: Device groups
-- DG calls: Rules per device group (DG = number of device groups)
-- DG calls: Hit counts (batched - one call per device group)
-- **Total**: 1 + DG + DG = 1 + 2×DG calls
-
-**Before optimization**: 1 + DG + R calls (R = total number of rules)
-**After optimization**: 1 + 2×DG calls
+For a typical audit:
+- Device groups: paginated (1+ calls depending on total-count)
+- Rules per device group: paginated (1+ calls per device group)
+- Hit counts: **one API call per rule** (chunk size 1) to avoid 414 Request-URI Too Long and duplicate-node errors
+- **Total**: O(device-group pages + rule pages per DG + R) where R = total rules
 
 Example: 5 device groups, 100 rules
-- **Before**: 1 + 5 + 100 = 106 API calls
-- **After**: 1 + 10 = 11 API calls (90% reduction)
+- Device groups: 1–2 calls; rules config: ~5–10 calls; hit counts: 100 calls
+- **Total**: on the order of 100+ API calls
 
 ### Estimated Processing Time
 
-**With batched API calls (current implementation):**
-- **Small deployment** (1-2 device groups, <50 rules): 10-20 seconds
-- **Medium deployment** (3-5 device groups, 50-200 rules): 30-90 seconds
-- **Large deployment** (10+ device groups, 200+ rules): 2-5 minutes
-
-**Before optimization (individual API calls):**
-- **Small deployment**: 30-60 seconds
-- **Medium deployment**: 2-5 minutes
-- **Large deployment**: 5-15 minutes
+**Current implementation (one rule per hit-count call, paginated config):**
+- **Small deployment** (1-2 device groups, <50 rules): 30–90 seconds
+- **Medium deployment** (3-5 device groups, 50-200 rules): 2–8 minutes
+- **Large deployment** (10+ device groups, 200+ rules): 5–20+ minutes
 
 Times vary based on:
 - Panorama response latency
 - Network conditions
 - API rate limiting
-- Rule complexity
-- Number of device groups (primary factor with batching)
+- Total number of rules (primary factor for hit-count calls)
 
 ## Security Considerations
 
@@ -638,32 +613,27 @@ Times vary based on:
 
 ### Potential Improvements
 
-1. **Batch API Operations**
-   - Group multiple rule queries into single API call
-   - Reduce total API call count
-   - Improve performance for large deployments
-
-2. **Caching Layer**
+1. **Caching Layer**
    - Cache device group lists
    - Cache rule configurations
    - Cache hit count data (with TTL)
 
-3. **Progress Tracking**
+2. **Progress Tracking**
    - Real-time progress updates
    - Estimated time remaining
    - Cancel operation capability
 
-4. **Export Formats**
+3. **Export Formats**
    - CSV export
    - JSON export
    - Excel export
 
-5. **Scheduled Audits**
+4. **Scheduled Audits**
    - Cron-based scheduling
    - Email notifications
    - Automated reporting
 
-6. **Multi-Panorama Support**
+5. **Multi-Panorama Support**
    - Manage multiple Panorama instances
    - Compare results across instances
    - Centralized reporting

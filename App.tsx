@@ -91,13 +91,17 @@ const App: React.FC = () => {
             haPairs: haPairs
           };
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000);
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`API error: ${response.statusText}`);
@@ -113,7 +117,10 @@ const App: React.FC = () => {
       setShowReport(true);
     } catch (error) {
       console.error('Audit failed:', error);
-      alert(`Failed to perform audit: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const isTimeout = error instanceof Error && error.name === 'AbortError';
+      alert(isTimeout
+        ? 'Audit timed out. The backend may still be processing; check server logs. Consider running with fewer device groups or rules.'
+        : `Failed to perform audit: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsAuditing(false);
     }
@@ -254,6 +261,8 @@ const App: React.FC = () => {
 
     setIsApplyingRemediation(true);
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30 * 60 * 1000);
       const response = await fetch(apiBase + '/remediate', {
         method: 'POST',
         headers: {
@@ -270,8 +279,10 @@ const App: React.FC = () => {
           })),
           tag: getDisabledDateTag(),
           auditMode: auditMode
-        })
+        }),
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json();

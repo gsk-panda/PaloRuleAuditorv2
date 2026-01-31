@@ -177,20 +177,10 @@ sudo -u panoruleauditor npm run build
 
 This update includes:
 
-- **Performance Optimization**: Batched API calls for rule hit counts
-  - All rules in a device group are now queried in a single API call
-  - Reduces API calls by ~90% for typical deployments
-  - Significantly faster audit execution
-
-- **Code Improvements**:
-  - Refactored `auditPanoramaRules()` to batch queries
-  - Refactored `auditDisabledRules()` to batch queries
-  - Updated preview endpoint to show batched structure
-
-- **Documentation Updates**:
-  - Updated README.md with performance metrics
-  - Updated TECHNICAL_DOCUMENTATION.md with API call counts
-  - Added performance comparison data
+- **Pagination**: Device group and rule config fetches use pagination when Panorama returns total-count, so all device groups and rules are discovered in large deployments.
+- **Rule hit counts**: One API call per rule (chunk size 1) for rule-hit-count queries to avoid 414 Request-URI Too Long and duplicate-node errors from Panorama.
+- **Code improvements**: Refactored `auditPanoramaRules()` and `auditDisabledRules()` with pagination and per-rule hit-count queries; improved error logging for Panorama API errors.
+- **Documentation**: README and technical docs updated with flowchart, architecture, and current behavior.
 
 ## Rollback Procedure
 
