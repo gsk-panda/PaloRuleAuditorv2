@@ -33,6 +33,7 @@ const App: React.FC = () => {
   const [rules, setRules] = useState<PanoramaRule[]>([]);
   const [deviceGroups, setDeviceGroups] = useState<string[]>([]);
   const [isAuditing, setIsAuditing] = useState(false);
+  const [auditProgress, setAuditProgress] = useState('');
   const [showReport, setShowReport] = useState(false);
   const [isProductionMode, setIsProductionMode] = useState(false);
   const [isApplyingRemediation, setIsApplyingRemediation] = useState(false);
@@ -75,10 +76,10 @@ const App: React.FC = () => {
   const handleAudit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsAuditing(true);
-    
+    setAuditProgress('');
     try {
       const endpoint = auditMode === 'disabled' ? apiBase + '/audit/disabled' : apiBase + '/audit';
-      const body = auditMode === 'disabled' 
+      const body = auditMode === 'disabled'
         ? {
             url: config.url,
             apiKey: config.apiKey,
@@ -104,17 +105,51 @@ const App: React.FC = () => {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.statusText}`);
+        const errBody = await response.text();
+        const detail = errBody ? errBody.substring(0, 300).replace(/\s+/g, ' ') : response.statusText;
+        throw new Error(`API error: ${response.status} ${response.statusText}${detail ? ` — ${detail}` : ''}`);
       }
 
-      const data = await response.json();
-      console.log('API Response:', data);
-      const newRules = data.rules || [];
-      setRules(newRules);
-      setDeviceGroups(data.deviceGroups || []);
-      setSelectedRuleIds(new Set(newRules.map((r: PanoramaRule) => r.id)));
-      console.log('Device groups set:', data.deviceGroups);
-      setShowReport(true);
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let lastResult: { rules?: PanoramaRule[]; deviceGroups?: string[] } | null = null;
+      let lastError: string | null = null;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const parsed = JSON.parse(trimmed) as { progress?: string; result?: { rules: PanoramaRule[]; deviceGroups: string[] }; error?: string };
+            if (parsed.progress !== undefined) setAuditProgress(parsed.progress);
+            if (parsed.result) lastResult = parsed.result;
+            if (parsed.error) lastError = parsed.error;
+          } catch (_) {}
+        }
+      }
+      if (buffer.trim()) {
+        try {
+          const parsed = JSON.parse(buffer.trim()) as { progress?: string; result?: { rules: PanoramaRule[]; deviceGroups: string[] }; error?: string };
+          if (parsed.progress !== undefined) setAuditProgress(parsed.progress);
+          if (parsed.result) lastResult = parsed.result;
+          if (parsed.error) lastError = parsed.error;
+        } catch (_) {}
+      }
+      if (lastError) throw new Error(lastError);
+      if (lastResult) {
+        const newRules = lastResult.rules ?? [];
+        const newDgs = lastResult.deviceGroups ?? [];
+        setRules(newRules);
+        setDeviceGroups(newDgs);
+        setSelectedRuleIds(new Set(newRules.map((r: PanoramaRule) => r.id)));
+        setShowReport(true);
+      }
     } catch (error) {
       console.error('Audit failed:', error);
       const isTimeout = error instanceof Error && error.name === 'AbortError';
@@ -123,6 +158,7 @@ const App: React.FC = () => {
         : `Failed to perform audit: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsAuditing(false);
+      setAuditProgress('');
     }
   };
 
@@ -478,14 +514,19 @@ const App: React.FC = () => {
               >
                 {isAuditing ? (
                   <>
-                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin h-5 w-5 text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    Scanning Panorama Rules...
+                    {auditProgress || 'Scanning Panorama Rules...'}
                   </>
                 ) : auditMode === 'disabled' ? `Find Disabled Rules (>${disabledDays} days)` : 'Generate Dry Run Report'}
               </button>
+              {isAuditing && auditProgress && (
+                <p className="mt-2 text-sm text-slate-500 text-center font-medium">
+                  {auditProgress}
+                </p>
+              )}
             </div>
           </form>
         </section>

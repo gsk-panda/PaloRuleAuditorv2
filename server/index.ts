@@ -165,55 +165,59 @@ const LONG_REQUEST_MS = 30 * 60 * 1000;
 app.post('/api/audit', async (req, res) => {
   req.setTimeout(LONG_REQUEST_MS);
   res.setTimeout(LONG_REQUEST_MS);
+  console.log('Received audit request');
+  const { url, apiKey, unusedDays, haPairs } = req.body;
+
+  if (!url || !apiKey) {
+    console.log('Missing required parameters');
+    return res.status(400).json({ error: 'Panorama URL and API key are required' });
+  }
+
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  const writeLine = (obj: object) => res.write(JSON.stringify(obj) + '\n');
+
   try {
-    console.log('Received audit request');
-    const { url, apiKey, unusedDays, haPairs } = req.body;
-
-    if (!url || !apiKey) {
-      console.log('Missing required parameters');
-      return res.status(400).json({ error: 'Panorama URL and API key are required' });
-    }
-
     console.log('Calling auditPanoramaRules...');
-    const result = await auditPanoramaRules(url, apiKey, unusedDays || 90, haPairs || []);
+    const result = await auditPanoramaRules(url, apiKey, unusedDays || 90, haPairs || [], (msg) => writeLine({ progress: msg }));
     console.log(`Audit completed: ${result.rules.length} rules, ${result.deviceGroups.length} device groups`);
-    
-    res.json({ rules: result.rules, deviceGroups: result.deviceGroups });
+    writeLine({ result: { rules: result.rules, deviceGroups: result.deviceGroups } });
   } catch (error) {
     console.error('Audit error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to perform audit';
     console.error('Error details:', errorMessage);
-    res.status(500).json({ 
-      error: errorMessage
-    });
+    writeLine({ error: errorMessage });
+  } finally {
+    res.end();
   }
 });
 
 app.post('/api/audit/disabled', async (req, res) => {
   req.setTimeout(LONG_REQUEST_MS);
   res.setTimeout(LONG_REQUEST_MS);
+  console.log('Received disabled rules audit request');
+  const { url, apiKey, disabledDays } = req.body;
+
+  if (!url || !apiKey) {
+    console.log('Missing required parameters');
+    return res.status(400).json({ error: 'Panorama URL and API key are required' });
+  }
+
+  res.setHeader('Content-Type', 'application/x-ndjson');
+  const writeLine = (obj: object) => res.write(JSON.stringify(obj) + '\n');
+
   try {
-    console.log('Received disabled rules audit request');
-    const { url, apiKey, disabledDays } = req.body;
-
-    if (!url || !apiKey) {
-      console.log('Missing required parameters');
-      return res.status(400).json({ error: 'Panorama URL and API key are required' });
-    }
-
     console.log('Calling auditDisabledRules...');
     const { auditDisabledRules } = await import('./panoramaService.js');
-    const result = await auditDisabledRules(url, apiKey, disabledDays || 90);
+    const result = await auditDisabledRules(url, apiKey, disabledDays || 90, (msg) => writeLine({ progress: msg }));
     console.log(`Disabled rules audit completed: ${result.rules.length} rules, ${result.deviceGroups.length} device groups`);
-    
-    res.json({ rules: result.rules, deviceGroups: result.deviceGroups });
+    writeLine({ result: { rules: result.rules, deviceGroups: result.deviceGroups } });
   } catch (error) {
     console.error('Disabled rules audit error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to perform audit';
     console.error('Error details:', errorMessage);
-    res.status(500).json({ 
-      error: errorMessage
-    });
+    writeLine({ error: errorMessage });
+  } finally {
+    res.end();
   }
 });
 

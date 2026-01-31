@@ -159,7 +159,8 @@ export async function auditPanoramaRules(
   panoramaUrl: string,
   apiKey: string,
   unusedDays: number,
-  haPairs: HAPair[]
+  haPairs: HAPair[],
+  onProgress?: (message: string) => void
 ): Promise<AuditResult> {
   try {
     const haMap = new Map<string, string>();
@@ -170,6 +171,7 @@ export async function auditPanoramaRules(
 
     const panoramaDeviceName = 'localhost.localdomain';
 
+    onProgress?.('Fetching device groups...');
     console.log('Step 1: Fetching device groups list...');
     const deviceGroupXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group`;
     console.log('API Call - Device Groups (paginated):', deviceGroupXpath);
@@ -206,6 +208,7 @@ export async function auditPanoramaRules(
     const protectedRuleSet = new Set<string>();
 
     for (const dgName of deviceGroupNames) {
+      onProgress?.(`Processing device group: ${dgName}`);
       console.log(`\n=== Processing Device Group: ${dgName} ===`);
       
       try {
@@ -645,11 +648,13 @@ export async function auditPanoramaRules(
 export async function auditDisabledRules(
   panoramaUrl: string,
   apiKey: string,
-  disabledDays: number
+  disabledDays: number,
+  onProgress?: (message: string) => void
 ): Promise<AuditResult> {
   try {
     const panoramaDeviceName = 'localhost.localdomain';
 
+    onProgress?.('Fetching device groups...');
     console.log('Step 1: Fetching device groups list...');
     const deviceGroupXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group`;
     console.log('API Call - Device Groups (paginated):', deviceGroupXpath);
@@ -688,6 +693,7 @@ export async function auditDisabledRules(
     console.log(`Looking for rules disabled before ${disabledThreshold.toISOString()} (${disabledDays} days ago)`);
 
     for (const dgName of deviceGroupNames) {
+      onProgress?.(`Processing device group: ${dgName}`);
       console.log(`\n=== Processing Device Group: ${dgName} ===`);
       
       try {
