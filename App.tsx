@@ -116,22 +116,30 @@ const App: React.FC = () => {
       let buffer = '';
       let lastResult: { rules?: PanoramaRule[]; deviceGroups?: string[] } | null = null;
       let lastError: string | null = null;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          try {
-            const parsed = JSON.parse(trimmed) as { progress?: string; result?: { rules: PanoramaRule[]; deviceGroups: string[] }; error?: string };
-            if (parsed.progress !== undefined) setAuditProgress(parsed.progress);
-            if (parsed.result) lastResult = parsed.result;
-            if (parsed.error) lastError = parsed.error;
-          } catch (_) {}
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const parsed = JSON.parse(trimmed) as { progress?: string; result?: { rules: PanoramaRule[]; deviceGroups: string[] }; error?: string };
+              if (parsed.progress !== undefined) setAuditProgress(parsed.progress);
+              if (parsed.result) lastResult = parsed.result;
+              if (parsed.error) lastError = parsed.error;
+            } catch (_) {}
+          }
         }
+      } catch (streamErr) {
+        const msg = streamErr instanceof Error ? streamErr.message : String(streamErr);
+        if (!lastResult && !lastError && /fetch|network|load failed|connection|reset|closed/i.test(msg)) {
+          throw new Error('CONNECTION_LOST');
+        }
+        throw streamErr;
       }
       if (buffer.trim()) {
         try {
@@ -153,9 +161,17 @@ const App: React.FC = () => {
     } catch (error) {
       console.error('Audit failed:', error);
       const isTimeout = error instanceof Error && error.name === 'AbortError';
-      alert(isTimeout
-        ? 'Audit timed out. The backend may still be processing; check server logs. Consider running with fewer device groups or rules.'
-        : `Failed to perform audit: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const msg = error instanceof Error ? error.message : String(error);
+      const isConnectionLost = msg === 'CONNECTION_LOST' || /failed to fetch|network error|load failed|connection reset|proxy error/i.test(msg);
+      let message: string;
+      if (isTimeout) {
+        message = 'Audit timed out. The backend may still be processing; check server logs. Consider running with fewer device groups or rules.';
+      } else if (isConnectionLost) {
+        message = 'Connection lost during audit. The server may still be processing; check server logs. Try again or run with fewer device groups.';
+      } else {
+        message = `Failed to perform audit: ${msg}`;
+      }
+      alert(message);
     } finally {
       setIsAuditing(false);
       setAuditProgress('');

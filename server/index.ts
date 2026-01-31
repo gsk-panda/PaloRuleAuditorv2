@@ -174,8 +174,23 @@ app.post('/api/audit', async (req, res) => {
   }
 
   res.setHeader('Content-Type', 'application/x-ndjson');
-  const writeLine = (obj: object) => res.write(JSON.stringify(obj) + '\n');
+  let responseEnded = false;
+  const writeLine = (obj: object) => {
+    if (responseEnded || res.writableEnded) return;
+    try {
+      res.write(JSON.stringify(obj) + '\n');
+    } catch (_) {}
+  };
 
+  const finish = () => {
+    if (responseEnded) return;
+    responseEnded = true;
+    try {
+      if (!res.writableEnded) res.end();
+    } catch (_) {}
+  };
+
+  res.on('close', finish);
   try {
     console.log('Calling auditPanoramaRules...');
     const result = await auditPanoramaRules(url, apiKey, unusedDays || 90, haPairs || [], (msg) => writeLine({ progress: msg }));
@@ -187,7 +202,7 @@ app.post('/api/audit', async (req, res) => {
     console.error('Error details:', errorMessage);
     writeLine({ error: errorMessage });
   } finally {
-    res.end();
+    finish();
   }
 });
 
@@ -203,8 +218,23 @@ app.post('/api/audit/disabled', async (req, res) => {
   }
 
   res.setHeader('Content-Type', 'application/x-ndjson');
-  const writeLine = (obj: object) => res.write(JSON.stringify(obj) + '\n');
+  let responseEnded = false;
+  const writeLine = (obj: object) => {
+    if (responseEnded || res.writableEnded) return;
+    try {
+      res.write(JSON.stringify(obj) + '\n');
+    } catch (_) {}
+  };
 
+  const finish = () => {
+    if (responseEnded) return;
+    responseEnded = true;
+    try {
+      if (!res.writableEnded) res.end();
+    } catch (_) {}
+  };
+
+  res.on('close', finish);
   try {
     console.log('Calling auditDisabledRules...');
     const { auditDisabledRules } = await import('./panoramaService.js');
@@ -217,7 +247,7 @@ app.post('/api/audit/disabled', async (req, res) => {
     console.error('Error details:', errorMessage);
     writeLine({ error: errorMessage });
   } finally {
-    res.end();
+    finish();
   }
 });
 
