@@ -1,13 +1,13 @@
-Examples for these would be enough to design the SSH-based flow:
-1. From Panorama (SSH to Panorama)
-A command that shows rule hit counts, ideally for a single device group (e.g. the one you used for the API test, like ISS or CRP), so we see:
-How the CLI is invoked (exact command and any options).
-How the output is structured: rule name, hit count, last-hit time (or similar), and how device/target is identified (e.g. serial, hostname, vsys).
-Example of what we’re looking for:
-Command: e.g. show rule-hit-count device-group <name> or show device-group <name> rule-hit-count (exact syntax from your version).
-Raw output: a full paste of the result for one device group.
-2. From a managed firewall (SSH to one firewall)
-The same kind of rule hit count command, but run on one firewall (so we see the per-device view):
-Exact command (e.g. show rule-hit-count or whatever your PAN-OS version uses).
-Raw output: a full paste so we can see how rule names, hit counts, and timestamps (and vsys if present) are printed.
-We’d use (1) to see if we can get “all rules in device group X” in one shot from Panorama, and (2) to see the per-firewall format in case we need to SSH to each firewall and correlate back to device groups. So the one example we’d want first is: the Panorama SSH command and full output for one device group; then, if you can, the same for one firewall.
+On Panorama, the target (which firewalls a rule is deployed to) is part of the rule config. You can see it over SSH with the device-group and rulebase CLI.
+Show one rule (including its target):
+show device-group "ISS" pre-rulebase security rules "Allow Non-prod bastion to vlan91"
+Replace "ISS" with the device group and "Allow Non-prod bastion to vlan91" with the rule name. The output should include a target (or similar) section listing the devices.
+Show all rules in the device group (config, including targets):
+show device-group "ISS" pre-rulebase security rules
+Then find the <target> / <devices> section for each rule.
+If your PAN-OS uses set-style config:
+show config running device-group ISS pre-rulebase security
+or, for a single rule, the path that corresponds to that rule in the config hierarchy (exact path can vary by version).
+Scripting-friendly (structured output):
+set cli scripting-mode onshow device-group "ISS" pre-rulebase security rules "Allow Non-prod bastion to vlan91"set cli scripting-mode off
+So: use the device-group + pre-rulebase security rules (and optionally the rule name) in show device-group ... or show config running ...; that’s the SSH side that corresponds to “which firewalls are targeted for this rule.” If you paste a sample of that output, we can map it exactly to the API’s <target><devices> and to the “Device Name” column in the rule-hit-count table.
