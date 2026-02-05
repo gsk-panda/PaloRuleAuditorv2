@@ -21,22 +21,31 @@ export interface SshHitCountRow {
   ruleModifyTimestamp: string | null;
 }
 
+const SSH_TIMEOUT_MS = 120000;
+
 function runSshCommand(
   config: PanoramaSshConfig,
-  command: string
+  command: string,
+  label?: string
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const conn = new Client();
     let output = '';
+    const timeout = setTimeout(() => {
+      conn.end();
+      reject(new Error(`SSH timeout${label ? ` (${label})` : ''} after ${SSH_TIMEOUT_MS / 1000}s`));
+    }, SSH_TIMEOUT_MS);
     conn
       .on('ready', () => {
         conn.exec(command, (err, stream) => {
           if (err) {
+            clearTimeout(timeout);
             conn.end();
-            return reject(err);
+            return reject(new Error(`SSH exec failed${label ? ` (${label})` : ''}: ${err.message}`));
           }
           stream
-            .on('close', () => {
+            .on('close', (code?: number) => {
+              clearTimeout(timeout);
               conn.end();
               resolve(output);
             })
@@ -48,7 +57,10 @@ function runSshCommand(
             });
         });
       })
-      .on('error', reject)
+      .on('error', (err) => {
+        clearTimeout(timeout);
+        reject(new Error(`SSH connection failed${label ? ` (${label})` : ''}: ${err.message}`));
+      })
       .connect({
         host: config.host,
         port: config.port ?? 22,
@@ -169,17 +181,25 @@ export async function getHitCountsViaSsh(
   onProgress?: (message: string) => void
 ): Promise<PanoramaRuleUseEntry[]> {
   onProgress?.(`SSH: Getting targets for device group ${deviceGroup}...`);
-  const configureCmd = `configure
-show device-group "${deviceGroup}" pre-rulebase security rules
-exit`;
-  const configureOutput = await runSshCommand(sshConfig, configureCmd);
+  let configureOutput: string;
+  try {
+    const configureCmd = `show device-group "${deviceGroup}" pre-rulebase security rules`;
+    configureOutput = await runSshCommand(sshConfig, configureCmd, `targets-${deviceGroup}`);
+  } catch (err) {
+    throw new Error(`SSH targets fetch failed for ${deviceGroup}: ${err instanceof Error ? err.message : String(err)}`);
+  }
   const targetsByRule = parseConfigureTargets(deviceGroup, configureOutput);
 
   onProgress?.(`SSH: Getting hit counts for device group ${deviceGroup}...`);
-  const hitCountCmd = `set cli scripting-mode on
+  let hitCountOutput: string;
+  try {
+    const hitCountCmd = `set cli scripting-mode on
 show rule-hit-count device-group "${deviceGroup}" pre-rulebase security rules all
 set cli scripting-mode off`;
-  const hitCountOutput = await runSshCommand(sshConfig, hitCountCmd);
+    hitCountOutput = await runSshCommand(sshConfig, hitCountCmd, `hitcount-${deviceGroup}`);
+  } catch (err) {
+    throw new Error(`SSH hit count fetch failed for ${deviceGroup}: ${err instanceof Error ? err.message : String(err)}`);
+  }
   const hitRows = parseRuleHitCountTable(hitCountOutput);
 
   const entries: PanoramaRuleUseEntry[] = [];

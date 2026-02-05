@@ -294,10 +294,12 @@ export async function auditPanoramaRules(
             const sshEntries = await getHitCountsViaSsh(sshConfig, dgName, onProgress);
             entries.push(...sshEntries);
             deviceGroupsSet.add(dgName);
+            continue;
           } catch (err) {
-            console.error(`  SSH hit counts failed for "${dgName}":`, err instanceof Error ? err.message : err);
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error(`  SSH hit counts failed for "${dgName}":`, msg);
+            onProgress?.(`SSH failed for ${dgName}: ${msg}. Falling back to API.`);
           }
-          continue;
         }
 
         try {
