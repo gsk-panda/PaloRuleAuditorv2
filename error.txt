@@ -18,7 +18,95 @@ configure
 show device-group "YOUR_DEVICE_GROUP" pre-rulebase security rules
 exit
 
+show device-group "ISS" pre-rulebase security rules 
+rules {
+  "Allow Non-prod bastion to vlan91" {
+    profile-setting {
+      group SNC-Alert-Only;
+    }
+    target {
+      devices {
+        011901024335;
+      }
+      negate no;
+    }
+    to Outside;
+    from Inside;
+    source 10.176.233.0/24;
+    destination 10.2.10.0/23;
+    source-user any;
+    category any;
+    application any;
+    service [ TCP_22 tcp_443 TCP_3389 TCP_10000];
+    source-hip any;
+    destination-hip any;
+    action allow;
+    description RITM0466159;
+    log-setting "Panorama Central Logging";
+  }
+  "Colo ISS - lgogpu01 to idm01-1" {
+    target {
+      negate no;
+      devices {
+        011901001726;
+      }
+    }
+    to [ Inside Outside];
+    from [ Inside Outside];
+    source [ 10.143.60.0/24 10.143.61.0/24 172.19.2.22];
+    destination [ 10.143.60.0/24 10.143.61.0/24 172.19.2.22];
+    source-user any;
+    category any;
+    application any;
+    service [ service-http service-https TCP_53 TCP_88 TCP_389 TCP_464 TCP_479 TCP_636 TCP_749 UDP_53 UDP_88 UDP_464];
+    action allow;
+    log-start yes;
+    log-setting "Panorama Central Logging";
+    description CHG0043065;
+    group-tag ISS;
+    source-hip any;
+    destination-hip any;
+  }
+
+
+
 
 set cli scripting-mode on
-show rule-hit-count device-group "YOUR_DEVICE_GROUP" pre-rulebase security rules all
+show rule-hit-count device-group "ISS" pre-rulebase security rules all
 set cli scripting-mode off
+
+121135-adm@palomgt02(primary-active)> set cli scripting-mode on
+show rule-hit-count device-group "ISS" pre-rulebase security rules all
+set cli scripting-mode off121135-adm@palomgt02(primary-active)> 
+Rule Name                                                         Rule usage          Device Name                         Vsys         Hit Count       Last Hit Timestamp            Last Reset Timestamp          First Hit Timestamp           Rule Create Timestamp        Rule Modify Timestamp         Last Received Update Timestamp          Device State     
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Allow Non-prod bastion to vlan91                                 
+                                                                  Unused              vis-mdf-eisfw1                      vsys1        -               -                             -                            -                             Tue Jan 28 10:01:50 2025      Tue Jan 28 10:01:50 2025      -                                       connected        
+                                                                  Unused              ah4-mdf-mstfw1                      vsys1        -               -                             -                            -                             Tue Jan 28 10:01:50 2025      Tue Jan 28 10:01:50 2025      -                                       connected        
+                                                                  Unused              vaher-her-mdf-mstfw1                vsys1        -               -                             -                            -                             Tue Jan 28 10:01:50 2025      Tue Jan 28 10:01:50 2025      -                                       connected        
+                                                                  Used                crp-mdf-eisfw1                      vsys1        749             Mon Mar 31 08:09:15 2025      -                            Tue Jan 28 12:50:20 2025      Tue Jan 28 09:38:11 2025      Tue Jan 28 09:38:11 2025      Wed Feb  4 18:57:20 2026                connected        
+                                                                  Unused              rmn-mdf-issfw1                      vsys1        -               -                             -                            -                             Tue Jan 28 10:01:50 2025      Tue Jan 28 10:01:50 2025      -                                       connected        
+                                                                  Unused              bea-mdf-eisfw1                      vsys1        -               -                             -                            -                             Tue Jan 28 10:01:50 2025      Tue Jan 28 10:01:50 2025      -                                       connected        
+                                                                  Unused              txpla-tp3-mdf-eisfw1                vsys1        0               -                             -                            -                             Fri Oct 10 07:54:57 2025      Fri Oct 10 07:54:57 2025      Tue Oct 14 16:13:16 2025                connected        
+                                                                  Unused              cafol-fol-mdf-eisfw1                vsys1        -               -                             -                            -                             Tue Jan 28 10:01:50 2025      Tue Jan 28 10:01:50 2025      -                                       connected        
+                                                                  Unused              oh1-mdf-issfw1                      vsys1        0               -                             -                            -                             Mon Mar 24 18:11:20 2025      Mon Mar 24 18:11:20 2025      Tue Mar 25 15:07:56 2025                connected        
+                                                                  Unused              txgre-gre-mdf-issfw1                vsys1        0               -                             -                            -                             Tue Jul  8 18:06:13 2025      Tue Jul  8 18:06:13 2025      Wed Jul  9 18:24:10 2025                connected        
+                                                                  Unused              mdlxp-ml1-mdf-mstfw1                vsys1        -               -                             -                            -                             Tue Jan 28 10:01:50 2025      Tue Jan 28 10:01:50 2025      -                                       connected        
+                                                                  Unused              calga-lgo-mdf-issfw1                vsys1        -               -                             -                            -                             Tue Jan 28 10:01:50 2025      Tue Jan 28 10:01:50 2025      -                                       connected        
+Total Hit Count:     749                 
+
+Colo ISS - lgogpu01 to idm01-1                                   
+                                                                  Unused              vis-mdf-eisfw1                      vsys1        -               -                             -                            -                             Tue Aug 27 14:06:04 2024      Tue Aug 27 14:06:04 2024      -                                       connected        
+                                                                  Unused              ah4-mdf-mstfw1                      vsys1        -               -                             -                            -                             Tue Aug 27 14:06:04 2024      Tue Aug 27 14:06:04 2024      -                                       connected        
+                                                                  Unused              vaher-her-mdf-mstfw1                vsys1        -               -                             -                            -                             Tue Aug 27 14:06:04 2024      Tue Aug 27 14:06:04 2024      -                                       connected        
+                                                                  Unused              crp-mdf-eisfw1                      vsys1        -               -                             -                            -                             Tue Aug 27 14:06:04 2024      Tue Aug 27 14:06:04 2024      -                                       connected        
+                                                                  Unused              rmn-mdf-issfw1                      vsys1        -               -                             -                            -                             Tue Aug 27 14:06:04 2024      Tue Aug 27 14:06:04 2024      -                                       connected        
+                                                                  Unused              bea-mdf-eisfw1                      vsys1        -               -                             -                            -                             Tue Aug 27 14:06:04 2024      Tue Aug 27 14:06:04 2024      -                                       connected        
+                                                                  Unused              txpla-tp3-mdf-eisfw1                vsys1        0               -                             -                            -                             Fri Oct 10 07:54:57 2025      Fri Oct 10 07:54:57 2025      Tue Oct 14 16:13:16 2025                connected        
+                                                                  Unused              cafol-fol-mdf-eisfw1                vsys1        -               -                             -                            -                             Tue Aug 27 14:06:04 2024      Tue Aug 27 14:06:04 2024      -                                       connected        
+                                                                  Unused              oh1-mdf-issfw1                      vsys1        0               -                             -                            -                             Mon Mar 24 18:11:20 2025      Mon Mar 24 18:11:20 2025      Tue Mar 25 15:07:56 2025                connected        
+                                                                  Unused              txgre-gre-mdf-issfw1                vsys1        0               -                             -                            -                             Tue Jul  8 18:06:13 2025      Tue Jul  8 18:06:13 2025      Wed Jul  9 18:24:10 2025                connected        
+                                                                  Unused              mdlxp-ml1-mdf-mstfw1                vsys1        -               -                             -                            -                             Tue Aug 27 14:06:04 2024      Tue Aug 27 14:06:04 2024      -                                       connected        
+                                                                  Used                calga-lgo-mdf-issfw1                vsys1        84              Thu Jan 22 08:56:56 2026      -                            Wed Aug 28 02:32:30 2024      Tue Aug 27 14:12:03 2024      Tue Aug 27 14:12:03 2024      Wed Feb  4 19:01:12 2026                connected        
+Total Hit Count:     84                  
+
