@@ -1,1 +1,10 @@
+> panorama-rule-auditor@1.0.0 build:server
+> tsc -p tsconfig.server.json
 
+server/panoramaService.ts:62:3 - error TS2322: Type 'unknown' is not assignable to type 'string'.
+
+62   return vsysEntry.name ?? (vsysEntry as Record<string, unknown>)['@_name'];
+     ~~~~~~
+
+
+Found 1 error in server/panoramaService.ts:62
