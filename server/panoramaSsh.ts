@@ -59,49 +59,48 @@ function runSshCommand(
   });
 }
 
+const SKIP_DEVICE_IDS = new Set(['negate', 'no', 'yes']);
+const SERIAL_PATTERN = /^\d{10,}$/;
+
 export function parseConfigureTargets(
   deviceGroup: string,
   output: string
 ): Map<string, string[]> {
   const map = new Map<string, string[]>();
-  const setLineRegex = new RegExp(
-    `set\\s+device-group\\s+${escapeRegex(deviceGroup)}\\s+pre-rulebase\\s+security\\s+rules\\s+"([^"]+)"\\s+target\\s+devices\\s+\\[\\s*([^\\]]*)\\s*\\]`,
-    'gi'
-  );
-  let m: RegExpExecArray | null;
-  while ((m = setLineRegex.exec(output)) !== null) {
-    const ruleName = m[1];
-    const devicesStr = m[2].trim();
-    const devices = devicesStr ? devicesStr.split(/\s+/).filter(Boolean) : [];
-    map.set(ruleName, devices);
-  }
-  const continuationRegex = new RegExp(
-    `(?:target\\s+)?devices\\s+\\[\\s*([^\\]]*)\\s*\\]`,
-    'gi'
-  );
-  let currentRule: string | null = null;
   const lines = output.split('\n');
+  let currentRule: string | null = null;
+  let inDevices = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const ruleMatch = line.match(
-      new RegExp(`rules\\s+"([^"]+)"`, 'i')
-    );
-    if (ruleMatch) currentRule = ruleMatch[1];
-    const devMatch = line.match(/target\s+devices\s+\[\s*([^\]]*)\s*\]/i) || line.match(/devices\s+\[\s*([^\]]*)\s*\]/i);
-    if (currentRule && devMatch) {
-      const devices = devMatch[1].trim().split(/\s+/).filter(Boolean);
-      if (devices.length > 0) {
-        const existing = map.get(currentRule) || [];
-        map.set(currentRule, [...existing, ...devices]);
+    const ruleMatch = line.match(/^\s*"([^"]+)"\s*\{?\s*$/);
+    if (ruleMatch) {
+      currentRule = ruleMatch[1];
+      inDevices = false;
+      continue;
+    }
+    if (line.includes('devices') && line.includes('{')) {
+      inDevices = true;
+      continue;
+    }
+    if (inDevices && currentRule) {
+      const devMatch = line.match(/^\s*([a-zA-Z0-9_.-]+)\s*;?\s*$/);
+      if (devMatch) {
+        const dev = devMatch[1].trim();
+        if (dev && !SKIP_DEVICE_IDS.has(dev)) {
+          const existing = map.get(currentRule) || [];
+          if (!existing.includes(dev)) existing.push(dev);
+          map.set(currentRule, existing);
+        }
       }
-      currentRule = null;
+      if (line.trim() === '}' || (line.trim().startsWith('}') && !line.includes('{'))) {
+        inDevices = false;
+      }
+    }
+    if (line.trim() === '}' || line.trim() === '};') {
+      if (inDevices) inDevices = false;
     }
   }
   return map;
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 const TOTAL_LINE = /Total Hit Count:\s*\d+/;
@@ -117,21 +116,24 @@ export function parseRuleHitCountTable(output: string): SshHitCountRow[] {
     if (HEADER_LINE.test(line)) continue;
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('---')) continue;
-    const parts = trimmed.split(/\s{2,}/).map((p) => p.trim());
-    if (parts.length < 5) {
-      if (parts[0] && parts[0] !== 'Rule Name') currentRule = parts[0];
+    const parts = trimmed.split(/\s{2,}/).map((p) => p.trim()).filter(Boolean);
+    if (parts.length < 4) {
+      if (parts[0] && parts[0] !== 'Rule' && parts[0] !== 'Rule Name') currentRule = parts[0];
       continue;
     }
-    const ruleNameCol = parts[0];
-    const ruleUsageCol = parts[1] ?? '';
-    const deviceNameCol = parts[2] ?? '';
-    const hitCountCol = parts[4] ?? '-';
-    const lastHitCol = parts[5] ?? '-';
-    const ruleModifyCol = parts[9] ?? '-';
-    if (deviceNameCol && deviceNameCol !== 'Device Name' && !/^-+$/.test(deviceNameCol) && (ruleUsageCol === 'Used' || ruleUsageCol === 'Unused')) {
-      const ruleName = ruleNameCol && ruleNameCol !== 'Rule Name' ? ruleNameCol : currentRule;
+    const isDataRow =
+      (parts[0] === 'Used' || parts[0] === 'Unused') &&
+      parts.length >= 9 &&
+      parts[1] &&
+      parts[1] !== 'Device Name' &&
+      !/^-+$/.test(parts[1]);
+    const deviceNameCol = isDataRow ? (parts[1] ?? '') : '';
+    const hitCountCol = isDataRow ? (parts[3] ?? '-') : '-';
+    const lastHitCol = isDataRow ? (parts[4] ?? '-') : '-';
+    const ruleModifyCol = isDataRow ? (parts[8] ?? '-') : '-';
+    if (isDataRow) {
+      const ruleName = currentRule;
       if (!ruleName) continue;
-      if (ruleNameCol && ruleNameCol !== 'Rule Name') currentRule = ruleNameCol;
       const hitCount = hitCountCol === '-' || hitCountCol === '' ? 0 : parseInt(hitCountCol, 10) || 0;
       rows.push({
         ruleName,
@@ -140,8 +142,8 @@ export function parseRuleHitCountTable(output: string): SshHitCountRow[] {
         lastHitTimestamp: lastHitCol && lastHitCol !== '-' ? lastHitCol : null,
         ruleModifyTimestamp: ruleModifyCol && ruleModifyCol !== '-' ? ruleModifyCol : null,
       });
-    } else if (ruleNameCol && ruleNameCol !== 'Rule Name' && !ruleNameCol.startsWith('---')) {
-      currentRule = ruleNameCol;
+    } else if (parts[0] && parts[0] !== 'Rule' && parts[0] !== 'Rule Name' && !parts[0].startsWith('---') && parts[0] !== 'Used' && parts[0] !== 'Unused') {
+      currentRule = parts[0];
     }
   }
   return rows;
@@ -181,11 +183,15 @@ set cli scripting-mode off`;
   const hitRows = parseRuleHitCountTable(hitCountOutput);
 
   const entries: PanoramaRuleUseEntry[] = [];
-  const targetedRuleNames = new Set(targetsByRule.keys());
+  const targetsAreSerials = (devices: string[]) =>
+    devices.length > 0 && devices.every((d) => SERIAL_PATTERN.test(d));
   for (const row of hitRows) {
     const targetedDevices = targetsByRule.get(row.ruleName);
-    if (!targetedDevices || targetedDevices.length === 0) continue;
-    if (!targetedDevices.includes(row.deviceName)) continue;
+    const useAllDevices =
+      !targetedDevices ||
+      targetedDevices.length === 0 ||
+      targetsAreSerials(targetedDevices);
+    if (!useAllDevices && !targetedDevices!.includes(row.deviceName)) continue;
     const hitCount = row.hitCount;
     let lastUsedDate: string | undefined;
     if (hitCount > 0 && row.lastHitTimestamp) {
