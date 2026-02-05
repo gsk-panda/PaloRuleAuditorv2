@@ -296,6 +296,38 @@ pa-01:pa-02
 - Both firewalls in a pair must show 0 hits for a rule to be eligible for remediation
 - Rules are visually grouped by HA pair in the results table
 
+### Optional SSH Configuration
+
+The audit can use SSH to fetch rule hit counts instead of the Panorama XML API, which is faster for large deployments. SSH is **optional**; if not configured, the application uses the API only.
+
+**SSH requires both:**
+1. **Username** – `PANORAMA_SSH_USER`
+2. **Authentication** – either:
+   - `PANORAMA_SSH_PRIVATE_KEY` or `PANORAMA_SSH_PRIVATE_KEY_PATH` (key-based auth), or
+   - `PANORAMA_SSH_PASSWORD` (password auth)
+
+If username or both auth options are missing, SSH is disabled and the audit uses the Panorama API.
+
+**Environment variables:**
+```
+PANORAMA_SSH_USER="admin"
+PANORAMA_SSH_PRIVATE_KEY_PATH="/path/to/id_rsa"
+```
+
+or:
+```
+PANORAMA_SSH_USER="admin"
+PANORAMA_SSH_PASSWORD="your-password"
+```
+
+**`.config` file** (same keys):
+```
+PANORAMA_SSH_USER="admin"
+PANORAMA_SSH_PRIVATE_KEY_PATH="/path/to/id_rsa"
+```
+
+Optional: `PANORAMA_SSH_HOST` (defaults to hostname from Panorama URL), `PANORAMA_SSH_PORT` (default 22).
+
 ## Architecture & Data Flow
 
 ### How It Works (Flowchart)
