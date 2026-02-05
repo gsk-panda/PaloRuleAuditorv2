@@ -59,7 +59,8 @@ interface PanoramaDeviceVsysEntry {
 }
 
 function getVsysEntryName(vsysEntry: PanoramaDeviceVsysEntry): string | undefined {
-  return vsysEntry.name ?? (vsysEntry as Record<string, unknown>)['@_name'];
+  const attr = (vsysEntry as Record<string, unknown>)['@_name'];
+  return vsysEntry.name ?? (typeof attr === 'string' ? attr : undefined);
 }
 
 function parseTs(val: unknown): number | undefined {
