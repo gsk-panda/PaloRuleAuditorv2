@@ -11,3 +11,14 @@ or, for a single rule, the path that corresponds to that rule in the config hier
 Scripting-friendly (structured output):
 set cli scripting-mode onshow device-group "ISS" pre-rulebase security rules "Allow Non-prod bastion to vlan91"set cli scripting-mode off
 So: use the device-group + pre-rulebase security rules (and optionally the rule name) in show device-group ... or show config running ...; that’s the SSH side that corresponds to “which firewalls are targeted for this rule.” If you paste a sample of that output, we can map it exactly to the API’s <target><devices> and to the “Device Name” column in the rule-hit-count table.
+
+
+
+configure
+show device-group "YOUR_DEVICE_GROUP" pre-rulebase security rules
+exit
+
+
+set cli scripting-mode on
+show rule-hit-count device-group "YOUR_DEVICE_GROUP" pre-rulebase security rules all
+set cli scripting-mode off
