@@ -28,6 +28,49 @@ process.on('unhandledRejection', (reason, promise) => {
 const app = express();
 const PORT = Number(process.env.PORT) || 3010;
 
+function getSshConfig(panoramaHost: string): import('./panoramaSsh.js').PanoramaSshConfig | null {
+  const cfg: { user?: string; key?: string; password?: string; host?: string; port?: number } = {
+    user: process.env.PANORAMA_SSH_USER,
+    key: process.env.PANORAMA_SSH_PRIVATE_KEY,
+    password: process.env.PANORAMA_SSH_PASSWORD,
+    host: process.env.PANORAMA_SSH_HOST || panoramaHost,
+    port: process.env.PANORAMA_SSH_PORT ? parseInt(process.env.PANORAMA_SSH_PORT, 10) : undefined,
+  };
+  if (process.env.PANORAMA_SSH_PRIVATE_KEY_PATH && !cfg.key) {
+    try {
+      cfg.key = fs.readFileSync(process.env.PANORAMA_SSH_PRIVATE_KEY_PATH, 'utf-8');
+    } catch (_) {}
+  }
+  if (fs.existsSync(path.join(process.cwd(), '.config'))) {
+    const content = fs.readFileSync(path.join(process.cwd(), '.config'), 'utf-8');
+    content.split('\n').forEach((line: string) => {
+      const m = line.match(/^([^=]+)="?([^"]*)"?$/);
+      if (m) {
+        const k = m[1].trim();
+        const v = m[2].trim();
+        if (k === 'PANORAMA_SSH_USER') cfg.user = v;
+        if (k === 'PANORAMA_SSH_PRIVATE_KEY') cfg.key = v;
+        if (k === 'PANORAMA_SSH_PRIVATE_KEY_PATH' && v && !cfg.key) {
+          try {
+            cfg.key = fs.readFileSync(v, 'utf-8');
+          } catch (_) {}
+        }
+        if (k === 'PANORAMA_SSH_PASSWORD') cfg.password = v;
+        if (k === 'PANORAMA_SSH_HOST') cfg.host = v;
+        if (k === 'PANORAMA_SSH_PORT') cfg.port = parseInt(v, 10);
+      }
+    });
+  }
+  if (!cfg.user || (!cfg.key && !cfg.password)) return null;
+  return {
+    host: cfg.host || panoramaHost,
+    port: cfg.port ?? 22,
+    username: cfg.user,
+    privateKey: cfg.key || undefined,
+    password: cfg.password || undefined,
+  };
+}
+
 app.use(cors());
 app.use(express.json());
 
@@ -192,8 +235,13 @@ app.post('/api/audit', async (req, res) => {
 
   res.on('close', finish);
   try {
-    console.log('Calling auditPanoramaRules...');
-    const result = await auditPanoramaRules(url, apiKey, unusedDays || 90, haPairs || [], (msg) => writeLine({ progress: msg }));
+    let panoramaHost = url;
+    try {
+      panoramaHost = new URL(url.startsWith('http') ? url : `https://${url}`).hostname;
+    } catch (_) {}
+    const sshConfig = getSshConfig(panoramaHost);
+    console.log('Calling auditPanoramaRules...', sshConfig ? '(SSH enabled)' : '(API only)');
+    const result = await auditPanoramaRules(url, apiKey, unusedDays || 90, haPairs || [], (msg) => writeLine({ progress: msg }), sshConfig);
     console.log(`Audit completed: ${result.rules.length} rules, ${result.deviceGroups.length} device groups`);
     writeLine({ result: { rules: result.rules, deviceGroups: result.deviceGroups } });
   } catch (error) {

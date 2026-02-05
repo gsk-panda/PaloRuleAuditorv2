@@ -1,5 +1,6 @@
 import { PanoramaRule, HAPair } from '../types.js';
 import { XMLParser } from 'fast-xml-parser';
+import { getHitCountsViaSsh, type PanoramaSshConfig } from './panoramaSsh.js';
 
 interface PanoramaRuleUseEntry {
   rulebase?: string;
@@ -171,7 +172,8 @@ export async function auditPanoramaRules(
   apiKey: string,
   unusedDays: number,
   haPairs: HAPair[],
-  onProgress?: (message: string) => void
+  onProgress?: (message: string) => void,
+  sshConfig?: PanoramaSshConfig | null
 ): Promise<AuditResult> {
   try {
     const haMap = new Map<string, string>();
@@ -285,6 +287,17 @@ export async function auditPanoramaRules(
         const uniqueRuleNames = [...new Set(ruleNames)];
         if (uniqueRuleNames.length < ruleNames.length) {
           console.log(`    Deduplicating rule names for hit-count request: ${ruleNames.length} -> ${uniqueRuleNames.length}`);
+        }
+
+        if (sshConfig) {
+          try {
+            const sshEntries = await getHitCountsViaSsh(sshConfig, dgName, onProgress);
+            entries.push(...sshEntries);
+            deviceGroupsSet.add(dgName);
+          } catch (err) {
+            console.error(`  SSH hit counts failed for "${dgName}":`, err instanceof Error ? err.message : err);
+          }
+          continue;
         }
 
         try {
