@@ -243,7 +243,7 @@ app.post('/api/audit', async (req, res) => {
     console.log('Calling auditPanoramaRules...', sshConfig ? '(SSH enabled)' : '(API only)');
     const result = await auditPanoramaRules(url, apiKey, unusedDays || 90, haPairs || [], (msg) => writeLine({ progress: msg }), sshConfig);
     console.log(`Audit completed: ${result.rules.length} rules, ${result.deviceGroups.length} device groups`);
-    writeLine({ result: { rules: result.rules, deviceGroups: result.deviceGroups } });
+    writeLine({ result: { rules: result.rules, deviceGroups: result.deviceGroups, rulesProcessed: result.rulesProcessed } });
   } catch (error) {
     console.error('Audit error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to perform audit';
@@ -288,7 +288,7 @@ app.post('/api/audit/disabled', async (req, res) => {
     const { auditDisabledRules } = await import('./panoramaService.js');
     const result = await auditDisabledRules(url, apiKey, disabledDays || 90, (msg) => writeLine({ progress: msg }));
     console.log(`Disabled rules audit completed: ${result.rules.length} rules, ${result.deviceGroups.length} device groups`);
-    writeLine({ result: { rules: result.rules, deviceGroups: result.deviceGroups } });
+    writeLine({ result: { rules: result.rules, deviceGroups: result.deviceGroups, rulesProcessed: result.rulesProcessed } });
   } catch (error) {
     console.error('Disabled rules audit error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to perform audit';

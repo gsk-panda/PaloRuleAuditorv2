@@ -32,6 +32,7 @@ const App: React.FC = () => {
   const [haPairs, setHAPairs] = useState<HAPair[]>([]);
   const [rules, setRules] = useState<PanoramaRule[]>([]);
   const [deviceGroups, setDeviceGroups] = useState<string[]>([]);
+  const [rulesProcessed, setRulesProcessed] = useState<number>(0);
   const [isAuditing, setIsAuditing] = useState(false);
   const [auditProgress, setAuditProgress] = useState('');
   const [showReport, setShowReport] = useState(false);
@@ -77,6 +78,7 @@ const App: React.FC = () => {
     e.preventDefault();
     setIsAuditing(true);
     setAuditProgress('');
+    setRulesProcessed(0);
     try {
       const endpoint = auditMode === 'disabled' ? apiBase + '/audit/disabled' : apiBase + '/audit';
       const body = auditMode === 'disabled'
@@ -114,7 +116,7 @@ const App: React.FC = () => {
       if (!reader) throw new Error('No response body');
       const decoder = new TextDecoder();
       let buffer = '';
-      let lastResult: { rules?: PanoramaRule[]; deviceGroups?: string[] } | null = null;
+      let lastResult: { rules?: PanoramaRule[]; deviceGroups?: string[]; rulesProcessed?: number } | null = null;
       let lastError: string | null = null;
       try {
         while (true) {
@@ -127,7 +129,7 @@ const App: React.FC = () => {
             const trimmed = line.trim();
             if (!trimmed) continue;
             try {
-              const parsed = JSON.parse(trimmed) as { progress?: string; result?: { rules: PanoramaRule[]; deviceGroups: string[] }; error?: string };
+              const parsed = JSON.parse(trimmed) as { progress?: string; result?: { rules: PanoramaRule[]; deviceGroups: string[]; rulesProcessed?: number }; error?: string };
               if (parsed.progress !== undefined) setAuditProgress(parsed.progress);
               if (parsed.result) lastResult = parsed.result;
               if (parsed.error) lastError = parsed.error;
@@ -143,7 +145,7 @@ const App: React.FC = () => {
       }
       if (buffer.trim()) {
         try {
-          const parsed = JSON.parse(buffer.trim()) as { progress?: string; result?: { rules: PanoramaRule[]; deviceGroups: string[] }; error?: string };
+          const parsed = JSON.parse(buffer.trim()) as { progress?: string; result?: { rules: PanoramaRule[]; deviceGroups: string[]; rulesProcessed?: number }; error?: string };
           if (parsed.progress !== undefined) setAuditProgress(parsed.progress);
           if (parsed.result) lastResult = parsed.result;
           if (parsed.error) lastError = parsed.error;
@@ -155,6 +157,7 @@ const App: React.FC = () => {
         const newDgs = lastResult.deviceGroups ?? [];
         setRules(newRules);
         setDeviceGroups(newDgs);
+        setRulesProcessed(lastResult.rulesProcessed ?? 0);
         setSelectedRuleIds(new Set(newRules.map((r: PanoramaRule) => r.id)));
         setShowReport(true);
       }
@@ -210,6 +213,8 @@ const App: React.FC = () => {
       yPos += 10;
       
       doc.setFontSize(11);
+      doc.text(`Rules Processed: ${rulesProcessed.toLocaleString()}`, margin, yPos);
+      yPos += 7;
       doc.text(`Total Rules: ${summary.totalRules}`, margin, yPos);
       yPos += 7;
       doc.setTextColor(220, 53, 69);
@@ -557,6 +562,7 @@ const App: React.FC = () => {
                 </svg>
                 Device Groups Found ({deviceGroups.length})
               </h3>
+              <p className="text-xs text-blue-700 mb-2">Rules Processed: {rulesProcessed.toLocaleString()}</p>
               {deviceGroups.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {deviceGroups.map((dg) => (

@@ -58,6 +58,10 @@ interface PanoramaDeviceVsysEntry {
   'all-connected'?: string;
 }
 
+function getVsysEntryName(vsysEntry: PanoramaDeviceVsysEntry): string | undefined {
+  return vsysEntry.name ?? (vsysEntry as Record<string, unknown>)['@_name'];
+}
+
 function parseTs(val: unknown): number | undefined {
   if (val === undefined || val === null || val === '') return undefined;
   const n = parseInt(String(val), 10);
@@ -165,6 +169,7 @@ function hasProtectTag(rule: any): boolean {
 export interface AuditResult {
   rules: PanoramaRule[];
   deviceGroups: string[];
+  rulesProcessed: number;
 }
 
 export async function auditPanoramaRules(
@@ -211,13 +216,14 @@ export async function auditPanoramaRules(
 
     if (deviceGroupNames.length === 0) {
       console.log('No device groups found, skipping audit');
-      return { rules: [], deviceGroups: [] };
+      return { rules: [], deviceGroups: [], rulesProcessed: 0 };
     }
 
     console.log(`\nStep 2: Processing ${deviceGroupNames.length} device groups...`);
     
     let entries: PanoramaRuleUseEntry[] = [];
     const deviceGroupsSet = new Set<string>();
+    let rulesProcessed = 0;
     const protectedRuleSet = new Set<string>();
 
     for (const dgName of deviceGroupNames) {
@@ -267,6 +273,7 @@ export async function auditPanoramaRules(
 
         console.log(`  Found ${rules.length} rules in pre-rulebase for "${dgName}"`);
         deviceGroupsSet.add(dgName);
+        rulesProcessed += rules.length;
 
         console.log(`\nStep 4: Querying hit counts for ${rules.length} rules (batched)...`);
         
@@ -292,6 +299,7 @@ export async function auditPanoramaRules(
         if (sshConfig) {
           try {
             const sshEntries = await getHitCountsViaSsh(sshConfig, dgName, onProgress);
+            console.log(`  SSH returned ${sshEntries.length} entries for "${dgName}"`);
             entries.push(...sshEntries);
             deviceGroupsSet.add(dgName);
             continue;
@@ -351,6 +359,7 @@ export async function auditPanoramaRules(
             console.error(`    No hit count data for device group "${dgName}" (all chunks failed or empty)`);
             continue;
           }
+          console.log(`    API returned ${allChunkRuleEntries.length} rule entries for "${dgName}"`);
           const merged: PanoramaDeviceGroupEntry = {
             'pre-rulebase': {
               entry: { name: 'security', rules: { entry: allChunkRuleEntries } }
@@ -398,11 +407,14 @@ export async function auditPanoramaRules(
                         
                         if (vsysEntry['all-connected'] === 'yes') {
                           allConnected = true;
-                        } else if (vsysEntry.name) {
-                          const parts = vsysEntry.name.split('/');
-                          const deviceId = parts.length >= 2 ? parts[1] : parts[0];
-                          if (deviceId && !targets.includes(deviceId)) {
-                            targets.push(deviceId);
+                        } else {
+                          const entryName = getVsysEntryName(vsysEntry);
+                          if (entryName) {
+                            const parts = entryName.split('/');
+                            const deviceId = parts.length >= 2 ? parts[1] : parts[0];
+                            if (deviceId && !targets.includes(deviceId)) {
+                              targets.push(deviceId);
+                            }
                           }
                         }
                       });
@@ -417,9 +429,10 @@ export async function auditPanoramaRules(
                         } else if (modTs !== undefined) {
                           lastUsedDate = new Date(modTs * 1000).toISOString();
                         }
+                        const entryName = getVsysEntryName(vsysEntry);
                         let deviceId: string | undefined;
-                        if (vsysEntry.name) {
-                          const parts = vsysEntry.name.split('/');
+                        if (entryName) {
+                          const parts = entryName.split('/');
                           deviceId = parts.length >= 2 ? parts[1] : parts[0];
                         }
                         if (!deviceId) return;
@@ -503,8 +516,8 @@ export async function auditPanoramaRules(
     console.log(`Found ${entries.length} rule entries before filtering`);
 
     if (entries.length === 0) {
-      console.log('No entries found');
-      return { rules: [], deviceGroups: deviceGroups };
+      console.log('No entries found - check that hit count API/SSH returns data and device-vsys entries have name attribute');
+      return { rules: [], deviceGroups: deviceGroups, rulesProcessed };
     }
 
     const now = new Date();
@@ -522,8 +535,9 @@ export async function auditPanoramaRules(
     console.log(`Filtered ${entries.length} entries down to ${filteredEntries.length} unused rules`);
 
     if (filteredEntries.length === 0) {
-      console.log('No unused rules found');
-      return { rules: [], deviceGroups: deviceGroups };
+      const sampleLastUsed = entries.slice(0, 5).map((e) => ({ rulename: e.rulename, lastused: e.lastused, hitcnt: e.hitcnt }));
+      console.log('No unused rules found - all entries may have lastused after threshold. Sample:', JSON.stringify(sampleLastUsed));
+      return { rules: [], deviceGroups: deviceGroups, rulesProcessed };
     }
 
     const rules: PanoramaRule[] = [];
@@ -661,11 +675,12 @@ export async function auditPanoramaRules(
       }
     });
 
-    console.log(`Returning ${processedRules.length} unused rules and ${deviceGroups.length} device groups:`, deviceGroups);
+    console.log(`Returning ${processedRules.length} unused rules and ${deviceGroups.length} device groups (${rulesProcessed} rules processed):`, deviceGroups);
     
     return {
       rules: processedRules,
-      deviceGroups: deviceGroups
+      deviceGroups: deviceGroups,
+      rulesProcessed
     };
   } catch (error) {
     console.error('Panorama API error:', error);
@@ -709,13 +724,14 @@ export async function auditDisabledRules(
 
     if (deviceGroupNames.length === 0) {
       console.log('No device groups found, skipping audit');
-      return { rules: [], deviceGroups: [] };
+      return { rules: [], deviceGroups: [], rulesProcessed: 0 };
     }
 
     console.log(`\nStep 2: Processing ${deviceGroupNames.length} device groups for disabled rules...`);
     
     const disabledRules: PanoramaRule[] = [];
     const deviceGroupsSet = new Set<string>();
+    let rulesProcessed = 0;
     const now = new Date();
     const disabledThreshold = new Date(now.getTime() - disabledDays * 24 * 60 * 60 * 1000);
     console.log(`Looking for rules disabled before ${disabledThreshold.toISOString()} (${disabledDays} days ago)`);
@@ -768,6 +784,7 @@ export async function auditDisabledRules(
 
         console.log(`  Found ${rules.length} disabled rules in "${dgName}"`);
         deviceGroupsSet.add(dgName);
+        rulesProcessed += rules.length;
 
         console.log(`  Querying hit counts for ${rules.length} disabled rules (chunked)...`);
         
@@ -922,12 +939,14 @@ export async function auditDisabledRules(
       }
     }
 
-    const deviceGroups = Array.from(deviceGroupsSet).sort();
-    console.log(`\nFound ${disabledRules.length} rules disabled for more than ${disabledDays} days across ${deviceGroups.length} device groups`);
+    const deviceGroups = [...new Set(disabledRules.map((r) => r.deviceGroup))].sort();
+    console.log(`\nFound ${disabledRules.length} rules disabled for more than ${disabledDays} days across ${deviceGroups.length} device groups (${rulesProcessed} rules processed)`);
+    onProgress?.(`Found ${disabledRules.length} rules disabled for more than ${disabledDays} days`);
     
     return {
       rules: disabledRules,
-      deviceGroups: deviceGroups
+      deviceGroups: deviceGroups,
+      rulesProcessed
     };
   } catch (error) {
     console.error('Panorama API error:', error);
