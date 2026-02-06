@@ -301,9 +301,13 @@ export async function auditPanoramaRules(
           try {
             const sshEntries = await getHitCountsViaSsh(sshConfig, dgName, onProgress);
             console.log(`  SSH returned ${sshEntries.length} entries for "${dgName}"`);
-            entries.push(...sshEntries);
-            deviceGroupsSet.add(dgName);
-            continue;
+            if (sshEntries.length > 0) {
+              entries.push(...sshEntries);
+              deviceGroupsSet.add(dgName);
+              continue;
+            }
+            console.log(`  SSH returned 0 entries for "${dgName}", falling back to API`);
+            onProgress?.(`SSH returned no data for ${dgName}, using API.`);
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             console.error(`  SSH hit counts failed for "${dgName}":`, msg);
