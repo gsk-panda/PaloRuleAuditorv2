@@ -21,7 +21,7 @@ export interface SshHitCountRow {
   ruleModifyTimestamp: string | null;
 }
 
-const SSH_TIMEOUT_MS = 120000;
+const SSH_TIMEOUT_MS = 300000;
 
 function runSshCommand(
   config: PanoramaSshConfig,
@@ -117,17 +117,24 @@ export function parseConfigureTargets(
 
 const TOTAL_LINE = /Total Hit Count:\s*\d+/;
 const HEADER_LINE = /Rule Name\s+Rule usage\s+Device Name/;
+const PROMPT_LINE = /^[\w@.-]+\([^)]*\)>\s*$/;
+const ANSI_ESCAPE = /\x1b\[[0-9;]*[a-zA-Z]?/g;
+
+function stripAnsi(s: string): string {
+  return s.replace(ANSI_ESCAPE, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
 
 export function parseRuleHitCountTable(output: string): SshHitCountRow[] {
   const rows: SshHitCountRow[] = [];
-  const lines = output.split('\n');
+  const cleaned = stripAnsi(output);
+  const lines = cleaned.split('\n');
   let currentRule = '';
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (TOTAL_LINE.test(line)) continue;
     if (HEADER_LINE.test(line)) continue;
     const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('---')) continue;
+    if (!trimmed || trimmed.startsWith('---') || trimmed.startsWith('=~=') || trimmed.startsWith('set cli') || PROMPT_LINE.test(trimmed)) continue;
     const parts = trimmed.split(/\s{2,}/).map((p) => p.trim()).filter(Boolean);
     if (parts.length < 4) {
       if (parts[0] && parts[0] !== 'Rule' && parts[0] !== 'Rule Name') currentRule = parts[0];
@@ -141,8 +148,30 @@ export function parseRuleHitCountTable(output: string): SshHitCountRow[] {
       !/^-+$/.test(parts[1]);
     const deviceNameCol = isDataRow ? (parts[1] ?? '') : '';
     const hitCountCol = isDataRow ? (parts[3] ?? '-') : '-';
-    const lastHitCol = isDataRow ? (parts[4] ?? '-') : '-';
-    const ruleModifyCol = isDataRow ? (parts[8] ?? '-') : '-';
+    let lastHitCol = '-';
+    let ruleModifyCol = '-';
+    if (isDataRow && parts.length >= 5) {
+      const monthAbbrev = /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/;
+      const timePart = /^\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4}$/;
+      const fullDate = /\d{2}:\d{2}:\d{2}\s+\d{4}$/;
+      const timestamps: string[] = [];
+      let idx = 4;
+      while (idx < parts.length && timestamps.length < 6) {
+        const p = parts[idx];
+        if (p === '-' || p === 'connected') break;
+        if (monthAbbrev.test(p) && idx + 1 < parts.length && timePart.test(parts[idx + 1])) {
+          timestamps.push(`${p} ${parts[idx + 1]}`);
+          idx += 2;
+        } else if (p && fullDate.test(p)) {
+          timestamps.push(p);
+          idx += 1;
+        } else {
+          idx += 1;
+        }
+      }
+      lastHitCol = timestamps[0] ?? '-';
+      ruleModifyCol = timestamps[4] ?? '-';
+    }
     if (isDataRow) {
       const ruleName = currentRule;
       if (!ruleName) continue;
