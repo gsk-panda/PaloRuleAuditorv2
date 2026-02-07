@@ -308,6 +308,8 @@ The audit can use SSH to fetch rule hit counts instead of the Panorama XML API, 
 
 If username or both auth options are missing, SSH is disabled and the audit uses the Panorama API.
 
+**Encrypted keys:** If your private key has a passphrase, set `PANORAMA_SSH_KEY_PASSPHRASE` in `.config` or env.
+
 **Environment variables:**
 ```
 PANORAMA_SSH_USER="admin"
@@ -1442,7 +1444,7 @@ All XPath queries use the standard Panorama device name `localhost.localdomain`:
 - **Host**: If Panorama URL hostname differs from SSH host, set `PANORAMA_SSH_HOST` in `.config` or env
 - **Key file**: `PANORAMA_SSH_PRIVATE_KEY_PATH` must be readable by the process (e.g. `panoruleauditor` user). Check file permissions
 - **Key format**: Private key must be PEM format. Avoid Windows CRLF; use `LF` line endings
-- **Auth**: Verify username and key/password. If key is passphrase-protected, use password auth instead
+- **Auth**: Verify username and key/password. If key is passphrase-protected, set `PANORAMA_SSH_KEY_PASSPHRASE` in `.config` or env
 - **Timeout**: Large device groups may take minutes; default timeout is 5 minutes. Check server logs for timeout errors
 
 #### Production mode not applying changes

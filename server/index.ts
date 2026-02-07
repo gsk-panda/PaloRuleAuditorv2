@@ -30,10 +30,11 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3010;
 
 function getSshConfig(panoramaHost: string): import('./panoramaSsh.js').PanoramaSshConfig | null {
-  const cfg: { user?: string; key?: string; password?: string; host?: string; port?: number } = {
+  const cfg: { user?: string; key?: string; password?: string; passphrase?: string; host?: string; port?: number } = {
     user: process.env.PANORAMA_SSH_USER,
     key: process.env.PANORAMA_SSH_PRIVATE_KEY,
     password: process.env.PANORAMA_SSH_PASSWORD,
+    passphrase: process.env.PANORAMA_SSH_KEY_PASSPHRASE,
     host: process.env.PANORAMA_SSH_HOST || panoramaHost,
     port: process.env.PANORAMA_SSH_PORT ? parseInt(process.env.PANORAMA_SSH_PORT, 10) : undefined,
   };
@@ -61,6 +62,7 @@ function getSshConfig(panoramaHost: string): import('./panoramaSsh.js').Panorama
           }
         }
         if (k === 'PANORAMA_SSH_PASSWORD') cfg.password = v;
+        if (k === 'PANORAMA_SSH_KEY_PASSPHRASE') cfg.passphrase = v;
         if (k === 'PANORAMA_SSH_HOST') cfg.host = v;
         if (k === 'PANORAMA_SSH_PORT') cfg.port = parseInt(v, 10);
       }
@@ -73,6 +75,7 @@ function getSshConfig(panoramaHost: string): import('./panoramaSsh.js').Panorama
     username: cfg.user,
     privateKey: cfg.key || undefined,
     password: cfg.password || undefined,
+    passphrase: cfg.passphrase || undefined,
   };
 }
 
