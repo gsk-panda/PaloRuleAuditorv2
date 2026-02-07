@@ -2,3 +2,6 @@ set cli scripting-mode on
 show rule-hit-count device-group "COLO" pre-rulebase security rules all
 set cli scripting-mode off
 curl -X POST http://localhost:3010/api/ssh/test -H "Content-Type: application/json" -d '{"url":"https://your-panorama.example.com"}'
+
+[curl -X POST http://localhost:3010/api/ssh/test -H "Content-Type: application/json" -d '{"url":"https://10.1.0.100"}'
+{"ok":false,"message":"Unsupported algorithm: 3des-cbc"}
