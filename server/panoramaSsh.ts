@@ -75,7 +75,7 @@ function runSshCommand(
         strictVendor: false,
         algorithms: {
           kex: { append: ['diffie-hellman-group14-sha1', 'diffie-hellman-group1-sha1'] },
-          cipher: { append: ['3des-cbc', 'aes128-cbc', 'aes256-cbc'] },
+          cipher: { append: ['aes128-cbc', 'aes256-cbc'] },
           serverHostKey: { append: ['ssh-dss'] },
         },
       });
