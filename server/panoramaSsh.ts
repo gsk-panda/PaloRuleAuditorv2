@@ -22,19 +22,21 @@ export interface SshHitCountRow {
 }
 
 const SSH_TIMEOUT_MS = 300000;
+const SSH_TEST_TIMEOUT_MS = 15000;
 
 function runSshCommand(
   config: PanoramaSshConfig,
   command: string,
-  label?: string
+  label?: string,
+  timeoutMs: number = SSH_TIMEOUT_MS
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const conn = new Client();
     let output = '';
     const timeout = setTimeout(() => {
       conn.end();
-      reject(new Error(`SSH timeout${label ? ` (${label})` : ''} after ${SSH_TIMEOUT_MS / 1000}s`));
-    }, SSH_TIMEOUT_MS);
+      reject(new Error(`SSH timeout${label ? ` (${label})` : ''} after ${timeoutMs / 1000}s`));
+    }, timeoutMs);
     conn
       .on('ready', () => {
         conn.exec(command, (err, stream) => {
@@ -69,6 +71,16 @@ function runSshCommand(
         password: config.password || undefined,
       });
   });
+}
+
+export async function testSshConnection(config: PanoramaSshConfig): Promise<{ ok: boolean; message: string; output?: string }> {
+  try {
+    const output = await runSshCommand(config, 'show version', 'test', SSH_TEST_TIMEOUT_MS);
+    return { ok: true, message: 'SSH connection successful', output: output.substring(0, 500) };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, message: msg };
+  }
 }
 
 const SKIP_DEVICE_IDS = new Set(['negate', 'no', 'yes']);

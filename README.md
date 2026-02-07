@@ -1436,6 +1436,15 @@ All XPath queries use the standard Panorama device name `localhost.localdomain`:
 - **Cause**: Hit count data may be nested in `device-vsys` entries
 - **Solution**: The application handles this automatically; if issues persist, check Panorama API response format
 
+#### SSH connection failures (server having trouble SSHing into Panorama)
+- **Test SSH**: `curl -X POST http://localhost:3010/api/ssh/test -H "Content-Type: application/json" -d '{"url":"https://your-panorama.example.com"}'` returns the actual error
+- **Network**: Ensure the app server can reach Panorama on port 22 (SSH). Firewalls may block outbound SSH
+- **Host**: If Panorama URL hostname differs from SSH host, set `PANORAMA_SSH_HOST` in `.config` or env
+- **Key file**: `PANORAMA_SSH_PRIVATE_KEY_PATH` must be readable by the process (e.g. `panoruleauditor` user). Check file permissions
+- **Key format**: Private key must be PEM format. Avoid Windows CRLF; use `LF` line endings
+- **Auth**: Verify username and key/password. If key is passphrase-protected, use password auth instead
+- **Timeout**: Large device groups may take minutes; default timeout is 5 minutes. Check server logs for timeout errors
+
 #### Production mode not applying changes
 - **Cause**: API key may lack write permissions
 - **Solution**: Verify API key has permissions to modify rules, create tags, and commit changes

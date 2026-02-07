@@ -7,6 +7,7 @@ import { dirname } from 'path';
 import fs from 'fs';
 console.log('Imports loaded, importing panoramaService...');
 import { auditPanoramaRules, fetchConfigPaginated } from './panoramaService.js';
+import { testSshConnection } from './panoramaSsh.js';
 console.log('panoramaService imported successfully');
 
 const __filename = fileURLToPath(import.meta.url);
@@ -39,7 +40,9 @@ function getSshConfig(panoramaHost: string): import('./panoramaSsh.js').Panorama
   if (process.env.PANORAMA_SSH_PRIVATE_KEY_PATH && !cfg.key) {
     try {
       cfg.key = fs.readFileSync(process.env.PANORAMA_SSH_PRIVATE_KEY_PATH, 'utf-8');
-    } catch (_) {}
+    } catch (e) {
+      console.error('SSH: Failed to read private key from PANORAMA_SSH_PRIVATE_KEY_PATH:', e instanceof Error ? e.message : e);
+    }
   }
   if (fs.existsSync(path.join(process.cwd(), '.config'))) {
     const content = fs.readFileSync(path.join(process.cwd(), '.config'), 'utf-8');
@@ -53,7 +56,9 @@ function getSshConfig(panoramaHost: string): import('./panoramaSsh.js').Panorama
         if (k === 'PANORAMA_SSH_PRIVATE_KEY_PATH' && v && !cfg.key) {
           try {
             cfg.key = fs.readFileSync(v, 'utf-8');
-          } catch (_) {}
+          } catch (e) {
+            console.error('SSH: Failed to read private key from path in .config:', v, e instanceof Error ? e.message : e);
+          }
         }
         if (k === 'PANORAMA_SSH_PASSWORD') cfg.password = v;
         if (k === 'PANORAMA_SSH_HOST') cfg.host = v;
@@ -114,6 +119,33 @@ app.get('/api/config', async (req, res) => {
     res.json({
       panoramaUrl: '',
       apiKey: ''
+    });
+  }
+});
+
+app.post('/api/ssh/test', async (req, res) => {
+  try {
+    const { url } = req.body;
+    let panoramaHost = url || '';
+    if (panoramaHost) {
+      try {
+        panoramaHost = new URL(panoramaHost.startsWith('http') ? panoramaHost : `https://${panoramaHost}`).hostname;
+      } catch (_) {}
+    }
+    const sshConfig = getSshConfig(panoramaHost || 'panorama');
+    if (!sshConfig) {
+      return res.status(400).json({
+        ok: false,
+        message: 'SSH not configured. Set PANORAMA_SSH_USER and PANORAMA_SSH_PRIVATE_KEY (or PATH) or PANORAMA_SSH_PASSWORD in .config or env.'
+      });
+    }
+    const result = await testSshConnection(sshConfig);
+    return res.json(result);
+  } catch (error) {
+    console.error('SSH test error:', error);
+    res.status(500).json({
+      ok: false,
+      message: error instanceof Error ? error.message : 'SSH test failed'
     });
   }
 });
