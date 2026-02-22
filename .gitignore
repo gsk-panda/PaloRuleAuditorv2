@@ -29,3 +29,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude AI session files
+.claude/
+
+# Debug / scratch files — may contain internal hostnames, IPs, rule names
+error.txt
+
+# Stale metadata
+metadata.json
