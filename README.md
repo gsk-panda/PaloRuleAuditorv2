@@ -355,7 +355,8 @@ flowchart TB
     J[Fetch device groups - paginated]
     K[Fetch rules per device group - paginated]
     L[Filter Shared rules]
-    M[Query rule-hit-count - one rule per API call]
+    M[Resolve serial→hostname map via connected devices API]
+    M2[Query rule-hit-count - batch with individual fallback for duplicate-node errors]
     N[Compute actions: DISABLE, UNTARGET, KEEP, etc.]
     O[Return JSON]
     P[Disable/delete rules, tag, commit]
@@ -371,7 +372,8 @@ flowchart TB
   F --> I --> J --> Q
   J --> K --> Q
   K --> L --> M --> R
-  M --> N --> O --> G --> D
+  M --> M2 --> R
+  M2 --> N --> O --> G --> D
   D --> E --> H --> P
   P --> Q
   P --> S
@@ -485,11 +487,21 @@ The application follows a client-server architecture:
    - Creates set of Shared rule names
    - Filters out any device group rules with matching names
 
-8. **Rule Hit Count Query** (one rule per API call)
+8. **Device Hostname Resolution**
+
+   Before querying hit counts, the backend resolves serial numbers to human-readable hostnames:
+   ```
+   API Call: GET /api/?type=op&cmd=<show><devices><connected/></devices></show>&key={apiKey}
+   ```
+   - Parses the returned device list to build a `Map<serial, hostname>` (e.g., `"011901012320" → "midtown-place-fw1"`)
+   - **Important**: `fast-xml-parser` strips leading zeros from numeric strings, so serial `"011901012320"` becomes integer `11901012320`. Both the padded (12-digit) and unpadded forms are stored as keys so lookups succeed regardless of which form appears in other API responses.
+   - The resolved `hostname` is stored as `FirewallTarget.displayName` for display only; `FirewallTarget.name` always holds the raw serial number for Panorama write operations.
+
+9. **Rule Hit Count Query** (batch strategy with individual fallback)
    ```
    API Call: GET /api/?type=op&cmd={xmlCommand}&key={apiKey}
-   
-   XML Command (one rule per request):
+
+   XML Command (batch — multiple rules per request):
    <show>
      <rule-hit-count>
        <device-group>
@@ -498,7 +510,9 @@ The application follows a client-server architecture:
              <entry name="security">
                <rules>
                  <rule-name>
-                   <entry name="{ruleName}"/>
+                   <entry name="{ruleName1}"/>
+                   <entry name="{ruleName2}"/>
+                   ...
                  </rule-name>
                </rules>
              </entry>
@@ -507,8 +521,8 @@ The application follows a client-server architecture:
        </device-group>
      </rule-hit-count>
    </show>
-   
-   Response Structure:
+
+   Response Structure (per device-vsys entry):
    <response>
      <result>
        <rule-hit-count>
@@ -519,14 +533,15 @@ The application follows a client-server architecture:
                  <rules>
                    <entry name="{ruleName}">
                      <device-vsys>
-                       <entry name="firewall1/vsys1">
+                       <entry name="{dgName}/{serial}/vsys1">
                          <hit-count>12345</hit-count>
                          <last-hit-timestamp>1768691213</last-hit-timestamp>
-                         <rule-modification-timestamp>1749766247</rule-modification-timestamp>
+                         <rule-creation-timestamp>1710000000</rule-creation-timestamp>
                        </entry>
-                       <entry name="firewall2/vsys1">
+                       <entry name="{dgName}/{serial2}/vsys1">
                          <hit-count>0</hit-count>
                          <last-hit-timestamp>0</last-hit-timestamp>
+                         <rule-creation-timestamp>1710000000</rule-creation-timestamp>
                        </entry>
                      </device-vsys>
                    </entry>
@@ -539,45 +554,57 @@ The application follows a client-server architecture:
      </result>
    </response>
    ```
-   - **One API call per rule** (chunk size 1) to avoid 414 Request-URI Too Long and duplicate-node errors from Panorama
-   - Handles nested `device-vsys` entries (aggregates across all devices)
-   - Extracts `hit-count`, `last-hit-timestamp`, `rule-modification-timestamp` for each rule
-   - If `last-hit-timestamp = 0`, uses `rule-modification-timestamp` as fallback
 
-9. **Target Processing & HA Pair Mapping**
-   - For each rule, processes target information:
-     - Extracts firewall names from `<target><devices><entry>`
-     - Maps HA pairs using provided HA pairs file
-     - Creates `FirewallTarget` objects with:
-       - `name`: Firewall name
-       - `hasHits`: Boolean (hit-count > 0)
-       - `hitCount`: Numeric hit count
-       - `haPartner`: Partner firewall name (if in HA pair)
+   **Batch Strategy & Duplicate-Node Fallback:**
+   - Rules are initially queried in batches (multiple `<entry>` elements within `<rule-name>`)
+   - Panorama may reject a batch with `status="error"` and the message `"[ruleName] is a duplicate node"` for certain device groups. This is a Panorama API limitation — it does **not** mean the rule name is duplicated in the config.
+   - When a duplicate-node error occurs, the offending rule is removed from the batch and added to a `skippedDuplicates` set. The batch is retried without that rule. This loop continues until the batch succeeds or all rules have been removed.
+   - After the retry loop, any rules remaining in `skippedDuplicates` are queried **one at a time** (a single `<entry>` per API call). This always succeeds.
+   - Handles nested `device-vsys` entries — the entry name is formatted as `{dgName}/{serial}/vsys1`; the serial is extracted and used to look up the hostname.
+   - Extracts `hit-count`, `last-hit-timestamp`, and `rule-creation-timestamp` for each device-vsys entry.
+   - **Timestamp fallback**: If `last-hit-timestamp` is `0` or missing (rule never hit), `rule-creation-timestamp` is used as the date reference for threshold comparison. `rule-modification-timestamp` is **not** used (it changes too frequently to be a reliable reference).
 
-10. **Rule Action Determination**
+10. **Target Processing & HA Pair Mapping**
+    - For each rule, processes target information:
+      - Extracts firewall serial numbers from `<target><devices><entry>` in the rule config
+      - Resolves each serial to a hostname via the hostname map built in Step 8
+      - Maps HA pairs using the provided HA pairs file (HA pair definitions use hostnames)
+      - Creates `FirewallTarget` objects with:
+        - `name`: Serial number (used for Panorama config write operations)
+        - `displayName`: Resolved hostname (used for display only — may be `undefined` if resolution fails)
+        - `hasHits`: Boolean (hit-count > 0)
+        - `hitCount`: Numeric hit count
+        - `haPartner`: Partner serial number (if in HA pair)
+        - `lastHitDate`: Per-target ISO timestamp (used for per-target threshold comparison)
+
+11. **Rule Action Determination**
     ```typescript
     For each rule:
       - Initialize firewallsToUntarget Set
       - For each target:
         - If target has HA partner:
-          - Check if either partner has hits
+          - Check if either partner has hits within threshold
           - If either has hits → protect both (don't add to untarget set)
-          - If both have 0 hits → add both to untarget set
+          - If both have 0 hits or both last-hit before threshold → add both to untarget set
         - Else (non-HA target):
-          - If unused → add to untarget set
-      
+          - Per-target lastHitDate compared against unusedThreshold
+          - If unused (lastHitDate < threshold) → add to untarget set
+
       - Determine action:
         - If ALL targets in untarget set → action = "DISABLE"
         - If SOME targets in untarget set → action = "UNTARGET"
-        - If HA pair protected → action = "HA-PROTECTED"
+        - If HA pair protected (either has recent hits) → action = "HA-PROTECTED"
         - Otherwise → action = "KEEP"
     ```
 
-11. **Date Threshold Evaluation**
+12. **Date Threshold Evaluation**
     - Calculates `unusedThreshold` date: `now - unusedDays`
-    - Compares `lastHitDate` against threshold
-    - Rules with hits after threshold are marked as "KEEP"
-    - Rules with no hits or hits before threshold are evaluated for remediation
+    - **Per-target comparison**: Each `FirewallTarget.lastHitDate` is individually compared against the threshold. A target is considered unused if its last hit date is before the threshold — regardless of whether the rule has non-zero total hits on other devices.
+    - **Timestamp fallback chain** (per device-vsys entry):
+      1. `last-hit-timestamp` if hit count > 0 on that device
+      2. `rule-creation-timestamp` if last-hit-timestamp is 0 or missing
+      3. (`rule-modification-timestamp` is **not** used — it changes too frequently)
+    - The earliest `rule-creation-timestamp` across all device-vsys entries is stored as `PanoramaRule.createdDate` and displayed as a separate "Created" column in the UI and PDF.
 
 #### Phase 4: Response Assembly
 
@@ -766,21 +793,29 @@ interface PanoramaRule {
   id: string;                    // Unique identifier
   name: string;                  // Rule name from Panorama
   deviceGroup: string;           // Device group name
-  totalHits: number;            // Aggregated hit count across all targets
-  lastHitDate: string;          // ISO timestamp of last hit (or modification)
-  targets: FirewallTarget[];    // Array of firewall targets
-  action: RuleAction;           // 'DISABLE' | 'UNTARGET' | 'HA-PROTECTED' | 'PROTECTED' | 'KEEP' | 'IGNORE'
-  isShared: boolean;            // Whether rule is from Shared device group
+  totalHits: number;             // Aggregated hit count across all targets
+  lastHitDate: string;           // ISO timestamp — latest last-hit across all targets
+                                 //   (falls back to rule-creation-timestamp if never hit)
+  createdDate?: string;          // ISO timestamp — earliest rule-creation-timestamp across
+                                 //   all device-vsys entries; displayed in "Created" column
+  targets: FirewallTarget[];     // Array of firewall targets
+  action: RuleAction;            // 'DISABLE' | 'UNTARGET' | 'HA-PROTECTED' | 'PROTECTED' | 'KEEP' | 'IGNORE'
+  suggestedActionNotes?: string; // Optional notes on why an action was assigned
+  isShared: boolean;             // Whether rule is from Shared device group
 }
 ```
 
 #### FirewallTarget Interface
 ```typescript
 interface FirewallTarget {
-  name: string;        // Firewall name
-  hasHits: boolean;     // Whether this firewall has hits
-  hitCount: number;     // Hit count for this specific firewall
-  haPartner?: string;  // Partner firewall name (if in HA pair)
+  name: string;          // Firewall serial number — used for Panorama config write operations
+                         //   (e.g., <target><devices><entry name="011901012320"/>)
+  displayName?: string;  // Resolved hostname — used for display only
+                         //   (e.g., "midtown-place-fw1"); undefined if resolution fails
+  hasHits: boolean;      // Whether this firewall has any hits for this rule
+  hitCount: number;      // Hit count for this specific firewall
+  haPartner?: string;    // Partner firewall serial number (if in HA pair)
+  lastHitDate?: string;  // ISO timestamp — per-target last hit date used for threshold comparison
 }
 ```
 
@@ -927,15 +962,24 @@ User Input → State Update → API Call → Response → State Update → UI Re
 ### Timestamp Handling
 
 **Unix Timestamp Conversion:**
-- Panorama returns timestamps as Unix epoch seconds
-- Application converts to JavaScript Date objects
-- Displayed as ISO strings in UI
-- Used for date comparisons against thresholds
+- Panorama returns timestamps as Unix epoch seconds (integer)
+- Backend converts to ISO strings: `new Date(parseInt(ts) * 1000).toISOString()`
+- Frontend displays as localized dates via `toLocaleDateString()`
+- Used for date comparisons against the unused/disabled threshold
 
-**Special Cases:**
-- `last-hit-timestamp = 0`: Rule never hit, use `rule-modification-timestamp`
-- `rule-modification-timestamp`: Used as fallback for disabled date
-- Timestamp aggregation: Latest timestamp across all device-vsys entries
+**Timestamp Fallback Chain (per device-vsys entry):**
+1. **`last-hit-timestamp`** — used if the hit count for that device-vsys entry is > 0
+2. **`rule-creation-timestamp`** — used as fallback if `last-hit-timestamp` is `0` or absent (rule never seen traffic on this device)
+3. **`rule-modification-timestamp`** — **NOT used** — this changes every time the rule is edited and is therefore an unreliable indicator of when traffic last flowed
+
+**`createdDate` Field:**
+- `PanoramaRule.createdDate` stores the **earliest** `rule-creation-timestamp` across all device-vsys entries for a rule
+- Displayed as a dedicated "Created" column in both the UI table and PDF export
+- Helps identify newly created rules that may appear to be "unused" only because they haven't been active long enough
+
+**Timestamp Aggregation:**
+- `PanoramaRule.lastHitDate`: the **latest** last-hit timestamp across all device-vsys entries (after applying the fallback chain)
+- `FirewallTarget.lastHitDate`: the per-target last-hit timestamp used for the per-target threshold comparison (see Rule Action Determination)
 
 ### Error Recovery
 
@@ -1008,11 +1052,12 @@ Identifies security rules that haven't been hit within the specified threshold p
 **Process:**
 1. Discovers all device groups in Panorama (paginated when needed)
 2. Fetches pre-rulebase security rules from each device group (paginated when needed)
-3. Queries rule-hit-count **one rule per API call** (chunk size 1) to avoid 414 and duplicate-node errors
-4. Filters out rules from "Shared" device group
-5. Filters out rules with the same name as Shared rules
-6. Identifies rules with 0 hits or last hit beyond threshold
-7. Handles rules with `last-hit-timestamp = 0` by using `rule-modification-timestamp`
+3. Resolves serial numbers to hostnames via `<show><devices><connected/></devices></show>`
+4. Queries rule-hit-count in **batches**; retries with smaller batches when Panorama returns "duplicate node" errors; queries remaining problematic rules **individually** (one API call per rule) as a final fallback
+5. Filters out rules from "Shared" device group
+6. Filters out rules with the same name as Shared rules
+7. Performs **per-target** threshold evaluation — each `FirewallTarget.lastHitDate` is compared individually against the unused threshold
+8. Handles rules with `last-hit-timestamp = 0` on a device by using `rule-creation-timestamp` as the fallback date reference (`rule-modification-timestamp` is not used)
 
 **Remediation Actions:**
 - **DISABLE**: Rules with 0 hits across all targets (or both HA pair members). For HA pairs, both must have 0 hits.
@@ -1030,10 +1075,10 @@ Locates rules that have been disabled for more than the specified threshold.
 1. Discovers all device groups in Panorama (paginated when needed)
 2. Fetches pre-rulebase security rules (paginated when needed)
 3. Filters for rules with `<disabled>yes</disabled>`
-4. Queries rule-hit-count **one rule per API call** (chunk size 1) for disabled rules
-5. Extracts `rule-modification-timestamp` (disabled date) for each rule
-6. Identifies rules disabled longer than threshold
-7. Displays disabled date instead of last hit date
+4. Queries rule-hit-count using the same batch + individual fallback strategy as unused-rules mode
+5. Extracts `rule-modification-timestamp` for each rule — for disabled rules, this timestamp reflects when the rule was last modified (typically when it was disabled) and is used as the "disabled date"
+6. Identifies rules where the disabled date is older than the configured threshold
+7. Displays the disabled date in the Last Hit column
 
 **Remediation Actions:**
 - **DELETE**: Selected rules are permanently deleted from Panorama
@@ -1076,9 +1121,9 @@ When in "Find Unused Rules" mode with Production Mode enabled:
    - Uses Panorama XML API `action=set` command
 
 2. **Tag Management**
-   - Creates tag if it doesn't exist: `disabled-YYYYMMDD` (e.g., `disabled-20260117`)
-   - Adds tag to disabled rules
-   - Preserves existing tags on rules
+   - Creates tag if it doesn't exist: `disabled-YYYYMMDD` (e.g., `disabled-20260222`)
+   - Tag format is date-only (no time component) — e.g., `disabled-20260222`
+   - Adds tag to disabled rules, preserving all existing tags
 
 3. **Commit**
    - Automatically commits changes with descriptive message
@@ -1108,6 +1153,9 @@ When in "Find Disabled Rules" mode with Production Mode enabled:
 
 Generate comprehensive PDF reports with:
 
+- **Orientation**: Landscape (A4 landscape) — ensures the wider rule table fits comfortably
+- **Library**: jsPDF v4 (dynamically imported at export time)
+
 - **Header Information**
   - Report title and generation timestamp
   - Panorama URL and threshold settings
@@ -1123,10 +1171,16 @@ Generate comprehensive PDF reports with:
 - **Device Groups**
   - List of all device groups discovered during audit
 
-- **Detailed Rule Table**
-  - Rule names and device groups
-  - Hit counts and last hit dates
-  - Proposed actions
+- **Detailed Rule Table** — columns (left to right):
+  | Column | Content |
+  |---|---|
+  | Rule Name | Rule name from Panorama |
+  | Device Group | Device group the rule belongs to |
+  | Hits | Total hit count across all targets |
+  | Last Hit | Last hit date (or creation date if never hit) |
+  | Created | Rule creation date from `rule-creation-timestamp` |
+  | Targets | Comma-separated hostnames (or serials if hostname resolution failed) |
+  | Action | Proposed action (DISABLE, UNTARGET, KEEP, etc.) |
 
 **Usage:**
 1. Generate an audit report
@@ -1209,7 +1263,17 @@ Performs an audit for unused rules.
       "deviceGroup": "device-group-name",
       "totalHits": 0,
       "lastHitDate": "2024-01-01T00:00:00.000Z",
-      "targets": [...],
+      "createdDate": "2023-06-15T00:00:00.000Z",
+      "targets": [
+        {
+          "name": "011901012320",
+          "displayName": "midtown-place-fw1",
+          "hasHits": false,
+          "hitCount": 0,
+          "haPartner": "011901015472",
+          "lastHitDate": "1970-01-01T00:00:00.000Z"
+        }
+      ],
       "action": "DISABLE",
       "isShared": false
     }
@@ -1248,7 +1312,7 @@ Applies remediation actions to Panorama.
       "deviceGroup": "device-group-name"
     }
   ],
-  "tag": "disabled-20260117",
+  "tag": "disabled-20260222",
   "auditMode": "unused" | "disabled"
 }
 ```
@@ -1435,8 +1499,15 @@ All XPath queries use the standard Panorama device name `localhost.localdomain`:
 - **Solution**: Stop the existing process or change the PORT environment variable
 
 #### Rules showing 0 hits but API shows hits
-- **Cause**: Hit count data may be nested in `device-vsys` entries
-- **Solution**: The application handles this automatically; if issues persist, check Panorama API response format
+- **Cause**: Hit count data may be nested in `device-vsys` entries, or a batch query was rejected by Panorama with a "duplicate node" error
+- **Solution**: The application automatically retries with smaller batches and falls back to individual per-rule queries. If issues persist, check the server logs for individual rule query errors and verify the Panorama API response format.
+
+#### Targets still show serial numbers instead of hostnames
+- **Cause**: The serial number from `fast-xml-parser` may not match the hostname map key. `fast-xml-parser` converts numeric-looking strings to integers, stripping leading zeros (e.g., serial `"011901012320"` becomes `11901012320`).
+- **Solution**: The application stores both the padded (12-digit) and unpadded forms in the hostname map to handle this automatically. If serials still appear, check that the device is listed as "connected" in Panorama (`<show><devices><connected/></devices></show>`) and that the `hostname` field is populated.
+
+#### Some rules assigned KEEP when they should be DISABLE
+- **Cause**: The per-target threshold evaluation compares each `FirewallTarget.lastHitDate` individually. If a rule has a non-zero `last-hit-timestamp` on any device within the threshold window, that device is considered active. Check whether the rule genuinely has recent hits on one device while being unused on another — this would result in UNTARGET, not DISABLE.
 
 #### SSH connection failures (server having trouble SSHing into Panorama)
 - **Test SSH**: `curl -X POST http://localhost:3010/api/ssh/test -H "Content-Type: application/json" -d '{"url":"https://your-panorama.example.com"}'` returns the actual error
@@ -1520,8 +1591,18 @@ For issues, questions, or feature requests:
 
 ### Version History
 
-- **Latest**: Pagination for device groups and rules; rule-hit-count one-per-rule (chunk size 1); checkbox selection for disabled rules, delete functionality, improved error handling
-- **Previous**: Initial release with unused rules auditing, PDF export
+- **Latest (v2, current)**:
+  - **Serial → Hostname Resolution**: Device serial numbers are resolved to human-readable hostnames via Panorama's connected-devices API. Both padded (12-digit) and unpadded serial forms stored in the hostname map to handle `fast-xml-parser` leading-zero stripping.
+  - **Rule Creation Timestamp**: `rule-creation-timestamp` added as a fallback when `last-hit-timestamp` is 0. Displayed as a dedicated "Created" column in the UI table and PDF export. `rule-modification-timestamp` removed as a fallback (too volatile).
+  - **Per-Target Threshold Evaluation**: Unused threshold is now evaluated individually per `FirewallTarget.lastHitDate` rather than at the rule level — prevents rules with any historical hits from being permanently marked KEEP regardless of device-level activity.
+  - **Batch Hit Count Queries with Duplicate-Node Fallback**: Hit counts queried in batches. Panorama "duplicate node" errors trigger a shrink-and-retry loop; remaining problematic rules queried individually. Retry loop bug fixed (loop bound captured before chunk shrinks).
+  - **PDF Export — Landscape + New Columns**: PDF now exports in landscape orientation. Added "Created" and "Targets" (hostname) columns. Uses jsPDF v4 (dynamically imported).
+  - **Tag Format**: Disable tag format changed to `disabled-YYYYMMDD` (date only, no time component).
+  - **GitHub Repository**: Pushed to `https://github.com/gsk-panda/PaloRuleAuditorv2.git`
+  - **Docker**: Container excludes `.config` file via `.dockerignore` to prevent credential leakage.
+
+- **Previous (v1)**:
+  - Initial release: unused rules auditing, PDF export (portrait), pagination for device groups and rules, checkbox selection for disabled rules, delete functionality
 
 ---
 

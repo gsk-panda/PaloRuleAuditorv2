@@ -9,6 +9,13 @@ This document provides detailed technical information about the Palo Alto Panora
 - [Data Flow Diagrams](#data-flow-diagrams)
 - [API Integration Details](#api-integration-details)
 - [Processing Algorithms](#processing-algorithms)
+  - [HA Pair Protection Algorithm](#ha-pair-protection-algorithm)
+  - [Rule Filtering Algorithm](#rule-filtering-algorithm)
+  - [Date Threshold Evaluation](#date-threshold-evaluation)
+  - [Device Hostname Resolution](#device-hostname-resolution)
+  - [Duplicate-Node Batch Rejection Handling](#duplicate-node-batch-rejection-handling)
+  - [PDF Export Implementation](#pdf-export-implementation)
+  - [Tag Format](#tag-format)
 - [Error Handling](#error-handling)
 - [Performance Characteristics](#performance-characteristics)
 
@@ -21,7 +28,7 @@ This document provides detailed technical information about the Palo Alto Panora
 - TypeScript - Type safety
 - TailwindCSS - Styling
 - Vite 6.2.0 - Build tool and dev server
-- jsPDF 2.5.2 - PDF generation
+- jsPDF v4 - PDF generation (dynamically imported at export time; landscape orientation)
 
 **Backend:**
 - Node.js 18+ - Runtime
@@ -75,16 +82,41 @@ PaloRuleAuditor/
 #### RuleRow.tsx (Rule Display Component)
 
 **Responsibilities:**
-- Display individual rule information
-- Render action badges
-- Show target status with HA pair awareness
-- Handle checkbox selection (disabled rules mode)
+- Display individual rule information in the audit table
+- Render action badges (color-coded: red=DISABLE, amber=UNTARGET, blue=HA-PROTECTED, purple=PROTECTED, gray=IGNORE, green=KEEP)
+- Show target status with HA pair awareness — HA pairs grouped with a `↔` separator
+- Display hostnames via `FirewallTarget.displayName` (falls back to serial if `displayName` is undefined)
+- Show "Created" column from `PanoramaRule.createdDate`
+- Handle checkbox selection (selectable only for actionable rules in current audit mode)
 
 **Props:**
 - `rule`: PanoramaRule object
 - `auditMode`: 'unused' | 'disabled'
 - `isSelected`: Boolean for checkbox state
 - `onSelectionChange`: Callback for checkbox changes
+- `rowIndex`: Number for alternating row background colors
+
+**Table Columns (left to right):**
+1. Checkbox (only rendered for selectable rules)
+2. Rule Name (monospace, truncated at 220px)
+3. Device Group
+4. Hits (total hit count, monospace teal)
+5. Last Hit (formatted date + relative age label, e.g., "Jan 19, 2026 / 1mo ago")
+6. Created (formatted date + relative age from `rule.createdDate`)
+7. Targets (TargetChip components; teal=has hits, red strikethrough=no hits)
+8. Action badge
+
+**TargetChip Component:**
+```tsx
+const TargetChip: React.FC<{ name: string; displayName?: string; hasHits: boolean }> = (
+  { name, displayName, hasHits }
+) => (
+  <span className={`... ${hasHits ? 'teal styling' : 'red strikethrough styling'}`}>
+    <span className="dot indicator" />
+    {displayName || name}   {/* prefer hostname, fall back to serial */}
+  </span>
+);
+```
 
 ### Backend Services
 
@@ -104,14 +136,18 @@ PaloRuleAuditor/
 #### server/panoramaService.ts (Panorama Integration)
 
 **Functions:**
-- `auditPanoramaRules()`: Main audit function for unused rules
-- `auditDisabledRules()`: Audit function for disabled rules
+- `fetchDeviceHostnameMap(panoramaUrl, apiKey)`: Queries `<show><devices><connected/></devices></show>` and builds a `Map<serial, hostname>`. Stores both raw (no leading zero) and 12-digit zero-padded serial forms to handle `fast-xml-parser` leading-zero stripping.
+- `auditPanoramaRules(panoramaUrl, apiKey, unusedDays, haPairs)`: Main audit function for unused rules
+- `auditDisabledRules(panoramaUrl, apiKey, disabledDays)`: Audit function for disabled rules
 
 **Key Operations:**
+- Device hostname resolution (serial → hostname via connected-devices API)
 - Device group enumeration
 - Rule discovery and filtering
-- Hit count aggregation
+- Hit count querying (batch with duplicate-node retry + individual fallback)
+- Timestamp extraction (`last-hit-timestamp`, `rule-creation-timestamp`)
 - HA pair processing
+- Per-target threshold evaluation
 - Action determination
 
 ## Data Flow Diagrams
@@ -152,7 +188,16 @@ PaloRuleAuditor/
 │  └───────────┬──────────────────┘    │
 │              │ Parse XML             │
 │              ▼                       │
-│  Step 2: For Each Device Group       │
+│  Step 2: Build Hostname Map          │
+│  ┌──────────────────────────────┐    │
+│  │ GET /api/?type=op            │    │
+│  │ Cmd: <show><devices>         │    │
+│  │       <connected/>           │    │
+│  │ → Map<serial, hostname>      │    │
+│  │   (padded + unpadded keys)   │    │
+│  └───────────┬──────────────────┘    │
+│              ▼                       │
+│  Step 3: For Each Device Group       │
 │  ┌──────────────────────────────┐    │
 │  │ GET /api/?type=config        │    │
 │  │ XPath: .../pre-rulebase/...  │    │
@@ -161,25 +206,32 @@ PaloRuleAuditor/
 │              │ Filter Disabled       │
 │              │ Filter Shared         │
 │              ▼                       │
-│  Step 3: For Each Rule               │
+│  Step 4: For Each Rule (Batch)       │
 │  ┌──────────────────────────────┐    │
 │  │ GET /api/?type=op            │    │
 │  │ Cmd: <show><rule-hit-count>  │    │
+│  │  (batch; retry on dup-node;  │    │
+│  │   individual fallback)       │    │
 │  └───────────┬──────────────────┘    │
 │              │ Parse Hit Data        │
 │              │ Aggregate device-vsys │
 │              │ Extract Timestamps    │
+│              │ (last-hit → creation  │
+│              │  fallback; no modif.) │
 │              ▼                       │
-│  Step 4: Process Targets             │
+│  Step 5: Process Targets             │
+│  - Resolve serial → hostname         │
 │  - Map HA pairs                      │
-│  - Determine hit status              │
+│  - Set per-target lastHitDate        │
 │  - Apply HA protection logic         │
 │              ▼                       │
-│  Step 5: Determine Actions           │
-│  - Evaluate unused threshold         │
+│  Step 6: Determine Actions           │
+│  - Per-target threshold evaluation   │
 │  - Apply HA pair rules               │
 │  - Assign action (DISABLE/UNTARGET/  │
 │    HA-PROTECTED/KEEP)                │
+│  - Store earliest creationTimestamp  │
+│    as rule.createdDate               │
 └──────┬───────────────────────────────┘
        │
        │ Return AuditResult
@@ -384,36 +436,62 @@ The application uses `attributeNamePrefix: ''` for consistency.
 
 ### Hit Count Aggregation Algorithm
 
-When processing rule-hit-count responses, the application aggregates data across multiple `device-vsys` entries:
+When processing rule-hit-count responses, the application aggregates data across multiple `device-vsys` entries. The entry name format is `{dgName}/{serial}/vsys1` — the serial is extracted and used for hostname resolution.
+
+**Timestamp Fallback Chain**: `last-hit-timestamp` (if hit count > 0) → `rule-creation-timestamp` (never hit). `rule-modification-timestamp` is **not used** (it changes on every rule edit and is an unreliable date reference).
 
 ```typescript
-let totalHits = 0;
-let lastHitTimestamp = '0';
-let modificationTimestamp = '0';
-
-// Process each device-vsys entry
+// Per device-vsys entry processing
 deviceVsysEntries.forEach((vsysEntry) => {
-  // Aggregate hit counts
-  const hitCount = parseInt(vsysEntry['hit-count'] || '0', 10);
-  totalHits += hitCount;
-  
-  // Find latest last-hit-timestamp
-  const lastHit = vsysEntry['last-hit-timestamp'] || '0';
-  if (parseInt(lastHit) > parseInt(lastHitTimestamp)) {
-    lastHitTimestamp = lastHit;
-  }
-  
-  // Find latest modification timestamp
-  const modTs = vsysEntry['rule-modification-timestamp'] || '0';
-  if (parseInt(modTs) > parseInt(modificationTimestamp)) {
-    modificationTimestamp = modTs;
-  }
-});
+  const entryHitCount = parseInt(String(vsysEntry['hit-count'] || 0), 10);
+  totalHits += entryHitCount;
 
-// Use modification timestamp if last-hit is 0
-const finalTimestamp = lastHitTimestamp === '0' 
-  ? modificationTimestamp 
-  : lastHitTimestamp;
+  // Determine the date reference for this device-vsys entry
+  const lastHitTs  = parseInt(String(vsysEntry['last-hit-timestamp']  || 0), 10);
+  const creationTs = vsysEntry['rule-creation-timestamp'];  // may be number or string
+
+  let entryTimestamp: number;
+  if (entryHitCount > 0 && lastHitTs > 0) {
+    entryTimestamp = lastHitTs;                              // real traffic seen
+  } else if (creationTs) {
+    entryTimestamp = parseInt(String(creationTs), 10);       // created but never hit
+  } else {
+    entryTimestamp = 0;
+  }
+
+  // Track latest last-hit across all entries (for rule.lastHitDate)
+  if (entryTimestamp > latestTimestamp) {
+    latestTimestamp = entryTimestamp;
+  }
+
+  // Track earliest creation timestamp (for rule.createdDate)
+  if (creationTs) {
+    const creationMs = parseInt(String(creationTs), 10) * 1000;
+    const creationIso = new Date(creationMs).toISOString();
+    if (!rule.createdDate || creationIso < rule.createdDate) {
+      rule.createdDate = creationIso;
+    }
+  }
+
+  // Per-target entry: extract serial from entry name for hostname lookup
+  const entryName = vsysEntry['name'] || vsysEntry['@_name'] || '';
+  // Format: "{dgName}/{serial}/vsys1"
+  const parts = entryName.split('/');
+  const targetSerial = parts.length >= 2 ? parts[1] : entryName;
+  const hostname = hostnameMap.get(targetSerial)
+    || hostnameMap.get(targetSerial.padStart(12, '0'));
+
+  rule.targets.push({
+    name: targetSerial,                        // serial number — used for config writes
+    displayName: hostname || undefined,        // resolved hostname — display only
+    hasHits: entryHitCount > 0,
+    hitCount: entryHitCount,
+    haPartner: haMap.get(targetSerial) || undefined,
+    lastHitDate: entryTimestamp > 0
+      ? new Date(entryTimestamp * 1000).toISOString()
+      : new Date(0).toISOString(),
+  });
+});
 ```
 
 ## Processing Algorithms
@@ -484,19 +562,179 @@ function filterRules(rules: any[], sharedRuleNames: Set<string>) {
 
 ### Date Threshold Evaluation
 
+Threshold evaluation is performed **per target** (per `FirewallTarget`), not at the rule level. This prevents a rule from being permanently marked KEEP just because it has any non-zero total hits — it correctly identifies which specific devices have gone unused.
+
 ```typescript
-function isRuleUnused(rule: PanoramaRule, thresholdDays: number): boolean {
-  const thresholdDate = new Date();
-  thresholdDate.setDate(thresholdDate.getDate() - thresholdDays);
-  
-  const lastHitDate = new Date(rule.lastHitDate);
-  
-  // Rule is unused if:
-  // 1. Has 0 total hits, OR
-  // 2. Last hit was before threshold date
-  return rule.totalHits === 0 || lastHitDate < thresholdDate;
+const unusedThreshold = new Date(Date.now() - unusedDays * 86_400_000);
+
+for (const target of rule.targets) {
+  const targetLastHit = target.lastHitDate
+    ? new Date(target.lastHitDate)
+    : new Date(0);                          // treat missing as epoch (always unused)
+
+  // A target is unused if its last-hit date is before the threshold
+  const isUnused = targetLastHit < unusedThreshold;
+
+  if (isUnused) {
+    // Potentially add this target to the untarget/disable set
+    // (subject to HA pair protection logic — see HA Pair Protection Algorithm)
+    firewallsToUntarget.add(target.name);
+  }
 }
 ```
+
+**Key differences from rule-level evaluation:**
+- A rule with 10,000 total hits on fw1 but 0 hits on fw2 since the threshold → fw2 is added to `firewallsToUntarget`
+- If fw1 and fw2 are an HA pair and fw1 has recent hits → both are protected (HA-PROTECTED)
+- If fw1 and fw2 are independent targets → fw2 is untargeted while fw1 is kept (UNTARGET)
+
+### Device Hostname Resolution
+
+Panorama's `show rule-hit-count` API returns device-vsys entries named `{dgName}/{serial}/vsys1`. The serial (e.g., `011901012320`) must be resolved to a human-readable hostname (e.g., `midtown-place-fw1`) for display purposes.
+
+**Resolution Flow:**
+```typescript
+async function fetchDeviceHostnameMap(
+  panoramaUrl: string,
+  apiKey: string
+): Promise<Map<string, string>> {
+  const hostnameMap = new Map<string, string>();
+
+  // Query connected devices
+  const cmd = '<show><devices><connected/></devices></show>';
+  const response = await fetch(`${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(cmd)}&key=${apiKey}`);
+  const xml = await response.text();
+  const parsed = new XMLParser({ ignoreAttributes: false, ... }).parse(xml);
+
+  const entries = /* normalize to array */;
+
+  entries.forEach((entry: any) => {
+    const serial: string = String(entry.serial || entry['@_name'] || entry.name || '');
+    const hostname: string = String(entry.hostname || '');
+
+    if (serial && hostname) {
+      // Store both forms to handle fast-xml-parser leading-zero stripping:
+      // fast-xml-parser parses "011901012320" as integer 11901012320,
+      // dropping the leading zero. Storing both ensures lookups succeed.
+      hostnameMap.set(serial, hostname);                    // unpadded: "11901012320"
+      hostnameMap.set(serial.padStart(12, '0'), hostname);  // padded:   "011901012320"
+    }
+  });
+
+  return hostnameMap;
+}
+```
+
+**Why Both Padded and Unpadded?**
+`fast-xml-parser` with `parseAttributeValue: true` converts numeric-looking strings to JavaScript numbers. The serial `"011901012320"` (12 digits, leading zero) becomes integer `11901012320`. When this number is later converted back to a string (via `String()`), the leading zero is gone. Since hit-count responses may use either form depending on parsing context, both keys are stored so the `Map.get()` lookup succeeds.
+
+**Usage in FirewallTarget:**
+```typescript
+// name = serial number (for Panorama write operations: <entry name="011901012320"/>)
+// displayName = resolved hostname (for display only)
+target.displayName = hostnameMap.get(targetSerial)
+  || hostnameMap.get(targetSerial.padStart(12, '0'))
+  || undefined;  // undefined if device not in connected list
+```
+
+### Duplicate-Node Batch Rejection Handling
+
+Panorama's `show rule-hit-count` API can reject batch requests containing multiple `<entry>` elements in `<rule-name>` with an error like:
+
+```
+<response status="error"><msg>"Midtown - Proxy" is a duplicate node</msg></response>
+```
+
+**Important**: This error is misleading. It does **not** mean the rule name is duplicated in the Panorama configuration. It is a Panorama API limitation where certain device groups reject batched `<rule-name>` queries. Rules queried individually always succeed.
+
+**Retry Loop Algorithm:**
+```typescript
+const skippedDuplicates = new Set<string>();
+let chunk = [...ruleNames];                    // start with all rules in the batch
+const maxAttempts = chunk.length;              // capture BEFORE chunk shrinks
+
+for (let attempt = 0; attempt <= maxAttempts; attempt++) {
+  if (chunk.length === 0) break;
+
+  const response = await queryBatch(chunk);
+
+  if (response.status === 'error') {
+    // Extract the offending rule name from the error message
+    const match = response.message.match(/"(.+)" is a duplicate node/);
+    if (match) {
+      const offender = match[1];
+      skippedDuplicates.add(offender);
+      chunk = chunk.filter(r => r !== offender);  // remove from batch, retry
+      continue;
+    }
+    break;  // different error — stop retrying
+  }
+
+  // Success — process results
+  processResults(response);
+  break;
+}
+
+// Individual fallback for all duplicate-rejected rules
+for (const ruleName of skippedDuplicates) {
+  const singleResponse = await queryIndividual(ruleName);
+  processResults(singleResponse);
+}
+```
+
+**Why `maxAttempts` Must Be Captured Before the Loop:**
+The original bug was `for (let attempt = 0; attempt <= chunk.length; attempt++)`. As rules are removed from `chunk`, `chunk.length` decreases, causing the loop to exit prematurely before processing all rules. Capturing `const maxAttempts = chunk.length` before the loop fixes this — the loop bound is fixed regardless of how many rules are removed.
+
+**`<all/>` Behavior (Rejected Alternative):**
+During investigation, `<all/>` was tested as an alternative to `<entry>` batching. `<all/>` returns `rule-state` (Used/Unused/Partial) but does **not** return `hit-count` or `last-hit-timestamp` — making it completely unusable for date-based threshold evaluation.
+
+### PDF Export Implementation
+
+```typescript
+async function handleExportPDF() {
+  const { jsPDF } = await import('jspdf');  // dynamic import (v4)
+
+  const doc = new jsPDF({ orientation: 'landscape' });  // A4 landscape
+
+  // Column definitions
+  const cols = ['Rule Name', 'Device Group', 'Hits', 'Last Hit', 'Created', 'Targets', 'Action'];
+  const widths = [60, 35, 16, 28, 28, 60, 22];  // mm widths
+
+  // Per-row data construction
+  rules.forEach(rule => {
+    const cd = rule.createdDate
+      ? new Date(rule.createdDate).toLocaleDateString()
+      : '—';
+    const tgts = rule.targets
+      .map(t => t.displayName || t.name)  // prefer hostname, fall back to serial
+      .join(', ');
+    // ... render row
+  });
+
+  doc.save(`panorama-audit-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+```
+
+### Tag Format
+
+When disabling unused rules in production mode, a date-based tag is applied:
+
+```
+Format: disabled-YYYYMMDD
+Example: disabled-20260222
+```
+
+**Generation:**
+```typescript
+function getDisabledTag(): string {
+  const d = new Date();
+  return `disabled-${d.getFullYear()}${
+    String(d.getMonth() + 1).padStart(2, '0')}${
+    String(d.getDate()).padStart(2, '0')}`;
+}
+```
+
+No time component is included — this ensures rules disabled on the same calendar day all receive the same tag, making batch identification easy.
 
 ## Error Handling
 
@@ -563,14 +801,18 @@ User Alert/Notification
 ### API Call Count
 
 For a typical audit:
+- Hostname map: **1 call** (`<show><devices><connected/>`)
 - Device groups: paginated (1+ calls depending on total-count)
 - Rules per device group: paginated (1+ calls per device group)
-- Hit counts: **one API call per rule** (chunk size 1) to avoid 414 Request-URI Too Long and duplicate-node errors
-- **Total**: O(device-group pages + rule pages per DG + R) where R = total rules
+- Hit counts: **variable** — starts as batched requests; degrades to individual calls for device groups that reject batching with "duplicate node" errors
+  - Best case (no duplicates): O(DG) calls for hit counts (one batch per device group)
+  - Worst case (all rules rejected): O(R) calls (one per rule)
+  - Typical case: mixed — some device groups batch successfully, others fall back to individual
+- **Total**: O(1 + device-group pages + rule pages per DG + DG-to-R) where R = rules with duplicate-node issues
 
-Example: 5 device groups, 100 rules
-- Device groups: 1–2 calls; rules config: ~5–10 calls; hit counts: 100 calls
-- **Total**: on the order of 100+ API calls
+Example: 5 device groups, 100 rules (2 device groups have duplicate-node issues, 60 of the 100 rules)
+- Hostname map: 1 call; device groups: ~1 call; rules config: ~5 calls; hit counts: ~40 batched + ~60 individual = ~42 hit-count calls
+- **Total**: ~50 API calls
 
 ### Estimated Processing Time
 
