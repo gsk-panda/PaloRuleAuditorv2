@@ -1,102 +1,158 @@
-
 import React from 'react';
-import { PanoramaRule, FirewallTarget } from '../types';
+import { PanoramaRule } from '../types';
 
 interface RuleRowProps {
   rule: PanoramaRule;
   auditMode?: 'unused' | 'disabled';
   isSelected?: boolean;
   onSelectionChange?: (checked: boolean) => void;
+  rowIndex?: number;
 }
 
-export const RuleRow: React.FC<RuleRowProps> = ({ rule, auditMode = 'unused', isSelected = false, onSelectionChange }) => {
-  const getActionBadge = (action: string) => {
-    switch (action) {
-      case 'DISABLE':
-        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700 uppercase">Disable</span>;
-      case 'UNTARGET':
-        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-700 uppercase">Untarget</span>;
-      case 'IGNORE':
-        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-500 uppercase">Ignored (Shared)</span>;
-      case 'HA-PROTECTED':
-        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-700 uppercase">HA-Protected</span>;
-      case 'PROTECTED':
-        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-700 uppercase">Protected</span>;
-      default:
-        return <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700 uppercase">Keep</span>;
-    }
-  };
+const EPOCH_ISO = '1970-01-01';
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString();
-  };
+function formatDate(s: string): string {
+  if (!s || s.startsWith(EPOCH_ISO)) return 'Never';
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+}
 
-  // Group targets by HA Pair for display
-  const renderedTargets = [];
-  const processed = new Set<string>();
+function ageLabel(s: string): string {
+  if (!s || s.startsWith(EPOCH_ISO)) return '';
+  const days = Math.floor((Date.now() - new Date(s).getTime()) / 86_400_000);
+  if (days < 1)   return 'today';
+  if (days < 30)  return `${days}d ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${(days / 365).toFixed(1)}y ago`;
+}
 
-  rule.targets.forEach(t => {
-    if (processed.has(t.name)) return;
+// ── Action badge config ────────────────────────────────────────────────────
+interface BadgeCfg { dot: string; text: string; bg: string; border: string; label: string; }
+const BADGE: Record<string, BadgeCfg> = {
+  DISABLE:        { dot: 'bg-red-500',     text: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/30',    label: 'Disable'     },
+  UNTARGET:       { dot: 'bg-amber-400',   text: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30',  label: 'Untarget'    },
+  'HA-PROTECTED': { dot: 'bg-blue-400',    text: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/30',   label: 'HA-Protected'},
+  PROTECTED:      { dot: 'bg-purple-400',  text: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/30', label: 'Protected'   },
+  IGNORE:         { dot: 'bg-[#374151]',   text: 'text-[#475569]',   bg: 'bg-[#131e30]',      border: 'border-[#1d2e45]',     label: 'Ignored'     },
+  KEEP:           { dot: 'bg-emerald-400', text: 'text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30',label: 'Keep'        },
+};
+const getBadge = (action: string): BadgeCfg => BADGE[action] ?? BADGE['KEEP'];
 
-    if (t.haPartner) {
-      const partner = rule.targets.find(p => p.name === t.haPartner);
-      if (partner) {
-        renderedTargets.push(
-          <div key={`${t.name}-${partner.name}`} className="flex items-center gap-0.5 border border-slate-200 rounded p-0.5 bg-slate-50">
-            <span className={`text-[10px] px-1 rounded ${t.hasHits ? 'bg-blue-100 text-blue-700' : 'bg-red-50 text-red-400 line-through'}`}>{t.name}</span>
-            <span className="text-[10px] text-slate-400">:</span>
-            <span className={`text-[10px] px-1 rounded ${partner.hasHits ? 'bg-blue-100 text-blue-700' : 'bg-red-50 text-red-400 line-through'}`}>{partner.name}</span>
-          </div>
-        );
-        processed.add(t.name);
-        processed.add(partner.name);
-      } else {
-        renderedTargets.push(
-          <span key={t.name} className={`text-[10px] px-1.5 py-0.5 rounded border ${t.hasHits ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-red-50 border-red-200 text-red-500 line-through'}`}>
-            {t.name}
-          </span>
-        );
-        processed.add(t.name);
+// ── Target chip ───────────────────────────────────────────────────────────
+const TargetChip: React.FC<{ name: string; displayName?: string; hasHits: boolean }> = ({ name, displayName, hasHits }) => (
+  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono border ${
+    hasHits
+      ? 'bg-[#00d4c8]/5 border-[#00d4c8]/25 text-[#00d4c8]'
+      : 'bg-red-500/5 border-red-500/20 text-[#475569] line-through'
+  }`}>
+    <span className={`w-1 h-1 rounded-full ${hasHits ? 'bg-[#00d4c8]' : 'bg-red-500/50'}`} />
+    {displayName || name}
+  </span>
+);
+
+export const RuleRow: React.FC<RuleRowProps> = ({
+  rule, auditMode = 'unused', isSelected = false, onSelectionChange, rowIndex = 0,
+}) => {
+  const badge = getBadge(rule.action);
+  const isSelectable =
+    (auditMode === 'disabled' && rule.action === 'DISABLE') ||
+    (auditMode === 'unused' && (rule.action === 'DISABLE' || rule.action === 'UNTARGET'));
+
+  const rowBg = isSelected
+    ? 'bg-[#00d4c8]/5'
+    : rowIndex % 2 === 0 ? 'bg-transparent' : 'bg-[#0c1322]/30';
+
+  // Build targets
+  const chips: React.ReactNode[] = [];
+  const seen = new Set<string>();
+
+  if (rule.targets.length === 0) {
+    chips.push(
+      <span key="all" className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] border border-[#1d2e45] text-[#374151]">
+        All Devices
+      </span>
+    );
+  } else {
+    rule.targets.forEach(t => {
+      if (seen.has(t.name)) return;
+      if (t.haPartner) {
+        const partner = rule.targets.find(p => p.name === t.haPartner);
+        if (partner) {
+          chips.push(
+            <span key={`${t.name}-ha`} className="inline-flex items-center gap-0.5 border border-[#1d2e45] rounded-md px-0.5 bg-[#192540]">
+              <TargetChip name={t.name} displayName={t.displayName} hasHits={t.hasHits} />
+              <span className="text-[#374151] text-[10px] px-0.5">↔</span>
+              <TargetChip name={partner.name} displayName={partner.displayName} hasHits={partner.hasHits} />
+            </span>
+          );
+          seen.add(t.name); seen.add(partner.name);
+          return;
+        }
       }
-    } else {
-      renderedTargets.push(
-        <span key={t.name} className={`text-[10px] px-1.5 py-0.5 rounded border ${t.hasHits ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-red-50 border-red-200 text-red-500 line-through'}`}>
-          {t.name}
-        </span>
-      );
-      processed.add(t.name);
-    }
-  });
+      chips.push(<TargetChip key={t.name} name={t.name} displayName={t.displayName} hasHits={t.hasHits} />);
+      seen.add(t.name);
+    });
+  }
 
   return (
-    <tr className="hover:bg-gray-50 border-b border-gray-100 transition-colors">
-      {(auditMode === 'disabled' && rule.action === 'DISABLE') || (auditMode === 'unused' && (rule.action === 'DISABLE' || rule.action === 'UNTARGET')) ? (
-        <td className="px-6 py-4 whitespace-nowrap">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={(e) => onSelectionChange?.(e.target.checked)}
-            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-          />
-        </td>
-      ) : (
-        <td className="px-6 py-4 whitespace-nowrap"></td>
-      )}
-      <td className="px-6 py-4 whitespace-nowrap">
-        <div className="text-sm font-medium text-gray-900">{rule.name}</div>
-        <div className="text-xs text-gray-500">{rule.deviceGroup}</div>
+    <tr className={`transition-colors hover:bg-[#192540]/60 ${rowBg} ${isSelected ? 'ring-inset ring-1 ring-[#00d4c8]/20' : ''}`}>
+      {/* Checkbox */}
+      <td className="px-5 py-3.5 w-10">
+        {isSelectable ? (
+          <input type="checkbox" checked={isSelected}
+            onChange={e => onSelectionChange?.(e.target.checked)}
+            className="w-4 h-4 rounded accent-[#00d4c8] cursor-pointer" />
+        ) : <span />}
       </td>
-      <td className="px-6 py-4 whitespace-nowrap">
-        <div className="text-sm text-gray-900">{rule.totalHits.toLocaleString()} hits</div>
-        <div className="text-xs text-gray-400">{auditMode === 'disabled' ? 'Disabled:' : 'Last:'} {formatDate(rule.lastHitDate)}</div>
+
+      {/* Rule Name */}
+      <td className="px-5 py-3.5 max-w-[220px]">
+        <p className="text-sm font-medium text-[#e2e8f0] truncate font-mono">{rule.name}</p>
       </td>
-      <td className="px-6 py-4">
-        <div className="flex flex-wrap gap-2">
-          {renderedTargets.length > 0 ? renderedTargets : <span className="text-xs text-gray-400 italic">No specific targets</span>}
-        </div>
+
+      {/* Device Group */}
+      <td className="px-5 py-3.5 whitespace-nowrap">
+        <span className="text-xs text-[#475569] font-medium">{rule.deviceGroup}</span>
       </td>
-      <td className="px-6 py-4 whitespace-nowrap text-right">
-        {getActionBadge(rule.action)}
+
+      {/* Hits */}
+      <td className="px-5 py-3.5 whitespace-nowrap">
+        <span className="text-sm font-semibold text-[#00d4c8] tabular-nums font-mono">
+          {rule.totalHits.toLocaleString()}
+        </span>
+      </td>
+
+      {/* Last Hit */}
+      <td className="px-5 py-3.5 whitespace-nowrap">
+        <p className={`text-sm ${rule.lastHitDate.startsWith(EPOCH_ISO) ? 'text-[#374151]' : 'text-[#64748b]'}`}>
+          {formatDate(rule.lastHitDate)}
+        </p>
+        {!rule.lastHitDate.startsWith(EPOCH_ISO) && (
+          <p className="text-[10px] text-[#374151]">{ageLabel(rule.lastHitDate)}</p>
+        )}
+      </td>
+
+      {/* Created */}
+      <td className="px-5 py-3.5 whitespace-nowrap">
+        <p className={`text-sm ${!rule.createdDate ? 'text-[#374151]' : 'text-[#64748b]'}`}>
+          {rule.createdDate ? formatDate(rule.createdDate) : '—'}
+        </p>
+        {rule.createdDate && (
+          <p className="text-[10px] text-[#374151]">{ageLabel(rule.createdDate)}</p>
+        )}
+      </td>
+
+      {/* Targets */}
+      <td className="px-5 py-3.5">
+        <div className="flex flex-wrap gap-1">{chips}</div>
+      </td>
+
+      {/* Action badge */}
+      <td className="px-5 py-3.5 pr-6 whitespace-nowrap text-right">
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${badge.bg} ${badge.border} ${badge.text}`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${badge.dot}`} />
+          {badge.label}
+        </span>
       </td>
     </tr>
   );

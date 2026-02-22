@@ -15,7 +15,6 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 COPY server/ ./server/
-COPY services/ ./services/
 COPY types.ts ./
 
 RUN npm ci
@@ -30,7 +29,6 @@ COPY package*.json ./
 RUN npm ci --only=production && npm install tsx --save
 
 COPY --from=backend-builder /app/server ./server
-COPY --from=backend-builder /app/services ./services
 COPY --from=backend-builder /app/types.ts ./
 COPY --from=backend-builder /app/tsconfig.json ./
 COPY --from=frontend-builder /app/dist ./public

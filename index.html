@@ -7,15 +7,59 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-base:   #0c1322;
+            --bg-card:   #131e30;
+            --bg-raised: #192540;
+            --border:    #1d2e45;
+            --border-hi: #2a4060;
+            --teal:      #00d4c8;
+            --text:      #e2e8f0;
+            --muted:     #64748b;
+            --dim:       #374151;
+        }
+        *, *::before, *::after { box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f8fafc;
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
-        .mono {
-            font-family: 'JetBrains+Mono', monospace;
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar              { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-track        { background: var(--bg-base); }
+        ::-webkit-scrollbar-thumb        { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover  { background: var(--border-hi); }
+
+        /* Toast */
+        @keyframes slideInRight {
+            from { transform: translateX(110%); opacity: 0; }
+            to   { transform: translateX(0);    opacity: 1; }
         }
+
+        /* Shimmer for progress bar */
+        @keyframes shimmer {
+            0%   { background-position: -200% 0; }
+            100% { background-position:  200% 0; }
+        }
+        .shimmer-bar {
+            background: linear-gradient(90deg, #1d2e45 0%, #00d4c8 50%, #1d2e45 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.6s linear infinite;
+        }
+
+        /* Status dot pulse */
+        @keyframes statusPulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.4; }
+        }
+        .dot-pulse { animation: statusPulse 2s ease-in-out infinite; }
     </style>
 </head>
 <body>

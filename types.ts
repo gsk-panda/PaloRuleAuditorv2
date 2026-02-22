@@ -7,10 +7,12 @@ export interface HAPair {
 }
 
 export interface FirewallTarget {
-  name: string;
+  name: string;         // serial number — used for Panorama config write operations
+  displayName?: string; // resolved hostname — used for display only
   hasHits: boolean;
   hitCount: number;
   haPartner?: string;
+  lastHitDate?: string; // ISO string – per-target last hit date for threshold comparison
 }
 
 export interface PanoramaRule {
@@ -18,7 +20,8 @@ export interface PanoramaRule {
   name: string;
   deviceGroup: string;
   totalHits: number;
-  lastHitDate: string; // ISO string
+  lastHitDate: string;   // ISO string
+  createdDate?: string;  // ISO string — rule-creation-timestamp from Panorama
   targets: FirewallTarget[];
   action: RuleAction;
   suggestedActionNotes?: string;

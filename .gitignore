@@ -13,10 +13,11 @@ dist-server
 dist-ssr
 *.local
 
-# Environment variables (may contain API keys)
+# Environment variables and local config (may contain API keys)
 .env
 .env.local
 .env.*.local
+.config
 
 # Editor directories and files
 .vscode/*
