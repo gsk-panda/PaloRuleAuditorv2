@@ -704,15 +704,38 @@ export async function auditPanoramaRules(
     const unusedThreshold = new Date(now.getTime() - unusedDays * 24 * 60 * 60 * 1000);
     console.log(`Filtering rules that haven't been hit since ${unusedThreshold.toISOString()} (${unusedDays} days ago)`);
 
-    const filteredEntries = entries.filter(entry => {
-      if (!entry.lastused) {
-        return true;
-      }
-      const lastUsedDate = new Date(entry.lastused);
-      return lastUsedDate < unusedThreshold;
+    // Determine which rules qualify for audit: a rule qualifies if AT LEAST ONE of its
+    // per-target entries has a lastused date older than the threshold (or no lastused at all).
+    // IMPORTANT: once a rule qualifies, ALL of its per-target entries must be included in the
+    // ruleMap — including entries for active targets (e.g. Corp with recent hits). Without this,
+    // active targets get silently dropped before the ruleMap is built, causing rules targeted to
+    // "Any" to show only the inactive device and incorrectly receive a DISABLE action instead of
+    // HA-PROTECTED / UNTARGET.
+    const entriesByRule = new Map<string, PanoramaRuleUseEntry[]>();
+    entries.forEach(entry => {
+      if (!entry.rulename || !entry.devicegroup) return;
+      const ruleKey = `${entry.devicegroup}:${entry.rulename}`;
+      if (!entriesByRule.has(ruleKey)) entriesByRule.set(ruleKey, []);
+      entriesByRule.get(ruleKey)!.push(entry);
     });
 
-    console.log(`Filtered ${entries.length} entries down to ${filteredEntries.length} unused rules`);
+    const qualifyingRuleKeys = new Set<string>();
+    entriesByRule.forEach((ruleEntries, ruleKey) => {
+      const hasUnusedTarget = ruleEntries.some(entry => {
+        if (!entry.lastused) return true;
+        return new Date(entry.lastused) < unusedThreshold;
+      });
+      if (hasUnusedTarget) qualifyingRuleKeys.add(ruleKey);
+    });
+
+    // Include ALL entries for qualifying rules (not just the unused-target ones)
+    const filteredEntries = entries.filter(entry => {
+      if (!entry.rulename || !entry.devicegroup) return false;
+      const ruleKey = `${entry.devicegroup}:${entry.rulename}`;
+      return qualifyingRuleKeys.has(ruleKey);
+    });
+
+    console.log(`Filtered ${entries.length} entries down to ${filteredEntries.length} entries (${qualifyingRuleKeys.size} qualifying rules with at least one unused target)`);
 
     if (filteredEntries.length === 0) {
       const sampleLastUsed = entries.slice(0, 5).map((e) => ({ rulename: e.rulename, lastused: e.lastused, hitcnt: e.hitcnt }));
