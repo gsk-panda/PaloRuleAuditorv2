@@ -300,6 +300,31 @@ export async function auditPanoramaRules(
     // Fetch serial → hostname map for display names
     const hostnameMap = await fetchDeviceHostnameMap(panoramaUrl, apiKey);
 
+    // Extend haMap with serial-keyed entries so that per-target lookups work correctly.
+    // Users configure HA pairs by hostname (e.g. "Corp" ↔ "Corp-2"), but target.name is
+    // the device serial extracted from device-vsys entry names (e.g. "001234567890").
+    // Without this, haMap.get(serial) always returns undefined and haPartner is never set,
+    // so the HA-PROTECTED branch in action determination never fires.
+    const hostnameToSerial = new Map<string, string>();
+    hostnameMap.forEach((hostname, serial) => {
+      const existing = hostnameToSerial.get(hostname);
+      // Prefer the longest (zero-padded) serial to match device-vsys entry name format
+      if (!existing || serial.length > existing.length) {
+        hostnameToSerial.set(hostname, serial);
+      }
+    });
+    haPairs.forEach(pair => {
+      const serial1 = hostnameToSerial.get(pair.fw1);
+      const serial2 = hostnameToSerial.get(pair.fw2);
+      if (serial1 && serial2) {
+        haMap.set(serial1, serial2);
+        haMap.set(serial2, serial1);
+        console.log(`  HA pair (serial-mapped): ${pair.fw1} (${serial1}) ↔ ${pair.fw2} (${serial2})`);
+      } else {
+        console.warn(`  HA pair "${pair.fw1}" ↔ "${pair.fw2}": could not resolve serials (${serial1 ?? 'unknown'} / ${serial2 ?? 'unknown'}) — check that both devices appear in connected-device list`);
+      }
+    });
+
     onProgress?.('Fetching device groups...');
     console.log('Step 1: Fetching device groups list...');
     let deviceGroupNames: string[] = [];
