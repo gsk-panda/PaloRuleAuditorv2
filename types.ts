@@ -13,6 +13,7 @@ export interface FirewallTarget {
   hitCount: number;
   haPartner?: string;
   lastHitDate?: string; // ISO string – per-target last hit date for threshold comparison
+  toBeRemoved?: boolean; // true when this target will be untargeted or the rule disabled
 }
 
 export interface PanoramaRule {

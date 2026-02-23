@@ -39,13 +39,15 @@ const BADGE: Record<string, BadgeCfg> = {
 const getBadge = (action: string): BadgeCfg => BADGE[action] ?? BADGE['KEEP'];
 
 // ── Target chip ───────────────────────────────────────────────────────────
-const TargetChip: React.FC<{ name: string; displayName?: string; hasHits: boolean }> = ({ name, displayName, hasHits }) => (
+const TargetChip: React.FC<{ name: string; displayName?: string; hasHits: boolean; toBeRemoved?: boolean }> = ({ name, displayName, hasHits, toBeRemoved }) => (
   <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono border ${
-    hasHits
-      ? 'bg-[#00d4c8]/5 border-[#00d4c8]/25 text-[#00d4c8]'
-      : 'bg-red-500/5 border-red-500/20 text-[#475569] line-through'
+    toBeRemoved
+      ? 'bg-red-500/10 border-red-500/40 text-red-400 line-through'
+      : hasHits
+        ? 'bg-[#00d4c8]/5 border-[#00d4c8]/25 text-[#00d4c8]'
+        : 'bg-[#1d2e45] border-[#1d2e45] text-[#475569]'
   }`}>
-    <span className={`w-1 h-1 rounded-full ${hasHits ? 'bg-[#00d4c8]' : 'bg-red-500/50'}`} />
+    <span className={`w-1 h-1 rounded-full ${toBeRemoved ? 'bg-red-400' : hasHits ? 'bg-[#00d4c8]' : 'bg-[#374151]'}`} />
     {displayName || name}
   </span>
 );
@@ -80,16 +82,16 @@ export const RuleRow: React.FC<RuleRowProps> = ({
         if (partner) {
           chips.push(
             <span key={`${t.name}-ha`} className="inline-flex items-center gap-0.5 border border-[#1d2e45] rounded-md px-0.5 bg-[#192540]">
-              <TargetChip name={t.name} displayName={t.displayName} hasHits={t.hasHits} />
+              <TargetChip name={t.name} displayName={t.displayName} hasHits={t.hasHits} toBeRemoved={t.toBeRemoved} />
               <span className="text-[#374151] text-[10px] px-0.5">↔</span>
-              <TargetChip name={partner.name} displayName={partner.displayName} hasHits={partner.hasHits} />
+              <TargetChip name={partner.name} displayName={partner.displayName} hasHits={partner.hasHits} toBeRemoved={partner.toBeRemoved} />
             </span>
           );
           seen.add(t.name); seen.add(partner.name);
           return;
         }
       }
-      chips.push(<TargetChip key={t.name} name={t.name} displayName={t.displayName} hasHits={t.hasHits} />);
+      chips.push(<TargetChip key={t.name} name={t.name} displayName={t.displayName} hasHits={t.hasHits} toBeRemoved={t.toBeRemoved} />);
       seen.add(t.name);
     });
   }
@@ -124,21 +126,21 @@ export const RuleRow: React.FC<RuleRowProps> = ({
 
       {/* Last Hit */}
       <td className="px-5 py-3.5 whitespace-nowrap">
-        <p className={`text-sm ${rule.lastHitDate.startsWith(EPOCH_ISO) ? 'text-[#374151]' : 'text-[#64748b]'}`}>
+        <p className={`text-sm ${rule.lastHitDate.startsWith(EPOCH_ISO) ? 'text-[#475569]' : 'text-[#cbd5e1]'}`}>
           {formatDate(rule.lastHitDate)}
         </p>
         {!rule.lastHitDate.startsWith(EPOCH_ISO) && (
-          <p className="text-[10px] text-[#374151]">{ageLabel(rule.lastHitDate)}</p>
+          <p className="text-[10px] text-[#64748b]">{ageLabel(rule.lastHitDate)}</p>
         )}
       </td>
 
       {/* Created */}
       <td className="px-5 py-3.5 whitespace-nowrap">
-        <p className={`text-sm ${!rule.createdDate ? 'text-[#374151]' : 'text-[#64748b]'}`}>
+        <p className={`text-sm ${!rule.createdDate ? 'text-[#475569]' : 'text-[#cbd5e1]'}`}>
           {rule.createdDate ? formatDate(rule.createdDate) : '—'}
         </p>
         {rule.createdDate && (
-          <p className="text-[10px] text-[#374151]">{ageLabel(rule.createdDate)}</p>
+          <p className="text-[10px] text-[#64748b]">{ageLabel(rule.createdDate)}</p>
         )}
       </td>
 

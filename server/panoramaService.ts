@@ -389,6 +389,18 @@ export async function auditPanoramaRules(
           }
           return true;
         });
+
+        // Only audit allow rules — deny/drop rules don't need usage-based cleanup
+        rules = rules.filter((rule: any) => {
+          const action = rule.action;
+          const actionStr = typeof action === 'string' ? action.toLowerCase() : (action?._text ?? '').toLowerCase();
+          if (actionStr && actionStr !== 'allow') {
+            const ruleName = rule.name || rule['@_name'];
+            console.log(`  Skipping non-allow rule ("${actionStr}"): "${ruleName}"`);
+            return false;
+          }
+          return true;
+        });
         
         if (rules.length === 0) {
           console.log(`  Step 3: No enabled rules found for device group "${dgName}" - skipping`);
@@ -925,6 +937,15 @@ export async function auditPanoramaRules(
       } else {
         rule.action = 'KEEP';
       }
+
+      // Mark individual targets that will be removed so the UI can highlight them in red
+      rule.targets.forEach(target => {
+        if (rule.action === 'DISABLE') {
+          target.toBeRemoved = true; // whole rule disabled → all targets marked
+        } else if (rule.action === 'UNTARGET') {
+          target.toBeRemoved = firewallsToUntarget.has(target.name);
+        }
+      });
     });
 
     console.log(`Returning ${processedRules.length} unused rules and ${deviceGroups.length} device groups (${rulesProcessed} rules processed):`, deviceGroups);
