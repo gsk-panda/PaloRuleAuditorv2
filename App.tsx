@@ -415,7 +415,7 @@ const App: React.FC = () => {
 
       {/* ── Header ── */}
       <header className="bg-[#0c1322] border-b border-[#1d2e45] sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between gap-6">
+        <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between gap-6">
           {/* Logo + title */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="w-8 h-8 rounded-lg bg-[#00d4c8]/10 border border-[#00d4c8]/30 flex items-center justify-center">
@@ -454,7 +454,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      <main className="max-w-[1600px] mx-auto px-6 py-6 space-y-6">
 
         {/* ── Configuration Panel ── */}
         <section className="bg-[#131e30] border border-[#1d2e45] rounded-2xl overflow-hidden">
@@ -768,7 +768,7 @@ const App: React.FC = () => {
       {/* ── Bottom action bar ── */}
       {showReport && (summary.toDisable > 0 || (auditMode !== 'disabled' && summary.toUntarget > 0)) && (
         <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#0c1322]/95 border-t border-[#1d2e45] backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto px-6 py-3.5 flex items-center justify-between gap-4">
+          <div className="max-w-[1600px] mx-auto px-6 py-3.5 flex items-center justify-between gap-4">
             <p className="text-sm text-[#475569]">
               <span className="text-[#00d4c8] font-bold">{selectedCount}</span>
               <span className="mx-1">/</span>

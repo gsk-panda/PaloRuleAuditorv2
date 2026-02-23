@@ -106,8 +106,8 @@ export const RuleRow: React.FC<RuleRowProps> = ({
       </td>
 
       {/* Rule Name */}
-      <td className="px-5 py-3.5 max-w-[220px]">
-        <p className="text-sm font-medium text-[#e2e8f0] truncate font-mono">{rule.name}</p>
+      <td className="px-5 py-3.5 max-w-[400px]">
+        <p className="text-sm font-medium text-[#e2e8f0] break-words font-mono">{rule.name}</p>
       </td>
 
       {/* Device Group */}
