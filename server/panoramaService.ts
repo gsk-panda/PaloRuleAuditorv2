@@ -258,6 +258,22 @@ export async function fetchConfigPaginated(
   return { response: { result: merged } };
 }
 
+/** Extracts the date from a disabled-YYYYMMDD tag, returns ISO string or undefined. */
+function extractDisabledTagDate(rule: any): string | undefined {
+  if (!rule.tag) return undefined;
+  const members = rule.tag.member
+    ? (Array.isArray(rule.tag.member) ? rule.tag.member : [rule.tag.member])
+    : [];
+  for (const m of members) {
+    const val = String(typeof m === 'string' ? m : (m._text ?? m));
+    const match = val.match(/^disabled-(\d{4})(\d{2})(\d{2})$/i);
+    if (match) {
+      return new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00Z`).toISOString();
+    }
+  }
+  return undefined;
+}
+
 function hasProtectTag(rule: any): boolean {
   if (!rule.tag) {
     return false;
@@ -1045,8 +1061,19 @@ export async function auditDisabledRules(
         deviceGroupsSet.add(dgName);
         rulesProcessed += rules.length;
 
+        // Extract disabled-YYYYMMDD tag dates from the config rules
+        const disabledTagDateMap = new Map<string, string>();
+        rules.forEach((rule: any) => {
+          const ruleName = rule.name || rule['@_name'];
+          const tagDate = extractDisabledTagDate(rule);
+          if (ruleName && tagDate) {
+            disabledTagDateMap.set(ruleName, tagDate);
+            console.log(`  Rule "${ruleName}" has disabled tag date: ${new Date(tagDate).toLocaleDateString()}`);
+          }
+        });
+
         console.log(`  Querying hit counts for ${rules.length} disabled rules (chunked)...`);
-        
+
         const ruleNames: string[] = [];
         for (let i = 0; i < rules.length; i++) {
           const rule = rules[i];
@@ -1152,33 +1179,35 @@ export async function auditDisabledRules(
             
             if (isProtected) {
               console.log(`    Rule "${ruleName}" has PROTECT tag - marking as protected (disabled on ${disabledDate ? disabledDate.toISOString() : 'unknown date'}, hit count: ${hitCount})`);
-              
+
               const panoramaRule: PanoramaRule = {
                 id: `disabled-rule-${disabledRules.length}`,
                 name: ruleName,
                 deviceGroup: dgName,
                 totalHits: hitCount,
                 lastHitDate: disabledDate ? disabledDate.toISOString() : new Date(0).toISOString(),
+                disabledDate: disabledTagDateMap.get(ruleName),
                 targets: [],
                 action: 'PROTECTED',
                 isShared: false,
               };
-              
+
               disabledRules.push(panoramaRule);
             } else if (!disabledDate || disabledDate < disabledThreshold) {
               console.log(`    Rule "${ruleName}" disabled on ${disabledDate ? disabledDate.toISOString() : 'unknown date'} - older than ${disabledDays} days (hit count: ${hitCount})`);
-              
+
               const panoramaRule: PanoramaRule = {
                 id: `disabled-rule-${disabledRules.length}`,
                 name: ruleName,
                 deviceGroup: dgName,
                 totalHits: hitCount,
                 lastHitDate: disabledDate ? disabledDate.toISOString() : new Date(0).toISOString(),
+                disabledDate: disabledTagDateMap.get(ruleName),
                 targets: [],
                 action: 'DISABLE',
                 isShared: false,
               };
-              
+
               disabledRules.push(panoramaRule);
             } else {
               console.log(`    Rule "${ruleName}" disabled on ${disabledDate.toISOString()} - within ${disabledDays} days threshold`);

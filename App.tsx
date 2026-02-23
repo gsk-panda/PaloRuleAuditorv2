@@ -708,7 +708,9 @@ const App: React.FC = () => {
                       <SortableTh field="totalHits" label="Hits" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                       <th className="px-5 py-3.5 text-left text-[10px] font-semibold text-[#475569] uppercase tracking-widest whitespace-nowrap">Last Hit</th>
                       <th className="px-5 py-3.5 text-left text-[10px] font-semibold text-[#475569] uppercase tracking-widest whitespace-nowrap">Created</th>
-                      <th className="px-5 py-3.5 text-left text-[10px] font-semibold text-[#475569] uppercase tracking-widest">Targets</th>
+                      <th className="px-5 py-3.5 text-left text-[10px] font-semibold text-[#475569] uppercase tracking-widest whitespace-nowrap">
+                        {auditMode === 'disabled' ? 'Disabled Date' : 'Targets'}
+                      </th>
                       <SortableTh field="action" label="Action" sortField={sortField} sortDir={sortDir} onSort={handleSort} className="text-right pr-6" />
                     </tr>
                   </thead>

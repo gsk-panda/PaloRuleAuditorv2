@@ -138,9 +138,20 @@ export const RuleRow: React.FC<RuleRowProps> = ({
         )}
       </td>
 
-      {/* Targets */}
+      {/* Targets / Disabled Date */}
       <td className="px-5 py-3.5">
-        <div className="flex flex-wrap gap-1">{chips}</div>
+        {auditMode === 'disabled' ? (
+          <div>
+            <p className={`text-sm ${!rule.disabledDate ? 'text-[#475569]' : 'text-[#cbd5e1]'}`}>
+              {rule.disabledDate ? formatDate(rule.disabledDate) : '—'}
+            </p>
+            {rule.disabledDate && (
+              <p className="text-[10px] text-[#64748b]">{ageLabel(rule.disabledDate)}</p>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1">{chips}</div>
+        )}
       </td>
 
       {/* Action badge */}

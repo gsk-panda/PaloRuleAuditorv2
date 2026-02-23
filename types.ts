@@ -23,6 +23,7 @@ export interface PanoramaRule {
   totalHits: number;
   lastHitDate: string;   // ISO string
   createdDate?: string;  // ISO string — rule-creation-timestamp from Panorama
+  disabledDate?: string; // ISO string — date parsed from disabled-YYYYMMDD tag
   targets: FirewallTarget[];
   action: RuleAction;
   suggestedActionNotes?: string;
