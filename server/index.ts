@@ -380,8 +380,11 @@ app.post('/api/remediate', async (req, res) => {
           console.log(`Successfully deleted rule "${rule.name}"`);
         } else {
           const isUntarget = rule.action === 'UNTARGET' && rule.targets && Array.isArray(rule.targets);
+          // Use toBeRemoved (threshold-based) not hasHits (ever-had-hits) — a device with old
+          // hits still has hasHits=true but toBeRemoved=true, so it must be excluded from the
+          // kept list, not included.
           const devicesToKeep = isUntarget
-            ? (rule.targets as { name: string; hasHits: boolean }[]).filter(t => t.hasHits).map(t => t.name)
+            ? (rule.targets as { name: string; toBeRemoved?: boolean }[]).filter(t => !t.toBeRemoved).map(t => t.name)
             : [];
 
           if (isUntarget && devicesToKeep.length > 0) {
