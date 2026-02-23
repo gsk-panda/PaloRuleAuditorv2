@@ -146,7 +146,8 @@ function extractTopLevelEntryNames(xml: string): string[] {
 async function fetchDeviceHostnameMap(panoramaUrl: string, apiKey: string): Promise<Map<string, string>> {
   const hostnameMap = new Map<string, string>();
   try {
-    const cmd = '<show><devices><connected/></devices></show>';
+    // Use <all/> instead of <connected/> so offline/intermittent branch devices are included
+    const cmd = '<show><devices><all/></devices></show>';
     const url = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(cmd)}&key=${apiKey}`;
     const res = await fetch(url);
     if (!res.ok) return hostnameMap;

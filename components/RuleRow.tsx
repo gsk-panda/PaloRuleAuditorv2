@@ -64,37 +64,31 @@ export const RuleRow: React.FC<RuleRowProps> = ({
     ? 'bg-[#00d4c8]/5'
     : rowIndex % 2 === 0 ? 'bg-transparent' : 'bg-[#0c1322]/30';
 
-  // Build targets
+  // Only render chips for targets being removed (untargeted/disabled).
+  // Active targets that are staying don't need to be shown.
   const chips: React.ReactNode[] = [];
   const seen = new Set<string>();
+  const removalTargets = rule.targets.filter(t => t.toBeRemoved);
 
-  if (rule.targets.length === 0) {
-    chips.push(
-      <span key="all" className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] border border-[#1d2e45] text-[#374151]">
-        All Devices
-      </span>
-    );
-  } else {
-    rule.targets.forEach(t => {
-      if (seen.has(t.name)) return;
-      if (t.haPartner) {
-        const partner = rule.targets.find(p => p.name === t.haPartner);
-        if (partner) {
-          chips.push(
-            <span key={`${t.name}-ha`} className="inline-flex items-center gap-0.5 border border-[#1d2e45] rounded-md px-0.5 bg-[#192540]">
-              <TargetChip name={t.name} displayName={t.displayName} hasHits={t.hasHits} toBeRemoved={t.toBeRemoved} />
-              <span className="text-[#374151] text-[10px] px-0.5">↔</span>
-              <TargetChip name={partner.name} displayName={partner.displayName} hasHits={partner.hasHits} toBeRemoved={partner.toBeRemoved} />
-            </span>
-          );
-          seen.add(t.name); seen.add(partner.name);
-          return;
-        }
+  removalTargets.forEach(t => {
+    if (seen.has(t.name)) return;
+    if (t.haPartner) {
+      const partner = rule.targets.find(p => p.name === t.haPartner);
+      if (partner) {
+        chips.push(
+          <span key={`${t.name}-ha`} className="inline-flex items-center gap-0.5 border border-[#1d2e45] rounded-md px-0.5 bg-[#192540]">
+            <TargetChip name={t.name} displayName={t.displayName} hasHits={t.hasHits} toBeRemoved={t.toBeRemoved} />
+            <span className="text-[#374151] text-[10px] px-0.5">↔</span>
+            <TargetChip name={partner.name} displayName={partner.displayName} hasHits={partner.hasHits} toBeRemoved={partner.toBeRemoved} />
+          </span>
+        );
+        seen.add(t.name); seen.add(partner.name);
+        return;
       }
-      chips.push(<TargetChip key={t.name} name={t.name} displayName={t.displayName} hasHits={t.hasHits} toBeRemoved={t.toBeRemoved} />);
-      seen.add(t.name);
-    });
-  }
+    }
+    chips.push(<TargetChip key={t.name} name={t.name} displayName={t.displayName} hasHits={t.hasHits} toBeRemoved={t.toBeRemoved} />);
+    seen.add(t.name);
+  });
 
   return (
     <tr className={`transition-colors hover:bg-[#192540]/60 ${rowBg} ${isSelected ? 'ring-inset ring-1 ring-[#00d4c8]/20' : ''}`}>
