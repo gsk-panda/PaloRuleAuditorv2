@@ -307,15 +307,18 @@ export async function auditPanoramaRules(
     // so the HA-PROTECTED branch in action determination never fires.
     const hostnameToSerial = new Map<string, string>();
     hostnameMap.forEach((hostname, serial) => {
-      const existing = hostnameToSerial.get(hostname);
+      // Normalize to lowercase so HA pair lookups are case-insensitive
+      // (hostnameMap may have "CORP" while user typed "corp" in the HA pairs config)
+      const key = hostname.toLowerCase();
+      const existing = hostnameToSerial.get(key);
       // Prefer the longest (zero-padded) serial to match device-vsys entry name format
       if (!existing || serial.length > existing.length) {
-        hostnameToSerial.set(hostname, serial);
+        hostnameToSerial.set(key, serial);
       }
     });
     haPairs.forEach(pair => {
-      const serial1 = hostnameToSerial.get(pair.fw1);
-      const serial2 = hostnameToSerial.get(pair.fw2);
+      const serial1 = hostnameToSerial.get(pair.fw1.toLowerCase());
+      const serial2 = hostnameToSerial.get(pair.fw2.toLowerCase());
       if (serial1 && serial2) {
         haMap.set(serial1, serial2);
         haMap.set(serial2, serial1);
