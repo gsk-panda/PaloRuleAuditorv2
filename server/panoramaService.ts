@@ -1133,10 +1133,12 @@ export async function auditPanoramaRules(
         rule.action = 'PROTECTED';
       } else if (hasHAProtection && firewallsToUntarget.size === 0) {
         rule.action = 'HA-PROTECTED';
-      } else if ((isAnyTargetRule && isRuleUnused) || 
-                (!isAnyTargetRule && firewallsToUntarget.size === rule.targets.length && rule.targets.length > 0)) {
+      } else if (isAnyTargetRule && isRuleUnused) {
+        // Only use DISABLE for 'any' target rules that are unused
         rule.action = 'DISABLE';
       } else if (!isAnyTargetRule && firewallsToUntarget.size > 0) {
+        // For rules with specific targets, always use UNTARGET if any targets are unused
+        // This ensures we don't recommend disabling rules that could be partially kept
         rule.action = 'UNTARGET';
       } else {
         rule.action = 'KEEP';
