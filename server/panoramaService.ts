@@ -164,17 +164,19 @@ async function fetchDeviceHostnameMap(panoramaUrl: string, apiKey: string): Prom
         hostnameMap.set(serial, hostname);
         hostnameMap.set(serial.padStart(12, '0'), hostname);
         
-        // For AWS-Cloud devices, also store mappings with common prefixes removed
+        // For AWS-Cloud, AWS GovCloud, and Azure GovCloud devices, also store mappings with common prefixes removed
         // This helps with matching HA pairs when the hostname doesn't exactly match the configured pair
-        if (hostname.includes('AWS') || hostname.includes('Cloud')) {
+        if (hostname.includes('AWS') || hostname.includes('Cloud') || hostname.includes('Azure') || hostname.includes('Gov')) {
           // Remove common prefixes that might be in the hostname but not in HA pair config
           const simplifiedName = hostname
             .replace(/^AWS[-\s]*/i, '')
             .replace(/^Cloud[-\s]*/i, '')
+            .replace(/^Azure[-\s]*/i, '')
+            .replace(/Gov(?:Cloud|ernment)[-\s]*/i, '')
             .trim();
           
           if (simplifiedName !== hostname) {
-            console.log(`  Adding simplified mapping for AWS device: ${serial} → ${simplifiedName} (original: ${hostname})`);
+            console.log(`  Adding simplified mapping for cloud device: ${serial} → ${simplifiedName} (original: ${hostname})`);
             hostnameMap.set(`${serial}-simplified`, simplifiedName);
           }
         }
@@ -381,7 +383,7 @@ export async function auditPanoramaRules(
       let serial1 = hostnameToSerial.get(pair.fw1.toLowerCase());
       let serial2 = hostnameToSerial.get(pair.fw2.toLowerCase());
       
-      // If direct lookup fails, try partial matching for AWS-Cloud devices
+      // If direct lookup fails, try partial matching for cloud devices (AWS, Azure, GovCloud)
       if (!serial1 || !serial2) {
         console.log(`  Attempting partial matching for HA pair "${pair.fw1}" ↔ "${pair.fw2}"`);
         
@@ -389,16 +391,49 @@ export async function auditPanoramaRules(
         serialToHostnames.forEach((hostnames, serial) => {
           hostnames.forEach(hostname => {
             const lowerHostname = hostname.toLowerCase();
+            const fw1Lower = pair.fw1.toLowerCase();
+            const fw2Lower = pair.fw2.toLowerCase();
             
-            // Check if this hostname contains the HA pair name
-            if (!serial1 && lowerHostname.includes(pair.fw1.toLowerCase())) {
+            // Check for exact match first
+            if (!serial1 && lowerHostname === fw1Lower) {
               serial1 = serial;
-              console.log(`  Found partial match for ${pair.fw1}: ${hostname} (${serial})`);
+              console.log(`  Found exact match for ${pair.fw1}: ${hostname} (${serial})`);
             }
             
-            if (!serial2 && lowerHostname.includes(pair.fw2.toLowerCase())) {
+            if (!serial2 && lowerHostname === fw2Lower) {
               serial2 = serial;
-              console.log(`  Found partial match for ${pair.fw2}: ${hostname} (${serial})`);
+              console.log(`  Found exact match for ${pair.fw2}: ${hostname} (${serial})`);
+            }
+            
+            // If still no match, try partial matching
+            if (!serial1) {
+              // Try to match with various cloud naming patterns
+              const isMatch = lowerHostname.includes(fw1Lower) || 
+                             // Handle cases where "AWS-" or "Cloud-" might be in the hostname but not in the HA pair name
+                             (fw1Lower.includes('aws') && lowerHostname.includes('aws')) ||
+                             (fw1Lower.includes('azure') && lowerHostname.includes('azure')) ||
+                             (fw1Lower.includes('gov') && lowerHostname.includes('gov')) ||
+                             (fw1Lower.includes('cloud') && lowerHostname.includes('cloud'));
+                             
+              if (isMatch) {
+                serial1 = serial;
+                console.log(`  Found partial match for ${pair.fw1}: ${hostname} (${serial})`);
+              }
+            }
+            
+            if (!serial2) {
+              // Try to match with various cloud naming patterns
+              const isMatch = lowerHostname.includes(fw2Lower) || 
+                             // Handle cases where "AWS-" or "Cloud-" might be in the hostname but not in the HA pair name
+                             (fw2Lower.includes('aws') && lowerHostname.includes('aws')) ||
+                             (fw2Lower.includes('azure') && lowerHostname.includes('azure')) ||
+                             (fw2Lower.includes('gov') && lowerHostname.includes('gov')) ||
+                             (fw2Lower.includes('cloud') && lowerHostname.includes('cloud'));
+                             
+              if (isMatch) {
+                serial2 = serial;
+                console.log(`  Found partial match for ${pair.fw2}: ${hostname} (${serial})`);
+              }
             }
           });
         });
