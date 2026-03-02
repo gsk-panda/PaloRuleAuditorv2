@@ -730,20 +730,28 @@ export async function auditPanoramaRules(
                     let totalHitCount = 0;
                     let latestLastHitTimestamp: string | undefined;
                     let latestModificationTimestamp: string | undefined;
+                    let latestCreationTimestamp: string | undefined;
                     let allConnected = false;
                     const targets: string[] = [];
                     
+                    // Process device-vsys entries if present
                     if (ruleEntry['device-vsys']?.entry) {
                       const deviceVsysEntries = Array.isArray(ruleEntry['device-vsys'].entry) 
                         ? ruleEntry['device-vsys'].entry 
                         : [ruleEntry['device-vsys'].entry];
                       
+                      // First pass: check if any entry has all-connected=yes and collect timestamps
                       deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
+                        if (vsysEntry['all-connected'] === 'yes') {
+                          allConnected = true;
+                        }
+                        
                         const hitCount = parseHitCount(vsysEntry['hit-count']);
                         totalHitCount += hitCount;
                         
                         const lastHitTs = parseTs(vsysEntry['last-hit-timestamp']);
                         const modTs = parseTs(vsysEntry['rule-modification-timestamp']);
+                        const creationTs = parseTs(vsysEntry['rule-creation-timestamp']);
                         
                         if (lastHitTs !== undefined && lastHitTs > 0 && (!latestLastHitTimestamp || lastHitTs > parseInt(latestLastHitTimestamp || '0'))) {
                           latestLastHitTimestamp = String(lastHitTs);
@@ -753,39 +761,59 @@ export async function auditPanoramaRules(
                           latestModificationTimestamp = String(modTs);
                         }
                         
-                        if (vsysEntry['all-connected'] === 'yes') {
-                          allConnected = true;
-                        } else {
+                        if (creationTs !== undefined && (!latestCreationTimestamp || creationTs > parseInt(latestCreationTimestamp || '0'))) {
+                          latestCreationTimestamp = String(creationTs);
+                        }
+                      });
+                      
+                      // Second pass: collect targets if not targeting all devices
+                      if (!allConnected) {
+                        deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
                           const entryName = getVsysEntryName(vsysEntry);
                           if (entryName) {
                             const parts = entryName.split('/');
                             const deviceId = parts.length >= 2 ? parts[1] : parts[0];
                             if (deviceId && !targets.includes(deviceId)) {
                               targets.push(deviceId);
+                              console.log(`  Adding target ${deviceId} from device-vsys entry ${entryName}`);
                             }
                           }
-                        }
-                      });
+                        });
+                      }
                       
-                      deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
-                        const perDeviceHitCount = parseHitCount(vsysEntry['hit-count']);
-                        const lastHitTs = parseTs(vsysEntry['last-hit-timestamp']);
-                        const modTs = parseTs(vsysEntry['rule-modification-timestamp']);
-                        const creationTs = parseTs(vsysEntry['rule-creation-timestamp']);
-                        let lastUsedDate: string | undefined;
-                        if (perDeviceHitCount > 0 && lastHitTs !== undefined && lastHitTs > 0) {
-                          lastUsedDate = new Date(lastHitTs * 1000).toISOString();
-                        } else if (creationTs !== undefined) {
-                          lastUsedDate = new Date(creationTs * 1000).toISOString();
-                        }
-                        const entryName = getVsysEntryName(vsysEntry);
-                        let deviceId: string | undefined;
-                        if (entryName) {
+                      // If targeting all devices or no specific targets found, use 'all'
+                      if (allConnected || targets.length === 0) {
+                        targets.length = 0; // Clear any partial targets
+                        targets.push('all');
+                      }
+                      
+                      // Only process per-device entries for the UI if we have specific targets
+                      // This prevents showing devices that aren't actually targeted
+                      if (!allConnected && targets.length > 0) {
+                        deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
+                          const perDeviceHitCount = parseHitCount(vsysEntry['hit-count']);
+                          const lastHitTs = parseTs(vsysEntry['last-hit-timestamp']);
+                          const modTs = parseTs(vsysEntry['rule-modification-timestamp']);
+                          const creationTs = parseTs(vsysEntry['rule-creation-timestamp']);
+                          let lastUsedDate: string | undefined;
+                          
+                          if (perDeviceHitCount > 0 && lastHitTs !== undefined && lastHitTs > 0) {
+                            lastUsedDate = new Date(lastHitTs * 1000).toISOString();
+                          } else if (creationTs !== undefined) {
+                            lastUsedDate = new Date(creationTs * 1000).toISOString();
+                          }
+                          
+                          const entryName = getVsysEntryName(vsysEntry);
+                          if (!entryName) return;
+                          
                           const parts = entryName.split('/');
-                          deviceId = parts.length >= 2 ? parts[1] : parts[0];
-                        }
-                        if (!deviceId) return;
-                        const perTarget: PanoramaRuleUseEntry = {
+                          const deviceId = parts.length >= 2 ? parts[1] : parts[0];
+                          
+                          // Only include devices that are actually in our targets list
+                          // This ensures we don't show devices that aren't actually targeted
+                          if (!deviceId || !targets.includes(deviceId)) return;
+                          
+                          const perTarget: PanoramaRuleUseEntry = {
                           devicegroup: dgName,
                           rulebase: rulebaseType,
                           rulename: ruleName,
@@ -1128,13 +1156,23 @@ export async function auditPanoramaRules(
         }
       });
       
-      // Filter out any targets that aren't real devices (like 'all') for UNTARGET actions
-      // to avoid showing devices that aren't actually targeted
+      // For UNTARGET actions, we need to ensure we only show devices that are actually targeted
+      // in Panorama AND need to be untargeted (unused)
       if (rule.action === 'UNTARGET') {
-        // Keep only targets that are real devices and marked for removal
+        // Debug log to help diagnose untargeting issues
+        console.log(`Rule "${rule.name}" in "${rule.deviceGroup}" has ${rule.targets.length} targets before filtering:`);
+        rule.targets.forEach(t => {
+          console.log(`  Target: ${t.name}, Display: ${t.displayName || 'none'}, ToBeRemoved: ${t.toBeRemoved}`);
+        });
+        console.log(`  FirewallsToUntarget: ${Array.from(firewallsToUntarget).join(', ')}`);
+        
+        // Only keep targets that are actually targeted in Panorama AND marked for removal
+        // This ensures we don't show devices that aren't actually targeted
         rule.targets = rule.targets.filter(target => 
-          target.name !== 'all' && (target.toBeRemoved || !firewallsToUntarget.has(target.name))
+          target.name !== 'all' && target.toBeRemoved === true
         );
+        
+        console.log(`  After filtering: ${rule.targets.length} targets remain`);
       }
     });
 
