@@ -39,18 +39,23 @@ const BADGE: Record<string, BadgeCfg> = {
 const getBadge = (action: string): BadgeCfg => BADGE[action] ?? BADGE['KEEP'];
 
 // ── Target chip ───────────────────────────────────────────────────────────
-const TargetChip: React.FC<{ name: string; displayName?: string; hasHits: boolean; toBeRemoved?: boolean }> = ({ name, displayName, hasHits, toBeRemoved }) => (
-  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono border ${
-    toBeRemoved
-      ? 'bg-red-500/10 border-red-500/40 text-red-400 line-through'
-      : hasHits
-        ? 'bg-[#00d4c8]/5 border-[#00d4c8]/25 text-[#00d4c8]'
-        : 'bg-[#1d2e45] border-[#1d2e45] text-[#475569]'
-  }`}>
-    <span className={`w-1 h-1 rounded-full ${toBeRemoved ? 'bg-red-400' : hasHits ? 'bg-[#00d4c8]' : 'bg-[#374151]'}`} />
-    {displayName || name}
-  </span>
-);
+const TargetChip: React.FC<{ name: string; displayName?: string; hasHits: boolean; toBeRemoved?: boolean }> = ({ name, displayName, hasHits, toBeRemoved }) => {
+  // Always prioritize displayName when available
+  const displayValue = displayName || name;
+  
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-mono border ${
+      toBeRemoved
+        ? 'bg-red-500/10 border-red-500/40 text-red-400 line-through'
+        : hasHits
+          ? 'bg-[#00d4c8]/5 border-[#00d4c8]/25 text-[#00d4c8]'
+          : 'bg-[#1d2e45] border-[#1d2e45] text-[#475569]'
+    }`}>
+      <span className={`w-1 h-1 rounded-full ${toBeRemoved ? 'bg-red-400' : hasHits ? 'bg-[#00d4c8]' : 'bg-[#374151]'}`} />
+      {displayValue}
+    </span>
+  );
+};
 
 export const RuleRow: React.FC<RuleRowProps> = ({
   rule, auditMode = 'unused', isSelected = false, onSelectionChange, rowIndex = 0,

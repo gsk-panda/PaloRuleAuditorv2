@@ -163,10 +163,30 @@ async function fetchDeviceHostnameMap(panoramaUrl: string, apiKey: string): Prom
         // since device-vsys entry names in hit-count responses use the zero-padded serial.
         hostnameMap.set(serial, hostname);
         hostnameMap.set(serial.padStart(12, '0'), hostname);
+        
+        // For AWS-Cloud devices, also store mappings with common prefixes removed
+        // This helps with matching HA pairs when the hostname doesn't exactly match the configured pair
+        if (hostname.includes('AWS') || hostname.includes('Cloud')) {
+          // Remove common prefixes that might be in the hostname but not in HA pair config
+          const simplifiedName = hostname
+            .replace(/^AWS[-\s]*/i, '')
+            .replace(/^Cloud[-\s]*/i, '')
+            .trim();
+          
+          if (simplifiedName !== hostname) {
+            console.log(`  Adding simplified mapping for AWS device: ${serial} → ${simplifiedName} (original: ${hostname})`);
+            hostnameMap.set(`${serial}-simplified`, simplifiedName);
+          }
+        }
       }
     });
     console.log(`  Device hostname map: ${hostnameMap.size / 2} devices`);
-    hostnameMap.forEach((h, s) => console.log(`    ${s} → ${h}`));
+    hostnameMap.forEach((h, s) => {
+      // Don't log simplified mappings to avoid cluttering the console
+      if (!s.endsWith('-simplified')) {
+        console.log(`    ${s} → ${h}`);
+      }
+    });
   } catch (err) {
     console.warn('  fetchDeviceHostnameMap failed:', err instanceof Error ? err.message : String(err));
   }
@@ -323,7 +343,13 @@ export async function auditPanoramaRules(
     // Without this, haMap.get(serial) always returns undefined and haPartner is never set,
     // so the HA-PROTECTED branch in action determination never fires.
     const hostnameToSerial = new Map<string, string>();
+    const serialToHostnames = new Map<string, string[]>();
+    
+    // First, build a map of all hostnames to serials and serials to hostnames
     hostnameMap.forEach((hostname, serial) => {
+      // Skip the simplified mappings as they're just for lookup
+      if (serial.endsWith('-simplified')) return;
+      
       // Normalize to lowercase so HA pair lookups are case-insensitive
       // (hostnameMap may have "CORP" while user typed "corp" in the HA pairs config)
       const key = hostname.toLowerCase();
@@ -332,10 +358,52 @@ export async function auditPanoramaRules(
       if (!existing || serial.length > existing.length) {
         hostnameToSerial.set(key, serial);
       }
+      
+      // Also build a reverse mapping of serial to all its possible hostnames
+      if (!serialToHostnames.has(serial)) {
+        serialToHostnames.set(serial, []);
+      }
+      serialToHostnames.get(serial)!.push(hostname);
     });
+    
+    // For AWS-Cloud devices, add simplified hostname mappings
+    hostnameMap.forEach((hostname, serial) => {
+      if (serial.endsWith('-simplified')) {
+        const actualSerial = serial.replace(/-simplified$/, '');
+        const simplifiedName = hostname.toLowerCase();
+        hostnameToSerial.set(simplifiedName, actualSerial);
+      }
+    });
+    
+    // Now map HA pairs using the enhanced hostname mapping
     haPairs.forEach(pair => {
-      const serial1 = hostnameToSerial.get(pair.fw1.toLowerCase());
-      const serial2 = hostnameToSerial.get(pair.fw2.toLowerCase());
+      // Try direct lookup first
+      let serial1 = hostnameToSerial.get(pair.fw1.toLowerCase());
+      let serial2 = hostnameToSerial.get(pair.fw2.toLowerCase());
+      
+      // If direct lookup fails, try partial matching for AWS-Cloud devices
+      if (!serial1 || !serial2) {
+        console.log(`  Attempting partial matching for HA pair "${pair.fw1}" ↔ "${pair.fw2}"`);
+        
+        // For each serial, check if any of its hostnames contain the HA pair name
+        serialToHostnames.forEach((hostnames, serial) => {
+          hostnames.forEach(hostname => {
+            const lowerHostname = hostname.toLowerCase();
+            
+            // Check if this hostname contains the HA pair name
+            if (!serial1 && lowerHostname.includes(pair.fw1.toLowerCase())) {
+              serial1 = serial;
+              console.log(`  Found partial match for ${pair.fw1}: ${hostname} (${serial})`);
+            }
+            
+            if (!serial2 && lowerHostname.includes(pair.fw2.toLowerCase())) {
+              serial2 = serial;
+              console.log(`  Found partial match for ${pair.fw2}: ${hostname} (${serial})`);
+            }
+          });
+        });
+      }
+      
       if (serial1 && serial2) {
         haMap.set(serial1, serial2);
         haMap.set(serial2, serial1);
@@ -822,21 +890,46 @@ export async function auditPanoramaRules(
         lastUsed = new Date(0);
       }
       
+      // Track if this rule is actually targeting 'any' device (not specific targets)
+      let isAnyTarget = false;
       const targets: string[] = [];
+      
       if (entry.target) {
         if (typeof entry.target === 'string') {
-          if (entry.target !== 'all') {
+          if (entry.target === 'all' || entry.target === 'any') {
+            isAnyTarget = true;
+          } else {
             targets.push(entry.target);
           }
         } else if (Array.isArray(entry.target)) {
-          entry.target.forEach(t => {
-            if (typeof t === 'string' && t !== 'all') targets.push(t);
-            else if (t && typeof t === 'object' && 'entry' in t && (t as { entry: string }).entry !== 'all') targets.push((t as { entry: string }).entry);
-          });
+          // Check if any entry is 'all' or 'any'
+          for (const t of entry.target) {
+            if ((typeof t === 'string' && (t === 'all' || t === 'any')) ||
+                (t && typeof t === 'object' && 'entry' in t && 
+                 ((t as { entry: string }).entry === 'all' || (t as { entry: string }).entry === 'any'))) {
+              isAnyTarget = true;
+              break;
+            }
+          }
+          
+          // Only collect specific targets if not targeting 'any'
+          if (!isAnyTarget) {
+            entry.target.forEach(t => {
+              if (typeof t === 'string' && t !== 'all' && t !== 'any') {
+                targets.push(t);
+              } else if (t && typeof t === 'object' && 'entry' in t && 
+                       (t as { entry: string }).entry !== 'all' && 
+                       (t as { entry: string }).entry !== 'any') {
+                targets.push((t as { entry: string }).entry);
+              }
+            });
+          }
         }
       }
       
-      if (entry.target === 'all' || (targets.length === 0 && entry.target === 'all')) {
+      // If targeting 'any' or no specific targets found, mark as 'all'
+      if (isAnyTarget || targets.length === 0) {
+        targets.length = 0; // Clear any partial targets
         targets.push('all');
       }
 
@@ -901,55 +994,72 @@ export async function auditPanoramaRules(
       const firewallsToUntarget = new Set<string>();
       const processed = new Set<string>();
       let hasHAProtection = false;
+      
+      // Check if this rule is targeting 'any' device (indicated by a single 'all' target)
+      const isAnyTargetRule = rule.targets.length === 1 && rule.targets[0].name === 'all';
+      
+      // For 'any' target rules, we should only recommend DISABLE, not UNTARGET
+      // since there are no specific targets to untarget
+      if (!isAnyTargetRule) {
+        rule.targets.forEach(target => {
+          if (processed.has(target.name)) return;
+          if (target.name === 'all') return; // Skip 'all' targets for untarget analysis
 
-      rule.targets.forEach(target => {
-        if (processed.has(target.name)) return;
+          // Use per-target lastHitDate for accurate comparison; fall back to rule aggregate.
+          // isUnused = true means this target's last hit was before the threshold window.
+          const targetLastHit = target.lastHitDate
+            ? new Date(target.lastHitDate)
+            : new Date(rule.lastHitDate);
+          const isUnused = targetLastHit < unusedThreshold;
 
-        // Use per-target lastHitDate for accurate comparison; fall back to rule aggregate.
-        // isUnused = true means this target's last hit was before the threshold window.
-        const targetLastHit = target.lastHitDate
-          ? new Date(target.lastHitDate)
-          : new Date(rule.lastHitDate);
-        const isUnused = targetLastHit < unusedThreshold;
+          if (target.haPartner) {
+            const partner = rule.targets.find(t => t.name === target.haPartner);
+            if (partner) {
+              const partnerLastHit = partner.lastHitDate
+                ? new Date(partner.lastHitDate)
+                : new Date(rule.lastHitDate);
+              const partnerIsUnused = partnerLastHit < unusedThreshold;
 
-        if (target.haPartner) {
-          const partner = rule.targets.find(t => t.name === target.haPartner);
-          if (partner) {
-            const partnerLastHit = partner.lastHitDate
-              ? new Date(partner.lastHitDate)
-              : new Date(rule.lastHitDate);
-            const partnerIsUnused = partnerLastHit < unusedThreshold;
-
-            if (!isUnused || !partnerIsUnused) {
-              // At least one of the HA pair has been hit recently → HA-protected
-              firewallsToUntarget.delete(target.name);
-              firewallsToUntarget.delete(partner.name);
-              hasHAProtection = true;
+              if (!isUnused || !partnerIsUnused) {
+                // At least one of the HA pair has been hit recently → HA-protected
+                firewallsToUntarget.delete(target.name);
+                firewallsToUntarget.delete(partner.name);
+                hasHAProtection = true;
+              } else {
+                // Both sides of the HA pair are unused within the threshold
+                firewallsToUntarget.add(target.name);
+                firewallsToUntarget.add(partner.name);
+              }
+              processed.add(target.name);
+              processed.add(partner.name);
             } else {
-              // Both sides of the HA pair are unused within the threshold
-              firewallsToUntarget.add(target.name);
-              firewallsToUntarget.add(partner.name);
+              if (isUnused) firewallsToUntarget.add(target.name);
+              processed.add(target.name);
             }
-            processed.add(target.name);
-            processed.add(partner.name);
           } else {
             if (isUnused) firewallsToUntarget.add(target.name);
             processed.add(target.name);
           }
-        } else {
-          if (isUnused) firewallsToUntarget.add(target.name);
-          processed.add(target.name);
-        }
-      });
+        });
+      }
+      
+      // For 'any' target rules, determine if the rule is unused overall
+      // based on the aggregate hit data
+      let isRuleUnused = false;
+      if (isAnyTargetRule) {
+        const ruleLastHit = new Date(rule.lastHitDate);
+        isRuleUnused = ruleLastHit < unusedThreshold;
+      }
 
       const protectedKey = `${rule.deviceGroup}:${rule.name}`;
       if (protectedRuleSet.has(protectedKey)) {
         rule.action = 'PROTECTED';
       } else if (hasHAProtection && firewallsToUntarget.size === 0) {
         rule.action = 'HA-PROTECTED';
-      } else if (firewallsToUntarget.size === rule.targets.length && rule.targets.length > 0) {
+      } else if ((isAnyTargetRule && isRuleUnused) || 
+                (!isAnyTargetRule && firewallsToUntarget.size === rule.targets.length && rule.targets.length > 0)) {
         rule.action = 'DISABLE';
-      } else if (firewallsToUntarget.size > 0) {
+      } else if (!isAnyTargetRule && firewallsToUntarget.size > 0) {
         rule.action = 'UNTARGET';
       } else {
         rule.action = 'KEEP';
@@ -960,9 +1070,23 @@ export async function auditPanoramaRules(
         if (rule.action === 'DISABLE') {
           target.toBeRemoved = true; // whole rule disabled → all targets marked
         } else if (rule.action === 'UNTARGET') {
-          target.toBeRemoved = firewallsToUntarget.has(target.name);
+          // Only mark devices that are actually targeted AND need to be untargeted
+          // Skip the 'all' target as it's not a real device
+          target.toBeRemoved = target.name !== 'all' && firewallsToUntarget.has(target.name);
+        } else {
+          // Ensure no targets are marked for removal for other actions
+          target.toBeRemoved = false;
         }
       });
+      
+      // Filter out any targets that aren't real devices (like 'all') for UNTARGET actions
+      // to avoid showing devices that aren't actually targeted
+      if (rule.action === 'UNTARGET') {
+        // Keep only targets that are real devices and marked for removal
+        rule.targets = rule.targets.filter(target => 
+          target.name !== 'all' && (target.toBeRemoved || !firewallsToUntarget.has(target.name))
+        );
+      }
     });
 
     console.log(`Returning ${processedRules.length} unused rules and ${deviceGroups.length} device groups (${rulesProcessed} rules processed):`, deviceGroups);
