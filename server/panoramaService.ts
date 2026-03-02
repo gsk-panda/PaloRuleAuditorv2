@@ -551,37 +551,45 @@ export async function auditPanoramaRules(
             let chunk = uniqueRuleNames.slice(i, i + RULE_HIT_COUNT_CHUNK_SIZE);
             const chunkNum = Math.floor(i / RULE_HIT_COUNT_CHUNK_SIZE) + 1;
 
-            // Retry loop: strip duplicate-node rules and retry until the chunk succeeds or is empty
-            const maxAttempts = chunk.length; // capture before chunk shrinks during retries
-            for (let attempt = 0; attempt <= maxAttempts; attempt++) {
-              if (chunk.length === 0) break;
-
+            // Process chunk: if we encounter duplicate nodes, collect them all before retrying
+            let success = false;
+            while (!success && chunk.length > 0) {
               const ruleNameEntries = chunk.map(name => `<entry name="${name}"/>`).join('');
               const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><rule-name>${ruleNameEntries}</rule-name></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`;
               const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
               const response = await fetch(apiUrl);
+              
               if (!response.ok) {
-                console.error(`    Chunk ${chunkNum} (attempt ${attempt + 1}) failed: ${response.status} ${response.statusText}`);
+                console.error(`    Chunk ${chunkNum} failed: ${response.status} ${response.statusText}`);
                 break;
               }
+              
               const xmlText = await response.text();
 
               if (xmlText.includes('<response status="error"')) {
                 const msgMatch = xmlText.match(/<msg[^>]*>([\s\S]*?)<\/msg>/);
                 const msg = msgMatch ? msgMatch[1].trim() : xmlText.substring(0, 500);
 
-                // Check for "duplicate node" — extract the conflicting rule name and retry without it
+                // Check for "duplicate node" — extract the conflicting rule name
                 const dupMatch = msg.match(/rule-name\s*->\s*(.+?)\s+is a duplicate node/);
                 if (dupMatch) {
                   const dupRule = dupMatch[1].trim();
-                  console.warn(`    Chunk ${chunkNum}: rule "${dupRule}" has a naming conflict (shared/DG rulebase duplicate) — skipping it and retrying`);
+                  
+                  // Add to skipped duplicates set and remove from current chunk
                   skippedDuplicates.add(dupRule);
                   chunk = chunk.filter(n => n !== dupRule);
-                  continue; // retry with smaller chunk
+                  
+                  // Instead of logging for every conflict, just count them
+                  // We'll log a summary at the end
+                  continue; // Try again with the filtered chunk
+                } else {
+                  // Some other error occurred
+                  console.error(`    Chunk ${chunkNum} error: ${msg.substring(0, 300)}`);
+                  break;
                 }
-
-                console.error(`    Chunk ${chunkNum} (attempt ${attempt + 1}) error: ${msg.substring(0, 300)}`);
-                break;
+              } else {
+                // Success - no more conflicts in this chunk
+                success = true;
               }
 
               // Success — collect rule entries from the response
@@ -613,7 +621,13 @@ export async function auditPanoramaRules(
           if (skippedDuplicates.size > 0) {
             // Panorama rejects multiple <entry> elements inside <rule-name> for some device groups —
             // it works fine when each rule is queried individually. Query each one-at-a-time.
-            console.warn(`    ${skippedDuplicates.size} rule(s) failed in batch — querying each individually: ${[...skippedDuplicates].join(', ')}`);
+            console.warn(`    ${skippedDuplicates.size} rule(s) with naming conflicts — querying each individually`);
+            // Log the first few rules as examples, but not all of them to avoid log spam
+            const exampleRules = [...skippedDuplicates].slice(0, 3);
+            if (exampleRules.length > 0) {
+              console.warn(`    Examples: ${exampleRules.join(', ')}${skippedDuplicates.size > 3 ? ` and ${skippedDuplicates.size - 3} more...` : ''}`);
+            }
+            
             for (const dupRule of skippedDuplicates) {
               const escapedName = dupRule.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
               const singleXmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules><rule-name><entry name="${escapedName}"/></rule-name></rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`;
@@ -648,7 +662,7 @@ export async function auditPanoramaRules(
                     collect(dge['rule-base']?.entry);
                   });
                 }
-                console.log(`    Individual query for "${dupRule}": OK`);
+                // Don't log success for every individual rule to reduce log spam
               } catch (singleErr) {
                 console.error(`    Individual query for "${dupRule}" exception:`, singleErr instanceof Error ? singleErr.message : String(singleErr));
               }
