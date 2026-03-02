@@ -81,12 +81,11 @@ cat > /etc/httpd/conf.d/panoruleauditor.conf << 'EOL'
 
 # Global timeout settings to prevent GUI timeouts
 Timeout 0
+ProxyTimeout 0
 
 <Location "/audit/api">
     ProxyPass http://127.0.0.1:3010/api
     ProxyPassReverse http://127.0.0.1:3010/api
-    # ProxyTimeout removed to prevent timeouts
-    ProxyTimeout 0
     Require all granted
 </Location>
 
