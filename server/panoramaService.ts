@@ -175,6 +175,17 @@ async function fetchDeviceHostnameMap(panoramaUrl: string, apiKey: string): Prom
         // For AWS-Cloud, AWS GovCloud, and Azure GovCloud devices, also store mappings with common prefixes removed
         // This helps with matching HA pairs when the hostname doesn't exactly match the configured pair
         if (hostname.includes('AWS') || hostname.includes('Cloud') || hostname.includes('Azure') || hostname.includes('Gov')) {
+          // For AWS GovCloud and Azure GovCloud, store the hostname directly with the serial
+          // This ensures these devices always show their hostname instead of serial
+          if (hostname.includes('GovCloud') || 
+              (hostname.includes('Gov') && (hostname.includes('AWS') || hostname.includes('Azure')))) {
+            // Store the hostname directly with the serial for GovCloud devices
+            console.log(`  Adding direct mapping for GovCloud device: ${serial} → ${hostname}`);
+            // Store both with the original serial and zero-padded serial
+            hostnameMap.set(serial, hostname);
+            hostnameMap.set(serial.padStart(12, '0'), hostname);
+          }
+          
           // Remove common prefixes that might be in the hostname but not in HA pair config
           const simplifiedName = hostname
             .replace(/^AWS[-\s]*/i, '')
@@ -1289,6 +1300,26 @@ export async function auditPanoramaRules(
         rule.action = 'KEEP';
       }
 
+      // First, ensure we only have targets that are actually configured in Panorama
+      // This is critical to avoid showing untarget recommendations for firewalls not actually targeted
+      const actualTargets = new Set<string>();
+      if (rule.target === 'all') {
+        actualTargets.add('all');
+      } else if (Array.isArray(rule.target)) {
+        rule.target.forEach(t => actualTargets.add(t));
+      } else if (rule.target) {
+        actualTargets.add(rule.target);
+      }
+      
+      console.log(`Rule "${rule.name}" in "${rule.deviceGroup}" has actual targets: ${Array.from(actualTargets).join(', ')}`);
+      
+      // Filter targets to only include those actually configured in Panorama
+      rule.targets = rule.targets.filter(target => 
+        target.name === 'all' || actualTargets.has(target.name)
+      );
+      
+      console.log(`After filtering for actual targets: ${rule.targets.length} targets remain`);
+      
       // Mark individual targets that will be removed so the UI can highlight them in red
       rule.targets.forEach(target => {
         if (rule.action === 'DISABLE') {
