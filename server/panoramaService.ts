@@ -186,6 +186,12 @@ async function fetchDeviceHostnameMap(panoramaUrl: string, apiKey: string): Prom
           if (simplifiedName !== hostname) {
             console.log(`  Adding simplified mapping for cloud device: ${serial} → ${simplifiedName} (original: ${hostname})`);
             hostnameMap.set(`${serial}-simplified`, simplifiedName);
+            
+            // Also store the simplified mapping directly with the serial
+            // This helps when the device is referenced by serial but needs to display the simplified name
+            hostnameMap.set(`${serial}-direct-simplified`, simplifiedName);
+            hostnameMap.set(`${serial.padStart(12, '0')}-direct-simplified`, simplifiedName);
+            console.log(`  Added direct simplified mapping for cloud device: ${serial}`);
           }
         }
       }
@@ -742,16 +748,45 @@ export async function auditPanoramaRules(
                     let allConnected = false;
                     const targets: string[] = [];
                     
+                    // Process target information
+                    if (ruleEntry.target) {
+                      // Check if the rule targets all devices in the group via negate=no
+                      if (ruleEntry.target.negate === 'no') {
+                        allConnected = true;
+                        console.log(`  Rule ${ruleName} targets all devices in the group via negate=no`);
+                      }
+                      
+                      // Check for specific device targets
+                      if (ruleEntry.target.devices?.entry) {
+                        const deviceEntries = Array.isArray(ruleEntry.target.devices.entry) 
+                          ? ruleEntry.target.devices.entry 
+                          : [ruleEntry.target.devices.entry];
+                        
+                        console.log(`  Found ${deviceEntries.length} device targets for rule ${ruleName}`);
+                        
+                        deviceEntries.forEach((device: any) => {
+                          const deviceName = device.name;
+                          if (deviceName && !targets.includes(deviceName)) {
+                            targets.push(deviceName);
+                            console.log(`  Adding direct device target ${deviceName} for rule ${ruleName}`);
+                          }
+                        });
+                      }
+                    }
+                    
                     // Process device-vsys entries if present
                     if (ruleEntry['device-vsys']?.entry) {
                       const deviceVsysEntries = Array.isArray(ruleEntry['device-vsys'].entry) 
                         ? ruleEntry['device-vsys'].entry 
                         : [ruleEntry['device-vsys'].entry];
                       
+                      console.log(`  Found ${deviceVsysEntries.length} device-vsys entries for rule ${ruleName}`);
+                      
                       // First pass: check if any entry has all-connected=yes and collect timestamps
                       deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
                         if (vsysEntry['all-connected'] === 'yes') {
                           allConnected = true;
+                          console.log(`  Rule ${ruleName} targets all devices via all-connected=yes`);
                         }
                         
                         const hitCount = parseHitCount(vsysEntry['hit-count']);
@@ -779,6 +814,8 @@ export async function auditPanoramaRules(
                         deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
                           const entryName = getVsysEntryName(vsysEntry);
                           if (entryName) {
+                            console.log(`  Processing device-vsys entry: ${entryName}`);
+                            
                             // Handle different formats of device-vsys entry names
                             // Format 1: "vsys1/DEVICEID"
                             // Format 2: "DEVICEID/vsys1"
@@ -800,9 +837,16 @@ export async function auditPanoramaRules(
                               deviceId = parts[0]; // Format 3
                             }
                             
-                            if (deviceId && !targets.includes(deviceId)) {
-                              targets.push(deviceId);
-                              console.log(`  Adding target ${deviceId} from device-vsys entry ${entryName}`);
+                            if (deviceId) {
+                              // Try with both regular and zero-padded serial
+                              const paddedDeviceId = deviceId.padStart(12, '0');
+                              
+                              if (!targets.includes(deviceId) && !targets.includes(paddedDeviceId)) {
+                                targets.push(deviceId);
+                                console.log(`  Adding target ${deviceId} from device-vsys entry ${entryName}`);
+                              }
+                            } else {
+                              console.log(`  WARNING: Could not extract device ID from device-vsys entry: ${entryName}`);
                             }
                           }
                         });
@@ -833,6 +877,8 @@ export async function auditPanoramaRules(
                           const entryName = getVsysEntryName(vsysEntry);
                           if (!entryName) return;
                           
+                          console.log(`  Processing per-device entry for UI: ${entryName}`);
+                          
                           // Handle different formats of device-vsys entry names
                           // Format 1: "vsys1/DEVICEID"
                           // Format 2: "DEVICEID/vsys1"
@@ -854,9 +900,18 @@ export async function auditPanoramaRules(
                             deviceId = parts[0]; // Format 3
                           }
                           
+                          // Try with both regular and zero-padded serial
+                          const paddedDeviceId = deviceId ? deviceId.padStart(12, '0') : '';
+                          
                           // Only include devices that are actually in our targets list
                           // This ensures we don't show devices that aren't actually targeted
-                          if (!deviceId || !targets.includes(deviceId)) return;
+                          // Check both regular and padded device IDs
+                          if (!deviceId || (!targets.includes(deviceId) && !targets.includes(paddedDeviceId))) {
+                            console.log(`  Skipping device ${deviceId} as it's not in targets list: ${targets.join(', ')}`);
+                            return;
+                          }
+                          
+                          console.log(`  Including device ${deviceId} in UI entries`);
                           
                           const perTarget: PanoramaRuleUseEntry = {
                           devicegroup: dgName,
@@ -1086,9 +1141,41 @@ export async function auditPanoramaRules(
             existingTarget.lastHitDate = entry.lastused;
           }
         } else {
+          // Try to get the display name using various mappings
+          let displayName = hostnameMap.get(targetName);
+          
+          // If no direct match, try with zero-padded serial
+          if (!displayName) {
+            const paddedTargetName = targetName.padStart(12, '0');
+            displayName = hostnameMap.get(paddedTargetName);
+          }
+          
+          // If still no match, try with direct simplified mapping
+          if (!displayName) {
+            displayName = hostnameMap.get(`${targetName}-direct-simplified`);
+          }
+          
+          // If still no match, try with padded direct simplified mapping
+          if (!displayName) {
+            const paddedTargetName = targetName.padStart(12, '0');
+            displayName = hostnameMap.get(`${paddedTargetName}-direct-simplified`);
+          }
+          
+          // If still no match, try with simplified mapping
+          if (!displayName) {
+            displayName = hostnameMap.get(`${targetName}-simplified`);
+          }
+          
+          // Log the hostname resolution for debugging
+          if (displayName) {
+            console.log(`  Resolved target ${targetName} to hostname ${displayName}`);
+          } else {
+            console.log(`  WARNING: Could not resolve hostname for target ${targetName}`);
+          }
+          
           rule.targets.push({
             name: targetName,
-            displayName: hostnameMap.get(targetName) || undefined,
+            displayName: displayName || undefined,
             hasHits: entryHitCount > 0,
             hitCount: entryHitCount,
             haPartner: haMap.get(targetName) || undefined,
