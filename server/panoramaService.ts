@@ -327,10 +327,19 @@ function hasProtectTag(rule: any): boolean {
   return false;
 }
 
+export interface RuleStatistics {
+  totalRules: number;
+  activeRules?: number;
+  disabledRules?: number;
+  permanentlyDisabledRules?: number;
+  temporarilyDisabledRules?: number;
+}
+
 export interface AuditResult {
   rules: PanoramaRule[];
   deviceGroups: string[];
   rulesProcessed: number;
+  statistics?: RuleStatistics;
 }
 
 export async function auditPanoramaRules(
@@ -1314,12 +1323,35 @@ export async function auditPanoramaRules(
       }
     });
 
+    // Calculate rule statistics
+    let totalRules = processedRules.length;
+    let disabledRules = 0;
+    let activeRules = 0;
+    
+    processedRules.forEach(rule => {
+      if (rule.disabled) {
+        disabledRules++;
+      } else {
+        activeRules++;
+      }
+    });
+    
+    console.log(`\nRule Statistics:`);
+    console.log(`Total Rules: ${totalRules}`);
+    console.log(`Active Rules: ${activeRules}`);
+    console.log(`Disabled Rules: ${disabledRules}`);
+    
     console.log(`Returning ${processedRules.length} unused rules and ${deviceGroups.length} device groups (${rulesProcessed} rules processed):`, deviceGroups);
     
     return {
       rules: processedRules,
       deviceGroups: deviceGroups,
-      rulesProcessed
+      rulesProcessed,
+      statistics: {
+        totalRules,
+        activeRules,
+        disabledRules
+      }
     };
   } catch (error) {
     console.error('Panorama API error:', error);
@@ -1578,13 +1610,42 @@ export async function auditDisabledRules(
     }
 
     const deviceGroups = [...new Set(disabledRules.map((r) => r.deviceGroup))].sort();
+    // Calculate rule statistics
+    let totalRules = disabledRules.length;
+    let permanentlyDisabledRules = 0;
+    let temporarilyDisabledRules = 0;
+    
+    disabledRules.forEach(rule => {
+      // Check if the rule has been disabled for a very long time (>90 days)
+      // which suggests it's permanently disabled rather than temporarily
+      const disabledDate = rule.disabledDate ? new Date(rule.disabledDate) : null;
+      const now = new Date();
+      const daysDiff = disabledDate ? Math.floor((now.getTime() - disabledDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+      
+      if (daysDiff > 90) {
+        permanentlyDisabledRules++;
+      } else {
+        temporarilyDisabledRules++;
+      }
+    });
+    
+    console.log(`\nDisabled Rule Statistics:`);
+    console.log(`Total Disabled Rules: ${totalRules}`);
+    console.log(`Permanently Disabled Rules (>90 days): ${permanentlyDisabledRules}`);
+    console.log(`Temporarily Disabled Rules: ${temporarilyDisabledRules}`);
+    
     console.log(`\nFound ${disabledRules.length} rules disabled for more than ${disabledDays} days across ${deviceGroups.length} device groups (${rulesProcessed} rules processed)`);
     onProgress?.(`Found ${disabledRules.length} rules disabled for more than ${disabledDays} days`);
     
     return {
       rules: disabledRules,
       deviceGroups: deviceGroups,
-      rulesProcessed
+      rulesProcessed,
+      statistics: {
+        totalRules,
+        permanentlyDisabledRules,
+        temporarilyDisabledRules
+      }
     };
   } catch (error) {
     console.error('Panorama API error:', error);
