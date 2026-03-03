@@ -1244,28 +1244,58 @@ export async function auditPanoramaRules(
           // This ensures targets with recent hits are not marked for untargeting
           const isUnused = targetLastHit < unusedThreshold && target.hitCount === 0;
 
-          if (target.haPartner) {
-            const partner = rule.targets.find(t => t.name === target.haPartner);
+          // Check if this target has an HA partner - either directly set or via the haMap
+          const partnerName = target.haPartner || haMap.get(target.name);
+          if (partnerName) {
+            // Log the HA partner relationship for debugging
+            console.log(`  Target ${target.name} (${target.displayName || 'unknown'}) has HA partner: ${partnerName}`);
+            
+            // Find the partner in the rule targets
+            const partner = rule.targets.find(t => t.name === partnerName);
             if (partner) {
+              console.log(`  Found partner ${partnerName} (${partner.displayName || 'unknown'}) in rule targets`);
+              
               const partnerLastHit = partner.lastHitDate
                 ? new Date(partner.lastHitDate)
                 : new Date(rule.lastHitDate);
               const partnerIsUnused = partnerLastHit < unusedThreshold && partner.hitCount === 0;
+              
+              console.log(`  Target ${target.name}: isUnused=${isUnused}, Partner ${partnerName}: isUnused=${partnerIsUnused}`);
 
               if (!isUnused || !partnerIsUnused) {
                 // At least one of the HA pair has been hit recently → HA-protected
                 firewallsToUntarget.delete(target.name);
-                firewallsToUntarget.delete(partner.name);
+                firewallsToUntarget.delete(partnerName);
                 hasHAProtection = true;
+                console.log(`  HA protection applied: ${target.name} and ${partnerName} will not be untargeted`);
               } else {
                 // Both sides of the HA pair are unused within the threshold
                 firewallsToUntarget.add(target.name);
-                firewallsToUntarget.add(partner.name);
+                firewallsToUntarget.add(partnerName);
+                console.log(`  Both HA partners unused: ${target.name} and ${partnerName} will be untargeted`);
               }
               processed.add(target.name);
-              processed.add(partner.name);
+              processed.add(partnerName);
             } else {
-              if (isUnused) firewallsToUntarget.add(target.name);
+              // Partner is not in the rule targets - check if it's in the actual targets
+              console.log(`  Partner ${partnerName} not found in rule targets - checking if it's in actual targets`);
+              
+              // If the partner is in the actual targets, we should still apply HA protection
+              if (actualTargets.has(partnerName)) {
+                console.log(`  Partner ${partnerName} found in actual targets - applying HA protection`);
+                if (isUnused) {
+                  // We don't know if the partner is used or not, so we'll be conservative and not untarget
+                  firewallsToUntarget.delete(target.name);
+                  hasHAProtection = true;
+                  console.log(`  HA protection applied: ${target.name} will not be untargeted (partner in actual targets)`);
+                }
+              } else {
+                // Partner is not in actual targets, so handle this target normally
+                if (isUnused) {
+                  firewallsToUntarget.add(target.name);
+                  console.log(`  Target ${target.name} is unused and partner not in targets - will be untargeted`);
+                }
+              }
               processed.add(target.name);
             }
           } else {
@@ -1310,6 +1340,20 @@ export async function auditPanoramaRules(
       } else if (rule.target) {
         actualTargets.add(rule.target);
       }
+      
+      // Also add any HA partners to the actual targets set
+      // This ensures that if one device in an HA pair is targeted, its partner is also considered
+      const haPartners = new Set<string>();
+      actualTargets.forEach(target => {
+        const partner = haMap.get(target);
+        if (partner) {
+          haPartners.add(partner);
+          console.log(`  Adding HA partner ${partner} for target ${target}`);
+        }
+      });
+      
+      // Add all HA partners to the actual targets
+      haPartners.forEach(partner => actualTargets.add(partner));
       
       console.log(`Rule "${rule.name}" in "${rule.deviceGroup}" has actual targets: ${Array.from(actualTargets).join(', ')}`);
       
