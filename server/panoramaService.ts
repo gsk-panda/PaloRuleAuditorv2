@@ -60,8 +60,16 @@ interface PanoramaDeviceVsysEntry {
 }
 
 function getVsysEntryName(vsysEntry: PanoramaDeviceVsysEntry): string | undefined {
+  // Try multiple possible locations for the name
   const attr = (vsysEntry as Record<string, unknown>)['@_name'];
-  return vsysEntry.name ?? (typeof attr === 'string' ? attr : undefined);
+  const name = vsysEntry.name ?? (typeof attr === 'string' ? attr : undefined);
+  
+  // Debug log to help diagnose device-vsys entry name issues
+  if (name) {
+    console.log(`  Found device-vsys entry name: ${name}`);
+  }
+  
+  return name;
 }
 
 function parseTs(val: unknown): number | undefined {
@@ -771,8 +779,27 @@ export async function auditPanoramaRules(
                         deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
                           const entryName = getVsysEntryName(vsysEntry);
                           if (entryName) {
+                            // Handle different formats of device-vsys entry names
+                            // Format 1: "vsys1/DEVICEID"
+                            // Format 2: "DEVICEID/vsys1"
+                            // Format 3: "DEVICEID"
                             const parts = entryName.split('/');
-                            const deviceId = parts.length >= 2 ? parts[1] : parts[0];
+                            
+                            let deviceId;
+                            if (parts.length >= 2) {
+                              // Check which part is likely the device ID (not vsys)
+                              if (parts[0].toLowerCase().startsWith('vsys')) {
+                                deviceId = parts[1]; // Format 1
+                              } else if (parts[1].toLowerCase().startsWith('vsys')) {
+                                deviceId = parts[0]; // Format 2
+                              } else {
+                                // If neither part starts with 'vsys', use the second part as a fallback
+                                deviceId = parts[1];
+                              }
+                            } else {
+                              deviceId = parts[0]; // Format 3
+                            }
+                            
                             if (deviceId && !targets.includes(deviceId)) {
                               targets.push(deviceId);
                               console.log(`  Adding target ${deviceId} from device-vsys entry ${entryName}`);
@@ -806,8 +833,26 @@ export async function auditPanoramaRules(
                           const entryName = getVsysEntryName(vsysEntry);
                           if (!entryName) return;
                           
+                          // Handle different formats of device-vsys entry names
+                          // Format 1: "vsys1/DEVICEID"
+                          // Format 2: "DEVICEID/vsys1"
+                          // Format 3: "DEVICEID"
                           const parts = entryName.split('/');
-                          const deviceId = parts.length >= 2 ? parts[1] : parts[0];
+                          
+                          let deviceId;
+                          if (parts.length >= 2) {
+                            // Check which part is likely the device ID (not vsys)
+                            if (parts[0].toLowerCase().startsWith('vsys')) {
+                              deviceId = parts[1]; // Format 1
+                            } else if (parts[1].toLowerCase().startsWith('vsys')) {
+                              deviceId = parts[0]; // Format 2
+                            } else {
+                              // If neither part starts with 'vsys', use the second part as a fallback
+                              deviceId = parts[1];
+                            }
+                          } else {
+                            deviceId = parts[0]; // Format 3
+                          }
                           
                           // Only include devices that are actually in our targets list
                           // This ensures we don't show devices that aren't actually targeted
