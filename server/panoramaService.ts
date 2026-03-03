@@ -1087,7 +1087,10 @@ export async function auditPanoramaRules(
           const targetLastHit = target.lastHitDate
             ? new Date(target.lastHitDate)
             : new Date(rule.lastHitDate);
-          const isUnused = targetLastHit < unusedThreshold;
+          
+          // Consider a target used if it has hits AND the last hit date is within the threshold
+          // This ensures targets with recent hits are not marked for untargeting
+          const isUnused = targetLastHit < unusedThreshold && target.hitCount === 0;
 
           if (target.haPartner) {
             const partner = rule.targets.find(t => t.name === target.haPartner);
@@ -1095,7 +1098,7 @@ export async function auditPanoramaRules(
               const partnerLastHit = partner.lastHitDate
                 ? new Date(partner.lastHitDate)
                 : new Date(rule.lastHitDate);
-              const partnerIsUnused = partnerLastHit < unusedThreshold;
+              const partnerIsUnused = partnerLastHit < unusedThreshold && partner.hitCount === 0;
 
               if (!isUnused || !partnerIsUnused) {
                 // At least one of the HA pair has been hit recently → HA-protected
@@ -1125,7 +1128,8 @@ export async function auditPanoramaRules(
       let isRuleUnused = false;
       if (isAnyTargetRule) {
         const ruleLastHit = new Date(rule.lastHitDate);
-        isRuleUnused = ruleLastHit < unusedThreshold;
+        // For 'any' target rules, consider unused only if no hits AND last hit date is old
+        isRuleUnused = ruleLastHit < unusedThreshold && rule.totalHits === 0;
       }
 
       const protectedKey = `${rule.deviceGroup}:${rule.name}`;
