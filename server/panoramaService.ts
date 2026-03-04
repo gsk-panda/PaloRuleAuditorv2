@@ -1323,8 +1323,9 @@ export async function auditPanoramaRules(
         // Only use DISABLE for 'any' target rules that are unused
         rule.action = 'DISABLE';
       } else if (!isAnyTargetRule && firewallsToUntarget.size > 0) {
-        // For rules with specific targets, always use UNTARGET if any targets are unused
-        // This ensures we don't recommend disabling rules that could be partially kept
+        // For rules with specific targets, use UNTARGET only if there are actual targets to untarget
+        // and those targets are actually configured in Panorama
+        console.log(`  Rule has ${firewallsToUntarget.size} firewalls to untarget: ${Array.from(firewallsToUntarget).join(', ')}`);
         rule.action = 'UNTARGET';
       } else {
         rule.action = 'KEEP';
@@ -1362,7 +1363,20 @@ export async function auditPanoramaRules(
         target.name === 'all' || actualTargets.has(target.name)
       );
       
+      // Also make sure firewallsToUntarget only includes devices that are actually targeted
+      // This is critical to prevent showing untarget recommendations for non-targeted devices
+      const untargetableFirewalls = new Set<string>();
+      firewallsToUntarget.forEach(fw => {
+        if (actualTargets.has(fw)) {
+          untargetableFirewalls.add(fw);
+        } else {
+          console.log(`  Removing ${fw} from firewallsToUntarget as it's not actually targeted by this rule`);
+        }
+      });
+      firewallsToUntarget = untargetableFirewalls;
+      
       console.log(`After filtering for actual targets: ${rule.targets.length} targets remain`);
+      console.log(`After filtering firewallsToUntarget: ${firewallsToUntarget.size} firewalls to untarget remain`);
       
       // Mark individual targets that will be removed so the UI can highlight them in red
       rule.targets.forEach(target => {
@@ -1390,11 +1404,29 @@ export async function auditPanoramaRules(
         
         // Only keep targets that are actually targeted in Panorama AND marked for removal
         // This ensures we don't show devices that aren't actually targeted
-        rule.targets = rule.targets.filter(target => 
-          target.name !== 'all' && target.toBeRemoved === true
-        );
+        rule.targets = rule.targets.filter(target => {
+          // Skip 'all' targets as they're not real devices
+          if (target.name === 'all') return false;
+          
+          // Only include targets that are actually configured in Panorama AND marked for removal
+          const isActualTarget = actualTargets.has(target.name);
+          const isMarkedForRemoval = target.toBeRemoved === true;
+          
+          if (isMarkedForRemoval && !isActualTarget) {
+            console.log(`  Removing target ${target.name} from display as it's not actually targeted by this rule`);
+            return false;
+          }
+          
+          return isMarkedForRemoval;
+        });
         
         console.log(`  After filtering: ${rule.targets.length} targets remain`);
+        
+        // If we have no targets left after filtering, change the action to KEEP
+        if (rule.targets.length === 0) {
+          console.log(`  No targets remain after filtering, changing action from UNTARGET to KEEP`);
+          rule.action = 'KEEP';
+        }
       }
     });
 
