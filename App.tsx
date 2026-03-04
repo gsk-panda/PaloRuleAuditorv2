@@ -305,9 +305,12 @@ const App: React.FC = () => {
       (auditMode === 'disabled' ? r.action === 'DISABLE' : r.action === 'DISABLE' || r.action === 'UNTARGET')
     );
     if (!toProcess.length) { showToast('No rules selected', 'warning'); return; }
+    // Count only the selected rules that will be processed
+    const selectedRuleCount = toProcess.length;
+    
     setConfirmModal({
       title: 'Confirm Remediation',
-      message: `This will ${auditMode === 'disabled' ? 'permanently delete' : 'disable/untarget and tag'} ${toProcess.length} rule(s) in Panorama and commit. This cannot be undone.`,
+      message: `This will ${auditMode === 'disabled' ? 'permanently delete' : 'disable/untarget and tag'} ${selectedRuleCount} rule(s) in Panorama and commit. This cannot be undone.`,
       confirmLabel: auditMode === 'disabled' ? 'Delete Rules' : 'Apply Changes',
       danger: true,
       onConfirm: () => { setConfirmModal(null); executeRemediation(toProcess); },
