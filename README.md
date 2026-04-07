@@ -229,6 +229,25 @@ The script will:
 
 These values are stored securely in `/opt/PaloRuleAuditor/.config` and can be updated later.
 
+#### Apache Installation with SAML Authentication
+
+For deployment with SAML authentication (e.g., at `https://panovision.sncorp.com/audit`), use:
+
+```bash
+sudo chmod +x install-saml-apache.sh
+sudo ./install-saml-apache.sh
+```
+
+This script will:
+- Run the base Apache installation
+- Install and configure `mod_auth_mellon` for SAML authentication
+- Generate Service Provider (SP) metadata
+- Prompt for Identity Provider (IdP) metadata
+- Configure Apache with SAML protection for all `/audit` paths
+- Set up user attribute mapping (username, email, displayName)
+
+**For complete SAML setup instructions, see [SAML_DEPLOYMENT_GUIDE.md](SAML_DEPLOYMENT_GUIDE.md)**
+
 After installation:
 
 ```bash
@@ -650,27 +669,35 @@ The application follows a client-server architecture:
    API Call: GET /api/?type=config&action=get
    XPath: /config/devices/entry[@name='localhost.localdomain']/
           device-group/entry[@name='{dgName}']/pre-rulebase/security/rules
+   AND
+   XPath: /config/devices/entry[@name='localhost.localdomain']/
+          device-group/entry[@name='{dgName}']/post-rulebase/security/rules
    ```
-   - Fetches all pre-rulebase security rules
+   - Fetches all pre-rulebase AND post-rulebase security rules
    - **Filters IN only rules where `<disabled>yes</disabled>`**
-   - Extracts rule names
+   - Extracts rule names and tags
+   - Looks for `disabled-YYYYMMDD` tags on each rule
+   - If multiple `disabled-YYYYMMDD` tags exist, uses the oldest date
 
-7. **Rule Hit Count Query for Disabled Rules** (one rule per API call)
+7. **Rule Hit Count Query for Disabled Rules** (batch with fallback)
    ```
    API Call: GET /api/?type=op&cmd={xmlCommand}&key={apiKey}
    ```
-   - Same XML command structure as unused rules; one rule per request
-   - Queries `rule-hit-count` API for each disabled rule
-   - Extracts `rule-modification-timestamp` (represents when rule was disabled)
+   - Same batch strategy as unused rules with duplicate-node fallback
+   - Queries `rule-hit-count` API for disabled rules
+   - Extracts hit counts for display purposes
 
 8. **Date Evaluation**
    - Calculates `disabledThreshold` date: `now - disabledDays`
-   - Compares `rule-modification-timestamp` against threshold
-   - Only includes rules disabled longer than threshold
+   - Extracts date from `disabled-YYYYMMDD` tag (e.g., `disabled-20250822` → August 22, 2025)
+   - Compares tag date against threshold
+   - Only includes rules with `disabled-YYYYMMDD` tags older than threshold
+   - Rules without `disabled-YYYYMMDD` tags are skipped (not included in results)
 
 9. **Action Assignment**
-   - All disabled rules are marked with `action = "DISABLE"`
-   - This indicates they are candidates for deletion (not disable)
+   - Rules with `disabled-YYYYMMDD` tags older than threshold → `action = "DELETE"`
+   - Rules with "PROTECT" tag → `action = "PROTECTED"` (excluded from deletion)
+   - Rules with `disabled-YYYYMMDD` tags within threshold → not included in results
 
 #### Phase 4-5: Same response and display flow
 
@@ -725,8 +752,13 @@ The application follows a client-server architecture:
    XPath: /config/devices/entry[@name='localhost.localdomain']/
           device-group/entry[@name='{dgName}']/pre-rulebase/security/rules/
           entry[@name='{ruleName}']
+   OR
+   XPath: /config/devices/entry[@name='localhost.localdomain']/
+          device-group/entry[@name='{dgName}']/post-rulebase/security/rules/
+          entry[@name='{ruleName}']
    ```
-   - Deletes rule permanently
+   - Deletes rule permanently from pre-rulebase or post-rulebase
+   - Only deletes rules with `disabled-YYYYMMDD` tags older than threshold
    - Increments `deletedCount`
 
    **For Unused Rules (Disable Mode):**
@@ -1613,5 +1645,7 @@ For issues, questions, or feature requests:
 - **[DOCKER_SETUP.md](./DOCKER_SETUP.md)**: Docker and Docker Compose setup, environment variables, and troubleshooting
 - **[DEPLOYMENT_UPDATE.md](./DEPLOYMENT_UPDATE.md)**: Updating an existing installation, rollback procedures
 - **[APACHE_DEPLOYMENT.md](./APACHE_DEPLOYMENT.md)**: Deploying behind Apache (e.g. RHEL 9 with install-apache-rhel9.sh)
+- **[SAML_DEPLOYMENT_GUIDE.md](./SAML_DEPLOYMENT_GUIDE.md)**: Complete guide for SAML-protected Apache deployment on RHEL 9.7
 - **[TECHNICAL_DOCUMENTATION.md](./TECHNICAL_DOCUMENTATION.md)**: Data flow, API integration, processing algorithms, error handling, performance, security
 - **[SINGLE_FIREWALL_MIGRATION.md](./SINGLE_FIREWALL_MIGRATION.md)**: Adapting the application for single Palo Alto firewalls instead of Panorama
+- **[CHANGELOG_DISABLED_RULES.md](./CHANGELOG_DISABLED_RULES.md)**: Disabled rules logic update changelog (April 6, 2026)

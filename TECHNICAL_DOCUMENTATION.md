@@ -83,7 +83,7 @@ PaloRuleAuditor/
 
 **Responsibilities:**
 - Display individual rule information in the audit table
-- Render action badges (color-coded: red=DISABLE, amber=UNTARGET, blue=HA-PROTECTED, purple=PROTECTED, gray=IGNORE, green=KEEP)
+- Render action badges (color-coded: red=DISABLE/DELETE, amber=UNTARGET, blue=HA-PROTECTED, purple=PROTECTED, gray=IGNORE, green=KEEP)
 - Show target status with HA pair awareness — HA pairs grouped with a `↔` separator
 - Display hostnames via `FirewallTarget.displayName` (falls back to serial if `displayName` is undefined)
 - Show "Created" column from `PanoramaRule.createdDate`
@@ -138,7 +138,8 @@ const TargetChip: React.FC<{ name: string; displayName?: string; hasHits: boolea
 **Functions:**
 - `fetchDeviceHostnameMap(panoramaUrl, apiKey)`: Queries `<show><devices><connected/></devices></show>` and builds a `Map<serial, hostname>`. Stores both raw (no leading zero) and 12-digit zero-padded serial forms to handle `fast-xml-parser` leading-zero stripping.
 - `auditPanoramaRules(panoramaUrl, apiKey, unusedDays, haPairs)`: Main audit function for unused rules
-- `auditDisabledRules(panoramaUrl, apiKey, disabledDays)`: Audit function for disabled rules
+- `auditDisabledRules(panoramaUrl, apiKey, disabledDays)`: Audit function for disabled rules - scans both pre-rulebase and post-rulebase, extracts `disabled-YYYYMMDD` tags, uses oldest tag date when multiple exist, marks rules for DELETE when tag date is older than threshold
+- `extractDisabledTagDate(rule)`: Extracts the oldest `disabled-YYYYMMDD` tag from a rule's tags, returns ISO date string
 
 **Key Operations:**
 - Device hostname resolution (serial → hostname via connected-devices API)
@@ -557,6 +558,65 @@ function filterRules(rules: any[], sharedRuleNames: Set<string>) {
     
     return true;
   });
+}
+```
+
+### Disabled Rules Tag Extraction Algorithm
+
+The disabled rules audit uses `disabled-YYYYMMDD` tags to determine when a rule was disabled. When multiple such tags exist on a rule, the **oldest** date is used.
+
+```typescript
+function extractDisabledTagDate(rule: any): string | undefined {
+  const ruleName = rule.name || rule['@_name'];
+  
+  // Extract all tags from the rule
+  const members = rule.tag?.member
+    ? (Array.isArray(rule.tag.member) ? rule.tag.member : [rule.tag.member])
+    : [];
+  
+  let oldestDate: Date | undefined;
+  let oldestDateStr: string | undefined;
+  
+  // Find all disabled-YYYYMMDD tags
+  for (const m of members) {
+    const val = String(typeof m === 'string' ? m : (m._text ?? m));
+    const match = val.match(/^disabled-(\d{4})(\d{2})(\d{2})$/i);
+    
+    if (match) {
+      // Parse date: disabled-20250822 → 2025-08-22
+      const dateStr = `${match[1]}-${match[2]}-${match[3]}T00:00:00Z`;
+      const date = new Date(dateStr);
+      
+      // Keep track of the oldest date
+      if (!oldestDate || date < oldestDate) {
+        oldestDate = date;
+        oldestDateStr = date.toISOString();
+      }
+    }
+  }
+  
+  return oldestDateStr;
+}
+```
+
+**Key Features:**
+- Scans both pre-rulebase and post-rulebase rules
+- Handles multiple `disabled-YYYYMMDD` tags by selecting the oldest
+- Case-insensitive tag matching (`disabled-` or `DISABLED-`)
+- Returns ISO date string for threshold comparison
+- Rules without `disabled-YYYYMMDD` tags are excluded from results
+
+**Action Assignment:**
+```typescript
+const disabledThreshold = new Date(Date.now() - disabledDays * 86_400_000);
+const disabledTagDate = new Date(disabledTagDateStr);
+
+if (protectedRuleSet.has(`${dgName}:${ruleName}`)) {
+  action = 'PROTECTED';  // Rule has PROTECT tag
+} else if (disabledTagDate < disabledThreshold) {
+  action = 'DELETE';     // Tag date older than threshold
+} else {
+  // Tag date within threshold - not included in results
 }
 ```
 
