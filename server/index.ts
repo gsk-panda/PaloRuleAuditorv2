@@ -9,7 +9,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
-import { logger } from './debug-logger';
+import { logger } from './debug-logger.js';
 
 // Enable file logging with date-based log file name
 logger.enableFileLogging();
