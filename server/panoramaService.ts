@@ -1,6 +1,7 @@
-import { PanoramaRule, HAPair } from '../types.js';
+﻿import { PanoramaRule, HAPair } from '../types.js';
 import { XMLParser } from 'fast-xml-parser';
 import { getHitCountsViaSsh, type PanoramaSshConfig } from './panoramaSsh.js';
+import { logger } from './debug-logger.js';
 
 interface PanoramaRuleUseEntry {
   rulebase?: string;
@@ -143,14 +144,14 @@ function extractTopLevelEntryNames(xml: string): string[] {
  * Fetch all device group names from Panorama config.
  *
  * Uses `action=get` on the device-group XPath and parses the raw XML with a
- * depth-aware character parser — this correctly returns ALL device groups
+ * depth-aware character parser â€” this correctly returns ALL device groups
  * (including those with no connected firewalls) regardless of how complex
  * their nested content is.
  *
  * The `show devicegroups` op command only returns groups with currently
  * connected/managed devices, so it is NOT used here.
  */
-/** Fetches a map of device serial → hostname from Panorama's connected device list. */
+/** Fetches a map of device serial â†’ hostname from Panorama's connected device list. */
 async function fetchDeviceHostnameMap(panoramaUrl: string, apiKey: string): Promise<Map<string, string>> {
   const hostnameMap = new Map<string, string>();
   try {
@@ -180,7 +181,7 @@ async function fetchDeviceHostnameMap(panoramaUrl: string, apiKey: string): Prom
           if (hostname.includes('GovCloud') || 
               (hostname.includes('Gov') && (hostname.includes('AWS') || hostname.includes('Azure')))) {
             // Store the hostname directly with the serial for GovCloud devices
-            console.log(`  Adding direct mapping for GovCloud device: ${serial} → ${hostname}`);
+            console.log(`  Adding direct mapping for GovCloud device: ${serial} â†’ ${hostname}`);
             // Store both with the original serial and zero-padded serial
             hostnameMap.set(serial, hostname);
             hostnameMap.set(serial.padStart(12, '0'), hostname);
@@ -195,7 +196,7 @@ async function fetchDeviceHostnameMap(panoramaUrl: string, apiKey: string): Prom
             .trim();
           
           if (simplifiedName !== hostname) {
-            console.log(`  Adding simplified mapping for cloud device: ${serial} → ${simplifiedName} (original: ${hostname})`);
+            console.log(`  Adding simplified mapping for cloud device: ${serial} â†’ ${simplifiedName} (original: ${hostname})`);
             hostnameMap.set(`${serial}-simplified`, simplifiedName);
             
             // Also store the simplified mapping directly with the serial
@@ -211,7 +212,7 @@ async function fetchDeviceHostnameMap(panoramaUrl: string, apiKey: string): Prom
     hostnameMap.forEach((h, s) => {
       // Don't log simplified mappings to avoid cluttering the console
       if (!s.endsWith('-simplified')) {
-        console.log(`    ${s} → ${h}`);
+        console.log(`    ${s} â†’ ${h}`);
       }
     });
   } catch (err) {
@@ -305,20 +306,45 @@ export async function fetchConfigPaginated(
   return { response: { result: merged } };
 }
 
-/** Extracts the date from a disabled-YYYYMMDD tag, returns ISO string or undefined. */
+/** Extracts the OLDEST date from disabled-YYYYMMDD tags, returns ISO string or undefined. */
 function extractDisabledTagDate(rule: any): string | undefined {
-  if (!rule.tag) return undefined;
+  const ruleName = rule.name || rule['@_name'];
+  if (!rule.tag) {
+    console.log(`    [extractDisabledTagDate] Rule "${ruleName}" has no tag field`);
+    return undefined;
+  }
   const members = rule.tag.member
     ? (Array.isArray(rule.tag.member) ? rule.tag.member : [rule.tag.member])
     : [];
+  
+  console.log(`    [extractDisabledTagDate] Rule "${ruleName}" has ${members.length} tags:`, members.map((m: any) => String(typeof m === 'string' ? m : (m._text ?? m))));
+  
+  let oldestDate: Date | undefined;
+  let oldestDateStr: string | undefined;
+  const disabledTags: string[] = [];
+  
   for (const m of members) {
     const val = String(typeof m === 'string' ? m : (m._text ?? m));
     const match = val.match(/^disabled-(\d{4})(\d{2})(\d{2})$/i);
     if (match) {
-      return new Date(`${match[1]}-${match[2]}-${match[3]}T00:00:00Z`).toISOString();
+      disabledTags.push(val);
+      const dateStr = `${match[1]}-${match[2]}-${match[3]}T00:00:00Z`;
+      const date = new Date(dateStr);
+      
+      if (!oldestDate || date < oldestDate) {
+        oldestDate = date;
+        oldestDateStr = date.toISOString();
+      }
     }
   }
-  return undefined;
+  
+  if (disabledTags.length > 0) {
+    console.log(`    [extractDisabledTagDate] Rule "${ruleName}" has ${disabledTags.length} disabled tags: ${disabledTags.join(', ')} -> using oldest: ${oldestDate?.toLocaleDateString()}`);
+  } else {
+    console.log(`    [extractDisabledTagDate] Rule "${ruleName}" has NO disabled-YYYYMMDD tags`);
+  }
+  
+  return oldestDateStr;
 }
 
 function hasProtectTag(rule: any): boolean {
@@ -370,11 +396,11 @@ export async function auditPanoramaRules(
 
     const panoramaDeviceName = 'localhost.localdomain';
 
-    // Fetch serial → hostname map for display names
+    // Fetch serial â†’ hostname map for display names
     const hostnameMap = await fetchDeviceHostnameMap(panoramaUrl, apiKey);
 
     // Extend haMap with serial-keyed entries so that per-target lookups work correctly.
-    // Users configure HA pairs by hostname (e.g. "Corp" ↔ "Corp-2"), but target.name is
+    // Users configure HA pairs by hostname (e.g. "Corp" â†” "Corp-2"), but target.name is
     // the device serial extracted from device-vsys entry names (e.g. "001234567890").
     // Without this, haMap.get(serial) always returns undefined and haPartner is never set,
     // so the HA-PROTECTED branch in action determination never fires.
@@ -419,7 +445,7 @@ export async function auditPanoramaRules(
       
       // If direct lookup fails, try partial matching for cloud devices (AWS, Azure, GovCloud)
       if (!serial1 || !serial2) {
-        console.log(`  Attempting partial matching for HA pair "${pair.fw1}" ↔ "${pair.fw2}"`);
+        console.log(`  Attempting partial matching for HA pair "${pair.fw1}" â†” "${pair.fw2}"`);
         
         // For each serial, check if any of its hostnames contain the HA pair name
         serialToHostnames.forEach((hostnames, serial) => {
@@ -476,9 +502,9 @@ export async function auditPanoramaRules(
       if (serial1 && serial2) {
         haMap.set(serial1, serial2);
         haMap.set(serial2, serial1);
-        console.log(`  HA pair (serial-mapped): ${pair.fw1} (${serial1}) ↔ ${pair.fw2} (${serial2})`);
+        console.log(`  HA pair (serial-mapped): ${pair.fw1} (${serial1}) â†” ${pair.fw2} (${serial2})`);
       } else {
-        console.warn(`  HA pair "${pair.fw1}" ↔ "${pair.fw2}": could not resolve serials (${serial1 ?? 'unknown'} / ${serial2 ?? 'unknown'}) — check that both devices appear in connected-device list`);
+        console.warn(`  HA pair "${pair.fw1}" â†” "${pair.fw2}": could not resolve serials (${serial1 ?? 'unknown'} / ${serial2 ?? 'unknown'}) â€” check that both devices appear in connected-device list`);
       }
     });
 
@@ -544,7 +570,7 @@ export async function auditPanoramaRules(
           return true;
         });
 
-        // Only audit allow rules — deny/drop rules don't need usage-based cleanup
+        // Only audit allow rules â€” deny/drop rules don't need usage-based cleanup
         rules = rules.filter((rule: any) => {
           const action = rule.action;
           const actionStr = typeof action === 'string' ? action.toLowerCase() : (action?._text ?? '').toLowerCase();
@@ -639,7 +665,7 @@ export async function auditPanoramaRules(
                 const msgMatch = xmlText.match(/<msg[^>]*>([\s\S]*?)<\/msg>/);
                 const msg = msgMatch ? msgMatch[1].trim() : xmlText.substring(0, 500);
 
-                // Check for "duplicate node" — extract the conflicting rule name
+                // Check for "duplicate node" â€” extract the conflicting rule name
                 const dupMatch = msg.match(/rule-name\s*->\s*(.+?)\s+is a duplicate node/);
                 if (dupMatch) {
                   const dupRule = dupMatch[1].trim();
@@ -661,7 +687,7 @@ export async function auditPanoramaRules(
                 success = true;
               }
 
-              // Success — collect rule entries from the response
+              // Success â€” collect rule entries from the response
               const data: PanoramaResponse = parser.parse(xmlText);
               const ruleHitCount = data.response?.result?.['rule-hit-count'];
               if (ruleHitCount?.['device-group']?.entry) {
@@ -688,9 +714,9 @@ export async function auditPanoramaRules(
           }
 
           if (skippedDuplicates.size > 0) {
-            // Panorama rejects multiple <entry> elements inside <rule-name> for some device groups —
+            // Panorama rejects multiple <entry> elements inside <rule-name> for some device groups â€”
             // it works fine when each rule is queried individually. Query each one-at-a-time.
-            console.warn(`    ${skippedDuplicates.size} rule(s) with naming conflicts — querying each individually`);
+            console.warn(`    ${skippedDuplicates.size} rule(s) with naming conflicts â€” querying each individually`);
             // Log the first few rules as examples, but not all of them to avoid log spam
             const exampleRules = [...skippedDuplicates].slice(0, 3);
             if (exampleRules.length > 0) {
@@ -800,69 +826,57 @@ export async function auditPanoramaRules(
                         ? ruleEntry['device-vsys'].entry 
                         : [ruleEntry['device-vsys'].entry];
                       
+                      if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                        logger.debug('RuleProcessing', `Found ${deviceVsysEntries.length} device-vsys entries for rule ${ruleName}`);
+                      }
                       console.log(`  Found ${deviceVsysEntries.length} device-vsys entries for rule ${ruleName}`);
                       
-                      // First pass: check if any entry has all-connected=yes and collect timestamps
+                      // First pass: check if any entry has all-connected=yes
                       deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
                         if (vsysEntry['all-connected'] === 'yes') {
                           allConnected = true;
+                          if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                            logger.debug('RuleProcessing', `Rule ${ruleName} targets all devices via all-connected=yes`);
+                          }
                           console.log(`  Rule ${ruleName} targets all devices via all-connected=yes`);
-                        }
-                        
-                        const hitCount = parseHitCount(vsysEntry['hit-count']);
-                        totalHitCount += hitCount;
-                        
-                        const lastHitTs = parseTs(vsysEntry['last-hit-timestamp']);
-                        const modTs = parseTs(vsysEntry['rule-modification-timestamp']);
-                        const creationTs = parseTs(vsysEntry['rule-creation-timestamp']);
-                        
-                        if (lastHitTs !== undefined && lastHitTs > 0 && (!latestLastHitTimestamp || lastHitTs > parseInt(latestLastHitTimestamp || '0'))) {
-                          latestLastHitTimestamp = String(lastHitTs);
-                        }
-                        
-                        if (modTs !== undefined && (!latestModificationTimestamp || modTs > parseInt(latestModificationTimestamp || '0'))) {
-                          latestModificationTimestamp = String(modTs);
-                        }
-                        
-                        if (creationTs !== undefined && (!latestCreationTimestamp || creationTs > parseInt(latestCreationTimestamp || '0'))) {
-                          latestCreationTimestamp = String(creationTs);
                         }
                       });
                       
-                      // Second pass: collect targets if not targeting all devices
+                      // Second pass: collect targets from device-vsys entries if not targeting all devices
+                      // These will be filtered later against configured targets from Panorama
                       if (!allConnected) {
                         deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
                           const entryName = getVsysEntryName(vsysEntry);
                           if (entryName) {
+                            if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                              logger.debug('RuleProcessing', `Processing device-vsys entry: ${entryName}`);
+                            }
                             console.log(`  Processing device-vsys entry: ${entryName}`);
                             
                             // Handle different formats of device-vsys entry names
-                            // Format 1: "vsys1/DEVICEID"
-                            // Format 2: "DEVICEID/vsys1"
-                            // Format 3: "DEVICEID"
                             const parts = entryName.split('/');
                             
                             let deviceId;
                             if (parts.length >= 2) {
-                              // Check which part is likely the device ID (not vsys)
                               if (parts[0].toLowerCase().startsWith('vsys')) {
-                                deviceId = parts[1]; // Format 1
+                                deviceId = parts[1];
                               } else if (parts[1].toLowerCase().startsWith('vsys')) {
-                                deviceId = parts[0]; // Format 2
+                                deviceId = parts[0];
                               } else {
-                                // If neither part starts with 'vsys', use the second part as a fallback
                                 deviceId = parts[1];
                               }
                             } else {
-                              deviceId = parts[0]; // Format 3
+                              deviceId = parts[0];
                             }
                             
                             if (deviceId) {
-                              // Try with both regular and zero-padded serial
                               const paddedDeviceId = deviceId.padStart(12, '0');
                               
                               if (!targets.includes(deviceId) && !targets.includes(paddedDeviceId)) {
                                 targets.push(deviceId);
+                                if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                                  logger.debug('RuleProcessing', `Adding target ${deviceId} from device-vsys entry ${entryName}`);
+                                }
                                 console.log(`  Adding target ${deviceId} from device-vsys entry ${entryName}`);
                               }
                             } else {
@@ -874,9 +888,83 @@ export async function auditPanoramaRules(
                       
                       // If targeting all devices or no specific targets found, use 'all'
                       if (allConnected || targets.length === 0) {
-                        targets.length = 0; // Clear any partial targets
+                        targets.length = 0;
                         targets.push('all');
                       }
+                      
+                      // Third pass: collect timestamps and hit counts ONLY from targeted devices
+                      if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                        logger.debug('RuleProcessing', `Third pass for rule "${ruleName}": targets list = [${targets.join(', ')}], allConnected = ${allConnected}`);
+                      }
+                      
+                      deviceVsysEntries.forEach((vsysEntry: PanoramaDeviceVsysEntry) => {
+                        // Check if this device is actually targeted by the rule
+                        const entryName = getVsysEntryName(vsysEntry);
+                        let isTargeted = allConnected; // If all-connected, all devices are targeted
+                        
+                        if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                          logger.debug('RuleProcessing', `Third pass - examining vsysEntry: ${entryName}, allConnected=${allConnected}`);
+                        }
+                        
+                        if (!allConnected && entryName) {
+                          // Extract device ID from entry name
+                          const parts = entryName.split('/');
+                          let deviceId;
+                          if (parts.length >= 2) {
+                            if (parts[0].toLowerCase().startsWith('vsys')) {
+                              deviceId = parts[1];
+                            } else if (parts[1].toLowerCase().startsWith('vsys')) {
+                              deviceId = parts[0];
+                            } else {
+                              deviceId = parts[1];
+                            }
+                          } else {
+                            deviceId = parts[0];
+                          }
+                          
+                          // Check if this device is in the targets list
+                          if (deviceId) {
+                            const paddedDeviceId = deviceId.padStart(12, '0');
+                            isTargeted = targets.includes(deviceId) || targets.includes(paddedDeviceId);
+                            
+                            if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                              logger.debug('RuleProcessing', `Checking device ${deviceId} (padded: ${paddedDeviceId}): isTargeted = ${isTargeted}`);
+                            }
+                          }
+                        }
+                        
+                        // Only collect timestamps and hit counts from targeted devices
+                        if (isTargeted) {
+                          const hitCount = parseHitCount(vsysEntry['hit-count']);
+                          totalHitCount += hitCount;
+                          
+                          const lastHitTs = parseTs(vsysEntry['last-hit-timestamp']);
+                          const modTs = parseTs(vsysEntry['rule-modification-timestamp']);
+                          const creationTs = parseTs(vsysEntry['rule-creation-timestamp']);
+                          
+                          if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                            logger.debug('RuleProcessing', `Including device ${entryName}: lastHitTs=${lastHitTs}, lastHitDate=${lastHitTs ? new Date(lastHitTs * 1000).toISOString() : 'none'}, hitCount=${hitCount}, modTs=${modTs}, creationTs=${creationTs}`);
+                            logger.debug('RuleProcessing', `  Raw values from API: last-hit-timestamp='${vsysEntry['last-hit-timestamp']}', hit-count='${vsysEntry['hit-count']}'`);
+                          }
+                          
+                          if (lastHitTs !== undefined && lastHitTs > 0 && (!latestLastHitTimestamp || lastHitTs > parseInt(latestLastHitTimestamp || '0'))) {
+                            if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                              logger.debug('RuleProcessing', `  Updating latestLastHitTimestamp from ${latestLastHitTimestamp} to ${lastHitTs} (${new Date(lastHitTs * 1000).toISOString()})`);
+                            }
+                            latestLastHitTimestamp = String(lastHitTs);
+                          }
+                          
+                          if (modTs !== undefined && (!latestModificationTimestamp || modTs > parseInt(latestModificationTimestamp || '0'))) {
+                            latestModificationTimestamp = String(modTs);
+                          }
+                          
+                          if (creationTs !== undefined && (!latestCreationTimestamp || creationTs > parseInt(latestCreationTimestamp || '0'))) {
+                            latestCreationTimestamp = String(creationTs);
+                          }
+                        } else if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                          logger.debug('RuleProcessing', `Skipping device ${entryName}: not targeted`);
+                        }
+                      });
                       
                       // Only process per-device entries for the UI if we have specific targets
                       // This prevents showing devices that aren't actually targeted
@@ -890,6 +978,10 @@ export async function auditPanoramaRules(
                           
                           if (perDeviceHitCount > 0 && lastHitTs !== undefined && lastHitTs > 0) {
                             lastUsedDate = new Date(lastHitTs * 1000).toISOString();
+                            // Debug logging for date discrepancies
+                            if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                              logger.debug('RuleProcessing', `Rule "${ruleName}": raw last-hit-timestamp=${vsysEntry['last-hit-timestamp']}, parsed=${lastHitTs}, converted=${lastUsedDate}, hitCount=${perDeviceHitCount}`);
+                            }
                           } else if (creationTs !== undefined) {
                             lastUsedDate = new Date(creationTs * 1000).toISOString();
                           }
@@ -934,21 +1026,21 @@ export async function auditPanoramaRules(
                           console.log(`  Including device ${deviceId} in UI entries`);
                           
                           const perTarget: PanoramaRuleUseEntry = {
-                          devicegroup: dgName,
-                          rulebase: rulebaseType,
-                          rulename: ruleName,
-                          lastused: lastUsedDate,
-                          hitcnt: perDeviceHitCount.toString(),
-                          target: [deviceId],
-                          modificationTimestamp: modTs !== undefined ? String(modTs) : undefined,
-                          creationTimestamp: creationTs !== undefined ? String(creationTs) : undefined
-                        };
-                        entries.push(perTarget);
-                      });
-                      return;
+                            devicegroup: dgName,
+                            rulebase: rulebaseType,
+                            rulename: ruleName,
+                            lastused: lastUsedDate,
+                            hitcnt: perDeviceHitCount.toString(),
+                            target: [deviceId],
+                            modificationTimestamp: modTs !== undefined ? String(modTs) : undefined,
+                            creationTimestamp: creationTs !== undefined ? String(creationTs) : undefined
+                          };
+                          entries.push(perTarget);
+                        });
+                        return;
+                      }
                     }
                     
-                    let latestCreationTimestamp: string | undefined;
                     {
                       const lastHitTs = parseTs(ruleEntry['last-hit-timestamp']);
                       const modTs = parseTs(ruleEntry['rule-modification-timestamp']);
@@ -971,6 +1063,9 @@ export async function auditPanoramaRules(
                       usedTimestampLabel = ' (using creation timestamp)';
                     }
 
+                    if (ruleName === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+                      logger.debug('RuleProcessing', `FINAL for rule "${ruleName}": latestLastHitTimestamp=${latestLastHitTimestamp}, lastUsedDate=${lastUsedDate}, totalHitCount=${totalHitCount}`);
+                    }
                     console.log(`    Rule "${ruleName}": Last Hit Timestamp: ${latestLastHitTimestamp}, Creation Timestamp: ${latestCreationTimestamp}, Total Hit Count: ${totalHitCount}, Last Used: ${lastUsedDate}${usedTimestampLabel}`);
                     
                     const rule: PanoramaRuleUseEntry = {
@@ -988,7 +1083,7 @@ export async function auditPanoramaRules(
                   });
                 }
               });
-            };
+            }
 
             if (dg['pre-rulebase']?.entry) {
               processRuleBase(dg['pre-rulebase'].entry, 'pre-rulebase');
@@ -1029,7 +1124,7 @@ export async function auditPanoramaRules(
     // Determine which rules qualify for audit: a rule qualifies if AT LEAST ONE of its
     // per-target entries has a lastused date older than the threshold (or no lastused at all).
     // IMPORTANT: once a rule qualifies, ALL of its per-target entries must be included in the
-    // ruleMap — including entries for active targets (e.g. Corp with recent hits). Without this,
+    // ruleMap â€” including entries for active targets (e.g. Corp with recent hits). Without this,
     // active targets get silently dropped before the ruleMap is built, causing rules targeted to
     // "Any" to show only the inactive device and incorrectly receive a DISABLE action instead of
     // HA-PROTECTED / UNTARGET.
@@ -1217,10 +1312,72 @@ export async function auditPanoramaRules(
       }
     });
 
+    // Step: Fetch actual rule configurations from Panorama to get the real configured targets
+    console.log(`\nStep: Fetching actual rule configurations from Panorama for target validation...`);
+    const ruleConfigMap = new Map<string, Set<string>>(); // Map of "devicegroup:rulename" -> Set of configured device names
+    
+    for (const dgName of deviceGroupNames) {
+      try {
+        const preRulesXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules`;
+        const preConfigData = await fetchConfigPaginated(panoramaUrl, apiKey, preRulesXpath);
+        const result = preConfigData.response?.result;
+        let rules: any[] = [];
+        
+        if (result?.rules?.entry) {
+          rules = Array.isArray(result.rules.entry) ? result.rules.entry : [result.rules.entry];
+        } else if (result?.entry?.rules?.entry) {
+          rules = Array.isArray(result.entry.rules.entry) ? result.entry.rules.entry : [result.entry.rules.entry];
+        }
+        
+        rules.forEach((ruleConfig: any) => {
+          const ruleName = ruleConfig.name || ruleConfig['@_name'];
+          if (!ruleName) return;
+          
+          const ruleKey = `${dgName}:${ruleName}`;
+          const configuredTargets = new Set<string>();
+          
+          // Extract configured device targets from the rule configuration
+          if (ruleConfig.target) {
+            // Extract specific device targets first
+            if (ruleConfig.target.devices?.entry) {
+              const deviceEntries = Array.isArray(ruleConfig.target.devices.entry) 
+                ? ruleConfig.target.devices.entry 
+                : [ruleConfig.target.devices.entry];
+              
+              deviceEntries.forEach((device: any) => {
+                const deviceName = device.name || device['@_name'];
+                if (deviceName) {
+                  configuredTargets.add(deviceName);
+                }
+              });
+            }
+            
+            // Only mark as 'all' if no specific devices were found AND negate=no
+            // (negate=no with no specific devices means target all devices in the group)
+            if (configuredTargets.size === 0 && ruleConfig.target.negate === 'no') {
+              configuredTargets.add('all');
+            }
+          }
+          
+          // If no targets found at all, assume it targets all
+          if (configuredTargets.size === 0) {
+            configuredTargets.add('all');
+          }
+          
+          ruleConfigMap.set(ruleKey, configuredTargets);
+          console.log(`  Rule "${ruleName}" in "${dgName}" has configured targets: ${Array.from(configuredTargets).join(', ')}`);
+        });
+      } catch (err) {
+        console.error(`  Failed to fetch rule config for device group "${dgName}":`, err instanceof Error ? err.message : err);
+      }
+    }
+    
+    console.log(`Fetched configurations for ${ruleConfigMap.size} rules`);
+
     const processedRules = Array.from(ruleMap.values());
 
     processedRules.forEach(rule => {
-      const firewallsToUntarget = new Set<string>();
+      let firewallsToUntarget = new Set<string>();
       const processed = new Set<string>();
       let hasHAProtection = false;
       
@@ -1240,9 +1397,12 @@ export async function auditPanoramaRules(
             ? new Date(target.lastHitDate)
             : new Date(rule.lastHitDate);
           
-          // Consider a target used if it has hits AND the last hit date is within the threshold
-          // This ensures targets with recent hits are not marked for untargeting
-          const isUnused = targetLastHit < unusedThreshold && target.hitCount === 0;
+          // A target is unused if its last hit was before the threshold
+          // The historical hit count doesn't matter - what matters is when it was last used
+          const isUnused = targetLastHit < unusedThreshold;
+          
+          // Debug logging for troubleshooting
+          console.log(`  Target ${target.name} (${target.displayName || 'unknown'}): lastHitDate=${target.lastHitDate || 'none (using rule aggregate)'}, targetLastHit=${targetLastHit.toISOString()}, threshold=${unusedThreshold.toISOString()}, isUnused=${isUnused}, hitCount=${target.hitCount}`);
 
           // Check if this target has an HA partner - either directly set or via the haMap
           const partnerName = target.haPartner || haMap.get(target.name);
@@ -1258,12 +1418,12 @@ export async function auditPanoramaRules(
               const partnerLastHit = partner.lastHitDate
                 ? new Date(partner.lastHitDate)
                 : new Date(rule.lastHitDate);
-              const partnerIsUnused = partnerLastHit < unusedThreshold && partner.hitCount === 0;
+              const partnerIsUnused = partnerLastHit < unusedThreshold;
               
               console.log(`  Target ${target.name}: isUnused=${isUnused}, Partner ${partnerName}: isUnused=${partnerIsUnused}`);
 
               if (!isUnused || !partnerIsUnused) {
-                // At least one of the HA pair has been hit recently → HA-protected
+                // At least one of the HA pair has been hit recently â†’ HA-protected
                 firewallsToUntarget.delete(target.name);
                 firewallsToUntarget.delete(partnerName);
                 hasHAProtection = true;
@@ -1331,15 +1491,47 @@ export async function auditPanoramaRules(
         rule.action = 'KEEP';
       }
 
-      // First, ensure we only have targets that are actually configured in Panorama
-      // This is critical to avoid showing untarget recommendations for firewalls not actually targeted
+      // First, get the actual configured targets from Panorama's rule configuration
+      const ruleKey = `${rule.deviceGroup}:${rule.name}`;
+      const configuredDeviceNames = ruleConfigMap.get(ruleKey) || new Set<string>();
+      
+      console.log(`Rule "${rule.name}" in "${rule.deviceGroup}" has configured device names: ${Array.from(configuredDeviceNames).join(', ')}`);
+      
+      // Build actualTargets by normalizing device identifiers
+      // Configured targets can be either hostnames or serial numbers
+      // Usage data always has serial numbers (sometimes zero-padded)
       const actualTargets = new Set<string>();
-      if (rule.target === 'all') {
+      
+      if (configuredDeviceNames.has('all')) {
         actualTargets.add('all');
-      } else if (Array.isArray(rule.target)) {
-        rule.target.forEach(t => actualTargets.add(t));
-      } else if (rule.target) {
-        actualTargets.add(rule.target);
+      } else {
+        // Process each configured device identifier
+        configuredDeviceNames.forEach(deviceIdentifier => {
+          // Convert to string in case it's a number
+          const deviceIdStr = String(deviceIdentifier);
+          
+          // First, try to find if this is a hostname that maps to a serial
+          let serial = hostnameToSerial.get(deviceIdStr.toLowerCase());
+          
+          if (serial) {
+            // It's a hostname, use the mapped serial
+            actualTargets.add(serial);
+            console.log(`  Mapped hostname "${deviceIdStr}" to serial "${serial}"`);
+          } else {
+            // It's likely already a serial number, add both the original and zero-padded versions
+            // This handles cases where Panorama stores serials in different formats
+            actualTargets.add(deviceIdStr);
+            actualTargets.add(deviceIdStr.padStart(12, '0'));
+            
+            // Also check if this serial is in the hostname map (reverse lookup)
+            const hostname = hostnameMap.get(deviceIdStr) || hostnameMap.get(deviceIdStr.padStart(12, '0'));
+            if (hostname) {
+              console.log(`  Device identifier "${deviceIdStr}" is serial with hostname "${hostname}"`);
+            } else {
+              console.log(`  Device identifier "${deviceIdStr}" treated as serial (no hostname mapping found)`);
+            }
+          }
+        });
       }
       
       // Also add any HA partners to the actual targets set
@@ -1356,12 +1548,39 @@ export async function auditPanoramaRules(
       // Add all HA partners to the actual targets
       haPartners.forEach(partner => actualTargets.add(partner));
       
-      console.log(`Rule "${rule.name}" in "${rule.deviceGroup}" has actual targets: ${Array.from(actualTargets).join(', ')}`);
+      console.log(`Rule "${rule.name}" in "${rule.deviceGroup}" has actual targets (as serials): ${Array.from(actualTargets).join(', ')}`);
+      
+      // Save the original counts BEFORE any filtering - we'll need these to determine DISABLE vs KEEP
+      const originalFirewallsToUntargetCount = firewallsToUntarget.size;
+      const originalTargetCount = rule.targets.filter(t => t.name !== 'all').length;
       
       // Filter targets to only include those actually configured in Panorama
       rule.targets = rule.targets.filter(target => 
         target.name === 'all' || actualTargets.has(target.name)
       );
+      
+      // CRITICAL: Recalculate the rule's aggregate lastHitDate from only the remaining targets
+      // This fixes the issue where timestamps from non-targeted devices were included
+      if (rule.targets.length > 0 && !rule.targets.some(t => t.name === 'all')) {
+        let latestDate: Date | null = null;
+        rule.targets.forEach(target => {
+          if (target.lastHitDate) {
+            const targetDate = new Date(target.lastHitDate);
+            if (!latestDate || targetDate > latestDate) {
+              latestDate = targetDate;
+            }
+          }
+        });
+        
+        if (latestDate) {
+          const oldLastHitDate = rule.lastHitDate;
+          rule.lastHitDate = latestDate.toISOString();
+          
+          if (rule.name === 'ISR - Ground Machine to SNC Linux and Satellite IPs') {
+            logger.debug('RuleProcessing', `Recalculated lastHitDate for rule "${rule.name}": was ${oldLastHitDate}, now ${rule.lastHitDate} (from ${rule.targets.length} filtered targets)`);
+          }
+        }
+      }
       
       // Also make sure firewallsToUntarget only includes devices that are actually targeted
       // This is critical to prevent showing untarget recommendations for non-targeted devices
@@ -1378,10 +1597,26 @@ export async function auditPanoramaRules(
       console.log(`After filtering for actual targets: ${rule.targets.length} targets remain`);
       console.log(`After filtering firewallsToUntarget: ${firewallsToUntarget.size} firewalls to untarget remain`);
       
+      // Check if untargeting would remove ALL targets from the rule
+      // If so, we should DISABLE the rule instead of UNTARGET
+      if (rule.action === 'UNTARGET' && !isAnyTargetRule) {
+        // Count how many actual targets exist in the rule (excluding 'all')
+        const actualRuleTargetCount = rule.targets.filter(t => t.name !== 'all').length;
+        const untargetCount = firewallsToUntarget.size;
+        
+        console.log(`  Rule has ${actualRuleTargetCount} actual targets, untargeting ${untargetCount} firewalls`);
+        
+        // If we're untargeting all targets that exist in the rule, change action to DISABLE
+        if (actualRuleTargetCount > 0 && untargetCount >= actualRuleTargetCount) {
+          console.log(`  Untargeting would remove all ${actualRuleTargetCount} targets - changing action to DISABLE`);
+          rule.action = 'DISABLE';
+        }
+      }
+      
       // Mark individual targets that will be removed so the UI can highlight them in red
       rule.targets.forEach(target => {
         if (rule.action === 'DISABLE') {
-          target.toBeRemoved = true; // whole rule disabled → all targets marked
+          target.toBeRemoved = true; // whole rule disabled â†’ all targets marked
         } else if (rule.action === 'UNTARGET') {
           // Only mark devices that are actually targeted AND need to be untargeted
           // Skip the 'all' target as it's not a real device
@@ -1422,10 +1657,21 @@ export async function auditPanoramaRules(
         
         console.log(`  After filtering: ${rule.targets.length} targets remain`);
         
-        // If we have no targets left after filtering, change the action to KEEP
+        // If we have no targets left after filtering, we need to determine the correct action
         if (rule.targets.length === 0) {
-          console.log(`  No targets remain after filtering, changing action from UNTARGET to KEEP`);
-          rule.action = 'KEEP';
+          // Check if we were going to untarget ALL targets or just SOME targets
+          // Only mark as DISABLE if we were going to untarget ALL targets
+          // Use the ORIGINAL counts before filtering to make this determination
+          if (originalFirewallsToUntargetCount > 0 && originalFirewallsToUntargetCount >= originalTargetCount) {
+            // We were going to untarget ALL targets, so the rule should be disabled
+            console.log(`  No targets remain after filtering, and originally had ${originalFirewallsToUntargetCount} firewalls to untarget out of ${originalTargetCount} total targets - changing action to DISABLE`);
+            rule.action = 'DISABLE';
+          } else {
+            // We were only going to untarget SOME targets, or no targets at all
+            // This means the rule has active targets - mark as KEEP
+            console.log(`  No targets remain after filtering, but only ${originalFirewallsToUntargetCount} of ${originalTargetCount} targets were to be untargeted - changing action to KEEP`);
+            rule.action = 'KEEP';
+          }
         }
       }
     });
@@ -1485,8 +1731,27 @@ export async function auditDisabledRules(
       console.error('Could not fetch device groups list:', error);
     }
 
+    // Fallback: If no device groups found, try to discover them from the config
     if (deviceGroupNames.length === 0) {
-      console.log('No device groups found, skipping audit');
+      console.log('Attempting fallback: discovering device groups from config...');
+      try {
+        const configXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group`;
+        const configData = await fetchConfigPaginated(panoramaUrl, apiKey, configXpath);
+        const result = configData.response?.result;
+        if (result?.['device-group']?.entry) {
+          const entries = Array.isArray(result['device-group'].entry) 
+            ? result['device-group'].entry 
+            : [result['device-group'].entry];
+          deviceGroupNames = entries.map((e: any) => e['@_name'] || e.name).filter(Boolean);
+          console.log(`Fallback discovered ${deviceGroupNames.length} device groups:`, deviceGroupNames);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback device group discovery failed:', fallbackError);
+      }
+    }
+
+    if (deviceGroupNames.length === 0) {
+      console.log('No device groups found after fallback, skipping audit');
       return { rules: [], deviceGroups: [], rulesProcessed: 0 };
     }
 
@@ -1502,21 +1767,50 @@ export async function auditDisabledRules(
     for (const dgName of deviceGroupNames) {
       onProgress?.(`Processing device group: ${dgName}`);
       console.log(`\n=== Processing Device Group: ${dgName} ===`);
+      logger.info(`[DisabledRules] Processing Device Group: ${dgName}`);
       
       try {
-        console.log(`Fetching pre-rulebase rules for device group "${dgName}"...`);
-        const preRulesXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules`;
+        // Fetch both pre-rulebase and post-rulebase rules
         let rules: any[] = [];
+        let rulebaseType: string = '';
+        
+        // Try pre-rulebase first
+        console.log(`Fetching pre-rulebase rules for device group "${dgName}"...`);
+        logger.info(`[DisabledRules] Fetching pre-rulebase for ${dgName}`);
+        const preRulesXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules`;
         try {
           const preConfigData = await fetchConfigPaginated(panoramaUrl, apiKey, preRulesXpath);
           const result = preConfigData.response?.result;
           if (result?.rules?.entry) {
-            rules = Array.isArray(result.rules.entry) ? result.rules.entry : [result.rules.entry];
+            const preRules = Array.isArray(result.rules.entry) ? result.rules.entry : [result.rules.entry];
+            rules.push(...preRules.map((r: any) => ({ ...r, _rulebase: 'pre' })));
           } else if (result?.entry?.rules?.entry) {
-            rules = Array.isArray(result.entry.rules.entry) ? result.entry.rules.entry : [result.entry.rules.entry];
+            const preRules = Array.isArray(result.entry.rules.entry) ? result.entry.rules.entry : [result.entry.rules.entry];
+            rules.push(...preRules.map((r: any) => ({ ...r, _rulebase: 'pre' })));
           }
         } catch (err) {
           console.error(`  Pre-rulebase fetch failed:`, err instanceof Error ? err.message : err);
+        }
+        
+        // Try post-rulebase
+        console.log(`Fetching post-rulebase rules for device group "${dgName}"...`);
+        const postRulesXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/post-rulebase/security/rules`;
+        try {
+          const postConfigData = await fetchConfigPaginated(panoramaUrl, apiKey, postRulesXpath);
+          const result = postConfigData.response?.result;
+          if (result?.rules?.entry) {
+            const postRules = Array.isArray(result.rules.entry) ? result.rules.entry : [result.rules.entry];
+            rules.push(...postRules.map((r: any) => ({ ...r, _rulebase: 'post' })));
+          } else if (result?.entry?.rules?.entry) {
+            const postRules = Array.isArray(result.entry.rules.entry) ? result.entry.rules.entry : [result.entry.rules.entry];
+            rules.push(...postRules.map((r: any) => ({ ...r, _rulebase: 'post' })));
+          }
+        } catch (err) {
+          console.error(`  Post-rulebase fetch failed:`, err instanceof Error ? err.message : err);
+        }
+        
+        if (rules.length === 0) {
+          console.log(`  No rules found in either rulebase for device group "${dgName}"`);
           continue;
         }
         
@@ -1530,11 +1824,14 @@ export async function auditDisabledRules(
           }
         });
         
+        logger.info(`[DisabledRules] ${dgName}: Found ${rules.length} total rules before filtering`);
+        
         rules = rules.filter((rule: any) => {
           const disabled = rule.disabled || rule['@_disabled'];
           if (disabled === 'yes') {
             const ruleName = rule.name || rule['@_name'];
             console.log(`  Found disabled rule: "${ruleName}"`);
+            logger.info(`[DisabledRules] ${dgName}: Found disabled rule "${ruleName}"`);
             return true;
           }
           return false;
@@ -1542,10 +1839,12 @@ export async function auditDisabledRules(
         
         if (rules.length === 0) {
           console.log(`  No disabled rules found for device group "${dgName}"`);
+          logger.info(`[DisabledRules] ${dgName}: No disabled rules found`);
           continue;
         }
 
         console.log(`  Found ${rules.length} disabled rules in "${dgName}"`);
+        logger.info(`[DisabledRules] ${dgName}: Found ${rules.length} disabled rules`);
         deviceGroupsSet.add(dgName);
         rulesProcessed += rules.length;
 
@@ -1557,6 +1856,10 @@ export async function auditDisabledRules(
           if (ruleName && tagDate) {
             disabledTagDateMap.set(ruleName, tagDate);
             console.log(`  Rule "${ruleName}" has disabled tag date: ${new Date(tagDate).toLocaleDateString()}`);
+            logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" has disabled tag date ${new Date(tagDate).toLocaleDateString()}`);
+          } else if (ruleName) {
+            console.log(`  Rule "${ruleName}" has NO disabled-YYYYMMDD tag`);
+            logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" has NO disabled-YYYYMMDD tag`);
           }
         });
 
@@ -1581,25 +1884,32 @@ export async function auditDisabledRules(
           console.log(`    Deduplicating rule names for hit-count request: ${ruleNames.length} -> ${uniqueRuleNames.length}`);
         }
 
-        const ruleDataMap = new Map<string, { modificationTimestamp?: string; hitCount: number }>();
+        const ruleDataMap = new Map<string, { modificationTimestamp?: string; hitCount: number; rulebase: string }>();
 
-        try {
-          console.log(`    Querying hit counts for ${uniqueRuleNames.length} disabled rules in device group "${dgName}" (in chunks of ${RULE_HIT_COUNT_CHUNK_SIZE})`);
-          for (let i = 0; i < uniqueRuleNames.length; i += RULE_HIT_COUNT_CHUNK_SIZE) {
-            if ((i + 1) % 25 === 0 || i + 1 === uniqueRuleNames.length) {
-              onProgress?.(`Processing device group: ${dgName} (${i + 1}/${uniqueRuleNames.length} rules)`);
-            }
-            const chunk = uniqueRuleNames.slice(i, i + RULE_HIT_COUNT_CHUNK_SIZE);
-            // Entries go directly under <rules> — no <rule-name> wrapper
-            const ruleEntryXml = chunk.map(name => `<entry name="${name}"/>`).join('');
-            const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><pre-rulebase><entry name="security"><rules>${ruleEntryXml}</rules></entry></pre-rulebase></entry></device-group></rule-hit-count></show>`;
-            const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
-            const response = await fetch(apiUrl);
-            if (!response.ok) {
-              console.error(`    Chunk ${Math.floor(i / RULE_HIT_COUNT_CHUNK_SIZE) + 1} failed: ${response.status} ${response.statusText}`);
-              continue;
-            }
-            const xmlText = await response.text();
+        // Query hit counts for both pre and post rulebases
+        for (const rulebaseType of ['pre', 'post']) {
+          const rulesInRulebase = rules.filter((r: any) => r._rulebase === rulebaseType);
+          if (rulesInRulebase.length === 0) continue;
+          
+          const ruleNamesInRulebase = rulesInRulebase.map((r: any) => r.name || r['@_name']).filter(Boolean);
+          const uniqueRuleNamesInRulebase = [...new Set(ruleNamesInRulebase)];
+          
+          try {
+            console.log(`    Querying hit counts for ${uniqueRuleNamesInRulebase.length} disabled rules in ${rulebaseType}-rulebase of device group "${dgName}" (in chunks of ${RULE_HIT_COUNT_CHUNK_SIZE})`);
+            for (let i = 0; i < uniqueRuleNamesInRulebase.length; i += RULE_HIT_COUNT_CHUNK_SIZE) {
+              if ((i + 1) % 25 === 0 || i + 1 === uniqueRuleNamesInRulebase.length) {
+                onProgress?.(`Processing device group: ${dgName} (${i + 1}/${uniqueRuleNamesInRulebase.length} rules in ${rulebaseType}-rulebase)`);
+              }
+              const chunk = uniqueRuleNamesInRulebase.slice(i, i + RULE_HIT_COUNT_CHUNK_SIZE);
+              const ruleEntryXml = chunk.map(name => `<entry name="${name}"/>`).join('');
+              const xmlCmd = `<show><rule-hit-count><device-group><entry name="${dgName}"><${rulebaseType}-rulebase><entry name="security"><rules>${ruleEntryXml}</rules></entry></${rulebaseType}-rulebase></entry></device-group></rule-hit-count></show>`;
+              const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(xmlCmd)}&key=${apiKey}`;
+              const response = await fetch(apiUrl);
+              if (!response.ok) {
+                console.error(`    ${rulebaseType}-rulebase chunk ${Math.floor(i / RULE_HIT_COUNT_CHUNK_SIZE) + 1} failed: ${response.status} ${response.statusText}`);
+                continue;
+              }
+              const xmlText = await response.text();
             if (xmlText.includes('<response status="error"')) {
               const msgMatch = xmlText.match(/<msg[^>]*>([\s\S]*?)<\/msg>/);
               const msg = msgMatch ? msgMatch[1].trim().substring(0, 300) : xmlText.substring(0, 300);
@@ -1642,78 +1952,90 @@ export async function auditDisabledRules(
                         }
                         hitCount += parseHitCount(ruleEntry['hit-count']);
                       }
-                      ruleDataMap.set(ruleName, { modificationTimestamp, hitCount });
+                      ruleDataMap.set(ruleName, { modificationTimestamp, hitCount, rulebase: rulebaseType });
                     });
                   }
                 });
               };
               processRuleBase(dg['pre-rulebase']?.entry);
+              processRuleBase(dg['post-rulebase']?.entry);
               processRuleBase(dg['rule-base']?.entry);
             }); // deviceGroups.forEach
           } // for chunk loop
-
-          for (const ruleName of ruleNames) {
-            const ruleData = ruleDataMap.get(ruleName);
-            const modificationTimestamp = ruleData?.modificationTimestamp;
-            const hitCount = ruleData?.hitCount || 0;
-            
-            let disabledDate: Date | null = null;
-            if (modificationTimestamp) {
-              disabledDate = new Date(parseInt(modificationTimestamp) * 1000);
-            }
-            
-            const protectedKey = `${dgName}:${ruleName}`;
-            const isProtected = protectedRuleSet.has(protectedKey);
-            
-            if (isProtected) {
-              console.log(`    Rule "${ruleName}" has PROTECT tag - marking as protected (disabled on ${disabledDate ? disabledDate.toISOString() : 'unknown date'}, hit count: ${hitCount})`);
-
-              const panoramaRule: PanoramaRule = {
-                id: `disabled-rule-${disabledRules.length}`,
-                name: ruleName,
-                deviceGroup: dgName,
-                totalHits: hitCount,
-                lastHitDate: disabledDate ? disabledDate.toISOString() : new Date(0).toISOString(),
-                disabledDate: disabledTagDateMap.get(ruleName),
-                targets: [],
-                action: 'PROTECTED',
-                isShared: false,
-              };
-
-              disabledRules.push(panoramaRule);
-            } else if (!disabledDate || disabledDate < disabledThreshold) {
-              console.log(`    Rule "${ruleName}" disabled on ${disabledDate ? disabledDate.toISOString() : 'unknown date'} - older than ${disabledDays} days (hit count: ${hitCount})`);
-
-              const panoramaRule: PanoramaRule = {
-                id: `disabled-rule-${disabledRules.length}`,
-                name: ruleName,
-                deviceGroup: dgName,
-                totalHits: hitCount,
-                lastHitDate: disabledDate ? disabledDate.toISOString() : new Date(0).toISOString(),
-                disabledDate: disabledTagDateMap.get(ruleName),
-                targets: [],
-                action: 'DISABLE',
-                isShared: false,
-              };
-
-              disabledRules.push(panoramaRule);
-            } else {
-              console.log(`    Rule "${ruleName}" disabled on ${disabledDate.toISOString()} - within ${disabledDays} days threshold`);
-            }
-          }
-        } catch (error) {
-          console.error(`Error querying disabled rules for device group "${dgName}":`, error);
-          if (error instanceof Error) {
-            console.error(`  Error details: ${error.message}`);
-          }
+        } catch (err) {
+          console.error(`    Hit count query failed for ${rulebaseType}-rulebase:`, err instanceof Error ? err.message : err);
         }
-      } catch (error) {
-        console.error(`Error processing device group ${dgName}:`, error);
-        if (error instanceof Error) {
-          console.error(`  Error message: ${error.message}`);
-          console.error(`  Error stack: ${error.stack}`);
+      } // for rulebaseType loop
+
+      for (const ruleName of ruleNames) {
+        const ruleData = ruleDataMap.get(ruleName);
+        const modificationTimestamp = ruleData?.modificationTimestamp;
+        const hitCount = ruleData?.hitCount || 0;
+        
+        // Get the disabled tag date (disabled-YYYYMMDD)
+        const disabledTagDateStr = disabledTagDateMap.get(ruleName);
+        
+        // Skip rules without a disabled-YYYYMMDD tag
+        if (!disabledTagDateStr) {
+          console.log(`    Rule "${ruleName}" has no disabled-YYYYMMDD tag - skipping`);
+          continue;
+        }
+        
+        const disabledTagDate = new Date(disabledTagDateStr);
+        const protectedKey = `${dgName}:${ruleName}`;
+        const isProtected = protectedRuleSet.has(protectedKey);
+        
+        logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - disabledTagDate: ${disabledTagDate.toISOString()}, threshold: ${disabledThreshold.toISOString()}, comparison: ${disabledTagDate < disabledThreshold ? 'OLDER' : 'NEWER'}`);
+        
+        if (isProtected) {
+          console.log(`    Rule "${ruleName}" has PROTECT tag - marking as protected (disabled tag date: ${disabledTagDate.toLocaleDateString()}, hit count: ${hitCount})`);
+          logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - PROTECTED`);
+
+          const panoramaRule: PanoramaRule = {
+            id: `disabled-rule-${disabledRules.length}`,
+            name: ruleName,
+            deviceGroup: dgName,
+            totalHits: hitCount,
+            lastHitDate: disabledTagDate.toISOString(),
+            disabledDate: disabledTagDateStr,
+            targets: [],
+            action: 'PROTECTED',
+            isShared: false,
+          };
+
+          disabledRules.push(panoramaRule);
+          logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - PROTECTED rule pushed to array (total: ${disabledRules.length})`);
+        } else if (disabledTagDate < disabledThreshold) {
+          // Only flag rules where the disabled tag date is older than the threshold
+          console.log(`    Rule "${ruleName}" disabled tag date ${disabledTagDate.toLocaleDateString()} is older than ${disabledDays} days threshold - marking for DELETE (hit count: ${hitCount})`);
+          logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - DELETE (date ${disabledTagDate.toLocaleDateString()} older than threshold)`);
+
+          const panoramaRule: PanoramaRule = {
+            id: `disabled-rule-${disabledRules.length}`,
+            name: ruleName,
+            deviceGroup: dgName,
+            totalHits: hitCount,
+            lastHitDate: disabledTagDate.toISOString(),
+            disabledDate: disabledTagDateStr,
+            targets: [],
+            action: 'DELETE',
+            isShared: false,
+          };
+
+          disabledRules.push(panoramaRule);
+          logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - DELETE rule pushed to array (total: ${disabledRules.length})`);
+        } else {
+          console.log(`    Rule "${ruleName}" disabled tag date ${disabledTagDate.toLocaleDateString()} is within ${disabledDays} days threshold - keeping`);
+          logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - KEEP (date ${disabledTagDate.toLocaleDateString()} within threshold)`);
         }
       }
+    } catch (error) {
+      console.error(`Error processing device group ${dgName}:`, error);
+      if (error instanceof Error) {
+        console.error(`  Error message: ${error.message}`);
+        console.error(`  Error stack: ${error.stack}`);
+      }
+    }
     }
 
     const deviceGroups = [...new Set(disabledRules.map((r) => r.deviceGroup))].sort();

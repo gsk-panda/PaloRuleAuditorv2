@@ -7,6 +7,7 @@ interface RuleRowProps {
   isSelected?: boolean;
   onSelectionChange?: (checked: boolean) => void;
   rowIndex?: number;
+  hideLastHit?: boolean;
 }
 
 const EPOCH_ISO = '1970-01-01';
@@ -30,6 +31,7 @@ function ageLabel(s: string): string {
 interface BadgeCfg { dot: string; text: string; bg: string; border: string; label: string; }
 const BADGE: Record<string, BadgeCfg> = {
   DISABLE:        { dot: 'bg-red-500',     text: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/30',    label: 'Disable'     },
+  DELETE:         { dot: 'bg-red-500',     text: 'text-red-400',     bg: 'bg-red-500/10',     border: 'border-red-500/30',    label: 'Delete'      },
   UNTARGET:       { dot: 'bg-amber-400',   text: 'text-amber-400',   bg: 'bg-amber-500/10',   border: 'border-amber-500/30',  label: 'Untarget'    },
   'HA-PROTECTED': { dot: 'bg-blue-400',    text: 'text-blue-400',    bg: 'bg-blue-500/10',    border: 'border-blue-500/30',   label: 'HA-Protected'},
   PROTECTED:      { dot: 'bg-purple-400',  text: 'text-purple-400',  bg: 'bg-purple-500/10',  border: 'border-purple-500/30', label: 'Protected'   },
@@ -58,7 +60,7 @@ const TargetChip: React.FC<{ name: string; displayName?: string; hasHits: boolea
 };
 
 export const RuleRow: React.FC<RuleRowProps> = ({
-  rule, auditMode = 'unused', isSelected = false, onSelectionChange, rowIndex = 0,
+  rule, auditMode = 'unused', isSelected = false, onSelectionChange, rowIndex = 0, hideLastHit = false,
 }) => {
   const badge = getBadge(rule.action);
   const isSelectable =
@@ -124,14 +126,16 @@ export const RuleRow: React.FC<RuleRowProps> = ({
       </td>
 
       {/* Last Hit */}
-      <td className="px-5 py-3.5 whitespace-nowrap">
-        <p className={`text-sm ${rule.lastHitDate.startsWith(EPOCH_ISO) ? 'text-[#475569]' : 'text-[#cbd5e1]'}`}>
-          {formatDate(rule.lastHitDate)}
-        </p>
-        {!rule.lastHitDate.startsWith(EPOCH_ISO) && (
-          <p className="text-[10px] text-[#64748b]">{ageLabel(rule.lastHitDate)}</p>
-        )}
-      </td>
+      {!hideLastHit && (
+        <td className="px-5 py-3.5 whitespace-nowrap">
+          <p className={`text-sm ${rule.lastHitDate.startsWith(EPOCH_ISO) ? 'text-[#475569]' : 'text-[#cbd5e1]'}`}>
+            {formatDate(rule.lastHitDate)}
+          </p>
+          {!rule.lastHitDate.startsWith(EPOCH_ISO) && (
+            <p className="text-[10px] text-[#64748b]">{ageLabel(rule.lastHitDate)}</p>
+          )}
+        </td>
+      )}
 
       {/* Created */}
       <td className="px-5 py-3.5 whitespace-nowrap">

@@ -9,24 +9,27 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
-console.log('Imports loaded, importing panoramaService...');
+import { logger } from './debug-logger.js';
+
+// Enable file logging with date-based log file name
+logger.enableFileLogging();
+
+logger.info('Server', 'Server starting up');
+logger.info('Server', 'Imports loaded, importing panoramaService...');
 import { auditPanoramaRules, fetchConfigPaginated, fetchDeviceGroupNames } from './panoramaService.js';
 import { testSshConnection } from './panoramaSsh.js';
-console.log('panoramaService imported successfully');
+logger.info('Server', 'panoramaService imported successfully');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
-  if (error instanceof Error) {
-    console.error('Error stack:', error.stack);
-  }
+  logger.error('Process', 'Uncaught Exception', error);
   process.exit(1);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error('Process', 'Unhandled Rejection', { promise, reason });
   process.exit(1);
 });
 
@@ -88,13 +91,16 @@ app.use(express.json());
 // ── Config endpoint ──────────────────────────────────────────────────────────
 app.get('/api/config', async (req, res) => {
   try {
+    logger.info('API', 'Reading configuration file');
     const fileCfg = readConfigFile();
+    logger.debug('API', 'Configuration loaded successfully', { hasUrl: !!fileCfg['PANORAMA_URL'], hasKey: !!fileCfg['PANORAMA_API_KEY'] });
     res.json({
       panoramaUrl: fileCfg['PANORAMA_URL'] || '',
       apiKey: fileCfg['PANORAMA_API_KEY'] || '',
     });
   } catch (error) {
-    console.error('Error reading config:', error);
+    logger.error('API', 'Error reading config file', error);
+    // Return empty config values instead of an error to avoid breaking the client
     res.json({ panoramaUrl: '', apiKey: '' });
   }
 });
@@ -208,10 +214,11 @@ const LONG_REQUEST_MS = 60 * 60 * 1000;
 app.post('/api/audit', async (req, res) => {
   req.setTimeout(LONG_REQUEST_MS);
   res.setTimeout(LONG_REQUEST_MS);
-  console.log('Received audit request');
+  logger.info('API', 'Received audit request');
   const { url, apiKey, unusedDays, haPairs } = req.body;
+  logger.debug('API', 'Audit request parameters', { url, unusedDays, haPairs: Array.isArray(haPairs) ? `${haPairs.length} pairs` : 'none' });
   if (!url || !apiKey) {
-    console.log('Missing required parameters');
+    logger.warn('API', 'Missing required parameters for audit');
     return res.status(400).json({ error: 'Panorama URL and API key are required' });
   }
 
@@ -232,11 +239,18 @@ app.post('/api/audit', async (req, res) => {
     let panoramaHost = url;
     try { panoramaHost = new URL(url.startsWith('http') ? url : `https://${url}`).hostname; } catch (_) {}
     const sshConfig = getSshConfig(panoramaHost);
-    console.log('Calling auditPanoramaRules...', sshConfig ? '(SSH enabled)' : '(API only)');
-    const result = await auditPanoramaRules(url, apiKey, unusedDays || 90, haPairs || [], (msg) => writeLine({ progress: msg }), sshConfig);
-    console.log(`Audit completed: ${result.rules.length} rules, ${result.deviceGroups.length} device groups`);
+    logger.info('API', `Calling auditPanoramaRules... ${sshConfig ? '(SSH enabled)' : '(API only)'}`);
+    
+    // Create a wrapper for the progress callback to log all progress messages
+    const progressCallback = (msg: string) => {
+      logger.debug('Audit', `Progress: ${msg}`);
+      writeLine({ progress: msg });
+    };
+    
+    const result = await auditPanoramaRules(url, apiKey, unusedDays || 90, haPairs || [], progressCallback, sshConfig);
+    logger.info('API', `Audit completed: ${result.rules.length} rules, ${result.deviceGroups.length} device groups`);
     if (result.statistics) {
-      console.log(`Statistics: ${result.statistics.totalRules} total rules, ${result.statistics.activeRules || 0} active, ${result.statistics.disabledRules || 0} disabled`);
+      logger.info('API', `Statistics: ${result.statistics.totalRules} total rules, ${result.statistics.activeRules || 0} active, ${result.statistics.disabledRules || 0} disabled`);
     }
     writeLine({ 
       result: { 
@@ -247,9 +261,10 @@ app.post('/api/audit', async (req, res) => {
       } 
     });
   } catch (error) {
-    console.error('Audit error:', error);
+    logger.error('API', 'Audit error', error);
     writeLine({ error: error instanceof Error ? error.message : 'Failed to perform audit' });
   } finally {
+    logger.debug('API', 'Finishing audit request');
     finish();
   }
 });
@@ -282,6 +297,10 @@ app.post('/api/audit/disabled', async (req, res) => {
     const { auditDisabledRules } = await import('./panoramaService.js');
     const result = await auditDisabledRules(url, apiKey, disabledDays || 90, (msg) => writeLine({ progress: msg }));
     console.log(`Disabled rules audit completed: ${result.rules.length} rules, ${result.deviceGroups.length} device groups`);
+    console.log('Rules being returned:');
+    result.rules.forEach((rule: any, index: number) => {
+      console.log(`  ${index + 1}. ${rule.name} (${rule.deviceGroup}) - ${rule.action}`);
+    });
     if (result.statistics) {
       console.log(`Statistics: ${result.statistics.totalRules} total disabled rules, ${result.statistics.permanentlyDisabledRules || 0} permanently disabled, ${result.statistics.temporarilyDisabledRules || 0} temporarily disabled`);
     }
@@ -523,3 +542,11 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
 process.on('SIGTERM', () => { server.close(() => { console.log('HTTP server closed'); }); });
 process.on('SIGINT', () => { server.close(() => { console.log('HTTP server closed'); process.exit(0); }); });
+
+// Error handling middleware - must be after all routes
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  logger.error('Express', 'Middleware error handler caught', err);
+  if (!res.headersSent) {
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Internal server error' });
+  }
+});
