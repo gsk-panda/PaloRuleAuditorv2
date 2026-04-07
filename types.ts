@@ -1,5 +1,5 @@
 
-export type RuleAction = 'KEEP' | 'DISABLE' | 'UNTARGET' | 'IGNORE' | 'HA-PROTECTED' | 'PROTECTED';
+export type RuleAction = 'KEEP' | 'DISABLE' | 'UNTARGET' | 'IGNORE' | 'HA-PROTECTED' | 'PROTECTED' | 'DELETE';
 
 export interface HAPair {
   fw1: string;
@@ -24,6 +24,7 @@ export interface PanoramaRule {
   lastHitDate: string;   // ISO string
   createdDate?: string;  // ISO string — rule-creation-timestamp from Panorama
   disabledDate?: string; // ISO string — date parsed from disabled-YYYYMMDD tag
+  disabled?: boolean;    // true if rule is disabled in Panorama
   targets: FirewallTarget[];
   action: RuleAction;
   suggestedActionNotes?: string;

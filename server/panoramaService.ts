@@ -1,7 +1,7 @@
 ﻿import { PanoramaRule, HAPair } from '../types.js';
 import { XMLParser } from 'fast-xml-parser';
 import { getHitCountsViaSsh, type PanoramaSshConfig } from './panoramaSsh.js';
-import { logger } from './debug-logger.js';
+import { logger } from './debug-logger';
 
 interface PanoramaRuleUseEntry {
   rulebase?: string;
