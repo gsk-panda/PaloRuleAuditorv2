@@ -1767,7 +1767,7 @@ export async function auditDisabledRules(
     for (const dgName of deviceGroupNames) {
       onProgress?.(`Processing device group: ${dgName}`);
       console.log(`\n=== Processing Device Group: ${dgName} ===`);
-      logger.info(`[DisabledRules] Processing Device Group: ${dgName}`);
+      logger.info('DisabledRules', `Processing Device Group: ${dgName}`);
       
       try {
         // Fetch both pre-rulebase and post-rulebase rules
@@ -1776,7 +1776,7 @@ export async function auditDisabledRules(
         
         // Try pre-rulebase first
         console.log(`Fetching pre-rulebase rules for device group "${dgName}"...`);
-        logger.info(`[DisabledRules] Fetching pre-rulebase for ${dgName}`);
+        logger.info('DisabledRules', `Fetching pre-rulebase for ${dgName}`);
         const preRulesXpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group/entry[@name='${dgName}']/pre-rulebase/security/rules`;
         try {
           const preConfigData = await fetchConfigPaginated(panoramaUrl, apiKey, preRulesXpath);
@@ -1824,14 +1824,14 @@ export async function auditDisabledRules(
           }
         });
         
-        logger.info(`[DisabledRules] ${dgName}: Found ${rules.length} total rules before filtering`);
+        logger.info('DisabledRules', `${dgName}: Found ${rules.length} total rules before filtering`);
         
         rules = rules.filter((rule: any) => {
           const disabled = rule.disabled || rule['@_disabled'];
           if (disabled === 'yes') {
             const ruleName = rule.name || rule['@_name'];
             console.log(`  Found disabled rule: "${ruleName}"`);
-            logger.info(`[DisabledRules] ${dgName}: Found disabled rule "${ruleName}"`);
+            logger.info('DisabledRules', `${dgName}: Found disabled rule "${ruleName}"`);
             return true;
           }
           return false;
@@ -1839,12 +1839,12 @@ export async function auditDisabledRules(
         
         if (rules.length === 0) {
           console.log(`  No disabled rules found for device group "${dgName}"`);
-          logger.info(`[DisabledRules] ${dgName}: No disabled rules found`);
+          logger.info('DisabledRules', `${dgName}: No disabled rules found`);
           continue;
         }
 
         console.log(`  Found ${rules.length} disabled rules in "${dgName}"`);
-        logger.info(`[DisabledRules] ${dgName}: Found ${rules.length} disabled rules`);
+        logger.info('DisabledRules', `${dgName}: Found ${rules.length} disabled rules`);
         deviceGroupsSet.add(dgName);
         rulesProcessed += rules.length;
 
@@ -1856,10 +1856,10 @@ export async function auditDisabledRules(
           if (ruleName && tagDate) {
             disabledTagDateMap.set(ruleName, tagDate);
             console.log(`  Rule "${ruleName}" has disabled tag date: ${new Date(tagDate).toLocaleDateString()}`);
-            logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" has disabled tag date ${new Date(tagDate).toLocaleDateString()}`);
+            logger.info('DisabledRules', `${dgName}: Rule "${ruleName}" has disabled tag date ${new Date(tagDate).toLocaleDateString()}`);
           } else if (ruleName) {
             console.log(`  Rule "${ruleName}" has NO disabled-YYYYMMDD tag`);
-            logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" has NO disabled-YYYYMMDD tag`);
+            logger.info('DisabledRules', `${dgName}: Rule "${ruleName}" has NO disabled-YYYYMMDD tag`);
           }
         });
 
@@ -1985,11 +1985,11 @@ export async function auditDisabledRules(
         const protectedKey = `${dgName}:${ruleName}`;
         const isProtected = protectedRuleSet.has(protectedKey);
         
-        logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - disabledTagDate: ${disabledTagDate.toISOString()}, threshold: ${disabledThreshold.toISOString()}, comparison: ${disabledTagDate < disabledThreshold ? 'OLDER' : 'NEWER'}`);
+        logger.info('DisabledRules', `${dgName}: Rule "${ruleName}" - disabledTagDate: ${disabledTagDate.toISOString()}, threshold: ${disabledThreshold.toISOString()}, comparison: ${disabledTagDate < disabledThreshold ? 'OLDER' : 'NEWER'}`);
         
         if (isProtected) {
           console.log(`    Rule "${ruleName}" has PROTECT tag - marking as protected (disabled tag date: ${disabledTagDate.toLocaleDateString()}, hit count: ${hitCount})`);
-          logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - PROTECTED`);
+          logger.info('DisabledRules', `${dgName}: Rule "${ruleName}" - PROTECTED`);
 
           const panoramaRule: PanoramaRule = {
             id: `disabled-rule-${disabledRules.length}`,
@@ -2004,11 +2004,11 @@ export async function auditDisabledRules(
           };
 
           disabledRules.push(panoramaRule);
-          logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - PROTECTED rule pushed to array (total: ${disabledRules.length})`);
+          logger.info('DisabledRules', `${dgName}: Rule "${ruleName}" - PROTECTED rule pushed to array (total: ${disabledRules.length})`);
         } else if (disabledTagDate < disabledThreshold) {
           // Only flag rules where the disabled tag date is older than the threshold
           console.log(`    Rule "${ruleName}" disabled tag date ${disabledTagDate.toLocaleDateString()} is older than ${disabledDays} days threshold - marking for DELETE (hit count: ${hitCount})`);
-          logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - DELETE (date ${disabledTagDate.toLocaleDateString()} older than threshold)`);
+          logger.info('DisabledRules', `${dgName}: Rule "${ruleName}" - DELETE (date ${disabledTagDate.toLocaleDateString()} older than threshold)`);
 
           const panoramaRule: PanoramaRule = {
             id: `disabled-rule-${disabledRules.length}`,
@@ -2023,10 +2023,10 @@ export async function auditDisabledRules(
           };
 
           disabledRules.push(panoramaRule);
-          logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - DELETE rule pushed to array (total: ${disabledRules.length})`);
+          logger.info('DisabledRules', `${dgName}: Rule "${ruleName}" - DELETE rule pushed to array (total: ${disabledRules.length})`);
         } else {
           console.log(`    Rule "${ruleName}" disabled tag date ${disabledTagDate.toLocaleDateString()} is within ${disabledDays} days threshold - keeping`);
-          logger.info(`[DisabledRules] ${dgName}: Rule "${ruleName}" - KEEP (date ${disabledTagDate.toLocaleDateString()} within threshold)`);
+          logger.info('DisabledRules', `${dgName}: Rule "${ruleName}" - KEEP (date ${disabledTagDate.toLocaleDateString()} within threshold)`);
         }
       }
     } catch (error) {
