@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zscaler Client Troubleshooting Guide</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #ffffff;
+    --bg2:      #f5f4f0;
+    --bg3:      #eeece8;
+    --text:     #1a1a18;
+    --text2:    #5a5a56;
+    --text3:    #8a8a84;
+    --border:   rgba(0,0,0,0.12);
+    --border2:  rgba(0,0,0,0.20);
+
+    --blue-50:  #E6F0FF; --blue-200: #85B7EB; --blue-600: #185FA5; --blue-800: #0C447C;
+    --teal-50:  #E1F5EE; --teal-200: #5DCAA5; --teal-600: #0F6E56; --teal-800: #085041;
+    --amber-50: #FAEEDA; --amber-200: #EF9F27; --amber-600: #BA7517; --amber-800: #854F0B;
+    --red-50:   #FCEBEB; --red-200:  #F09595; --red-600:  #A32D2D; --red-800:  #791F1F;
+    --green-50: #EAF3DE; --green-200:#97C459;  --green-600:#3B6D11; --green-800:#27500A;
+    --purple-50:#EEEDFE; --purple-200:#AFA9EC; --purple-600:#534AB7; --purple-800:#3C3489;
+    --coral-50: #FAECE7; --coral-200:#F0997B;  --coral-600:#993C1D; --coral-800:#712B13;
+  }
+
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+         background: #e8e6e0; color: var(--text); min-height: 100vh; padding: 24px 16px; }
+
+  .page { max-width: 900px; margin: 0 auto; background: var(--bg);
+          border-radius: 14px; overflow: hidden; border: 0.5px solid var(--border); }
+
+  /* Header */
+  .page-header { padding: 24px 28px 20px; border-bottom: 0.5px solid var(--border); background: var(--bg); }
+  .page-header h1 { font-size: 20px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+  .page-header p  { font-size: 13px; color: var(--text2); }
+
+  /* Tabs */
+  .tabs { display: flex; overflow-x: auto; border-bottom: 0.5px solid var(--border); background: var(--bg); }
+  .tab  { padding: 11px 18px; font-size: 13px; cursor: pointer; border: none; background: none;
+          color: var(--text2); white-space: nowrap; border-bottom: 2px solid transparent;
+          transition: all .15s; font-family: inherit; }
+  .tab:hover  { color: var(--text); background: var(--bg2); }
+  .tab.active { color: var(--text); font-weight: 600; border-bottom-color: var(--text); }
+
+  /* Panels */
+  .panel { display: none; padding: 24px 28px; }
+  .panel.active { display: block; }
+
+  /* Info boxes */
+  .info-box { border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; font-size: 13px; line-height: 1.5; }
+  .info-box.blue   { background: var(--blue-50);  border: 0.5px solid var(--blue-200);  color: var(--blue-800); }
+  .info-box.amber  { background: var(--amber-50); border: 0.5px solid var(--amber-200); color: var(--amber-800); }
+  .info-box.red    { background: var(--red-50);   border: 0.5px solid var(--red-200);   color: var(--red-800); }
+
+  /* Section titles */
+  .sec-title { font-size: 15px; font-weight: 600; margin-bottom: 14px; padding-bottom: 8px;
+               border-bottom: 0.5px solid var(--border); color: var(--text); }
+  .sec-spacer { margin-bottom: 24px; }
+
+  /* Flowchart */
+  .dt-node { margin-bottom: 0; }
+  .dt-question { background: var(--bg2); border: 0.5px solid var(--border2); border-radius: 10px; padding: 14px 18px; }
+  .dt-q-text { font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: flex-start; gap: 10px; color: var(--text); }
+  .q-num { flex-shrink:0; width:24px; height:24px; border-radius:50%; background:var(--bg);
+           border:0.5px solid var(--border2); display:flex; align-items:center; justify-content:center;
+           font-size:11px; font-weight:600; color:var(--text); }
+  .dt-answers { display: flex; flex-wrap: wrap; gap: 8px; }
+  .dt-ans { padding: 7px 15px; border-radius: 7px; font-size: 13px; cursor: pointer;
+            border: 0.5px solid var(--border2); background: var(--bg); color: var(--text);
+            transition: all .15s; font-family: inherit; text-align: left; line-height: 1.4; }
+  .dt-ans:hover   { background: var(--bg3); border-color: rgba(0,0,0,0.35); }
+  .dt-ans.selected { font-weight: 600; background: var(--bg3); border-color: rgba(0,0,0,0.35); }
+
+  .connector { width: 2px; height: 14px; background: var(--border2); margin: 0 0 0 20px; }
+
+  /* Result cards */
+  .dt-result { border-radius: 10px; padding: 16px 18px; margin-top: 0; }
+  .dt-result.info    { background: var(--blue-50);  border: 0.5px solid var(--blue-200); }
+  .dt-result.warning { background: var(--amber-50); border: 0.5px solid var(--amber-200); }
+  .dt-result.danger  { background: var(--red-50);   border: 0.5px solid var(--red-200); }
+  .dt-result.success { background: var(--green-50); border: 0.5px solid var(--green-200); }
+  .result-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; }
+  .dt-result.info    .result-title { color: var(--blue-800); }
+  .dt-result.warning .result-title { color: var(--amber-800); }
+  .dt-result.danger  .result-title { color: var(--red-800); }
+  .dt-result.success .result-title { color: var(--green-800); }
+  .result-steps { list-style: none; font-size: 13px; color: var(--text2); }
+  .result-steps li { padding: 4px 0 4px 22px; position: relative;
+                     border-bottom: 0.5px solid var(--border); line-height: 1.5; }
+  .result-steps li:last-child { border-bottom: none; }
+  .result-steps li::before { content: attr(data-n); position: absolute; left: 0;
+                              font-weight: 600; color: var(--text); }
+
+  .flow-footer { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+  .btn-reset { padding: 7px 16px; font-size: 13px; border: 0.5px solid var(--border2);
+               border-radius: 7px; background: none; color: var(--text2); cursor: pointer; font-family: inherit; }
+  .btn-reset:hover { background: var(--bg2); }
+  .breadcrumb { font-size: 12px; color: var(--text3); flex: 1; line-height: 1.5; }
+
+  /* Reference cards */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .two-col   { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 580px) { .two-col { grid-template-columns: 1fr; } }
+
+  .ref-card { background: var(--bg2); border-radius: 10px; padding: 14px 16px; border: 0.5px solid var(--border); }
+  .ref-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .ref-badge { padding: 3px 9px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-zia    { background: var(--blue-50);   color: var(--blue-600); border: 0.5px solid var(--blue-200); }
+  .badge-zpa    { background: var(--purple-50); color: var(--purple-600); border: 0.5px solid var(--purple-200); }
+  .badge-zdx    { background: var(--teal-50);   color: var(--teal-600); border: 0.5px solid var(--teal-200); }
+  .badge-sandbox{ background: var(--amber-50);  color: var(--amber-600); border: 0.5px solid var(--amber-200); }
+  .badge-client { background: var(--coral-50);  color: var(--coral-600); border: 0.5px solid var(--coral-200); }
+  .badge-status { background: var(--bg3);       color: var(--text2);    border: 0.5px solid var(--border2); }
+  .ref-card h3 { font-size: 13px; font-weight: 600; color: var(--text); }
+
+  .ref-steps { list-style: none; }
+  .ref-steps li { font-size: 13px; color: var(--text2); padding: 5px 0 5px 28px;
+                  border-bottom: 0.5px solid var(--border); display: block; position: relative; line-height: 1.5; }
+  .ref-steps li:last-child { border-bottom: none; padding-bottom: 0; }
+  .step-num { position: absolute; left: 0; top: 5px; width: 20px; height: 20px; border-radius: 50%;
+              background: var(--bg); border: 0.5px solid var(--border2);
+              display: flex; align-items: center; justify-content: center;
+              font-size: 10px; font-weight: 600; color: var(--text); }
+
+  /* Symptom table */
+  .sym-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
+  .sym-table th { text-align: left; padding: 9px 12px; background: var(--bg2);
+                  border-bottom: 0.5px solid var(--border2); font-weight: 600; font-size: 12px; color: var(--text2); }
+  .sym-table td { padding: 8px 12px; border-bottom: 0.5px solid var(--border); vertical-align: top; line-height: 1.5; }
+  .sym-table tr:last-child td { border-bottom: none; }
+  .sym-table tr:hover td { background: var(--bg2); }
+
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .pill-zia    { background: var(--blue-50);   color: var(--blue-600); }
+  .pill-zpa    { background: var(--purple-50); color: var(--purple-600); }
+  .pill-zdx    { background: var(--teal-50);   color: var(--teal-600); }
+  .pill-client { background: var(--coral-50);  color: var(--coral-600); }
+
+  /* Escalation */
+  .esc-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 20px; }
+  @media (max-width: 580px) { .esc-grid { grid-template-columns: 1fr; } }
+  .esc-card { border-radius: 10px; padding: 16px; border: 0.5px solid var(--border); background: var(--bg2); }
+  .esc-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+  .esc-card p  { font-size: 12px; color: var(--text2); line-height: 1.6; }
+  .esc-card.tier1 { border-left: 3px solid var(--teal-200); }
+  .esc-card.tier2 { border-left: 3px solid var(--amber-200); }
+  .esc-card.tier3 { border-left: 3px solid var(--red-200); }
+
+  .code-chip { font-family: 'SF Mono', Consolas, monospace; font-size: 11px;
+               background: var(--bg3); border: 0.5px solid var(--border2);
+               border-radius: 4px; padding: 1px 6px; color: var(--text); }
+  .cmd-block { background: var(--bg2); border-radius: 8px; padding: 12px 14px; margin: 8px 0;
+               font-family: 'SF Mono', Consolas, monospace; font-size: 12px; color: var(--text);
+               border: 0.5px solid var(--border); line-height: 1.7; }
+  .cmd-block .comment { color: var(--text3); }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>Zscaler client troubleshooting guide</h1>
+    <p>IT service desk reference — ZIA, ZPA, ZDX, sandbox, and connectivity diagnostics</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('flowchart',this)">Interactive flowchart</button>
+    <button class="tab" onclick="showTab('zia-zpa',this)">ZIA vs ZPA</button>
+    <button class="tab" onclick="showTab('zdx',this)">ZDX &amp; performance</button>
+    <button class="tab" onclick="showTab('url-sandbox',this)">URL &amp; sandbox</button>
+    <button class="tab" onclick="showTab('client',this)">Client connector</button>
+    <button class="tab" onclick="showTab('deep-dive',this)">URL / Firewall / SSL</button>
+    <button class="tab" onclick="showTab('escalation',this)">Escalation</button>
+  </div>
+
+  <!-- =================== FLOWCHART =================== -->
+  <div id="tab-flowchart" class="panel active">
+    <div class="info-box blue">Click an answer to advance through the decision tree. Each path ends with a diagnosis and recommended steps. Use "Start over" to reset for the next call.</div>
+    <div id="flow-root"></div>
+    <div class="flow-footer">
+      <button class="btn-reset" onclick="resetFlow()">Start over</button>
+      <span class="breadcrumb" id="breadcrumb"></span>
+    </div>
+  </div>
+
+  <!-- =================== ZIA vs ZPA =================== -->
+  <div id="tab-zia-zpa" class="panel">
+    <p class="sec-title">Identifying ZIA vs ZPA issues</p>
+    <div class="info-box blue">ZIA inspects and controls internet-bound traffic. ZPA provides access to internal apps. Use this table to classify the issue quickly.</div>
+    <table class="sym-table">
+      <thead><tr><th>Symptom</th><th>Likely service</th><th>First check</th></tr></thead>
+      <tbody>
+        <tr><td>Can't reach internet sites (Google, SaaS tools)</td><td><span class="pill pill-zia">ZIA</span></td><td>Check ZIA policy / URL category block</td></tr>
+        <tr><td>Can't reach internal app (intranet, dev server)</td><td><span class="pill pill-zpa">ZPA</span></td><td>Check ZPA app segment &amp; connector status</td></tr>
+        <tr><td>SSL error / certificate warning on HTTPS site</td><td><span class="pill pill-zia">ZIA</span></td><td>Check SSL inspection policy &amp; root CA deployment</td></tr>
+        <tr><td>App works from office, not remote</td><td><span class="pill pill-zpa">ZPA</span></td><td>ZPA tunnel not established; check ZCC login</td></tr>
+        <tr><td>Slow streaming / video calls</td><td><span class="pill pill-zia">ZIA</span></td><td>Bandwidth control policy or ZDX media path</td></tr>
+        <tr><td>Slow internal file shares or DB connections</td><td><span class="pill pill-zpa">ZPA</span></td><td>App connector health + latency (ZDX)</td></tr>
+        <tr><td>File download blocked / quarantined</td><td><span class="pill pill-zia">ZIA</span></td><td>Sandbox verdict — check file hash in portal</td></tr>
+        <tr><td>Specific SaaS tenant blocked (correct site, wrong org)</td><td><span class="pill pill-zia">ZIA</span></td><td>Tenant restrictions policy in ZIA</td></tr>
+        <tr><td>Auth loop / redirect on internal SSO</td><td><span class="pill pill-zpa">ZPA</span></td><td>ZPA SAML/SCIM config; IdP connector</td></tr>
+        <tr><td>Partial site load (images load, API calls fail)</td><td><span class="pill pill-zia">ZIA</span></td><td>URL categories for CDN/API domains; SSL inspection bypass</td></tr>
+      </tbody>
+    </table>
+    <div class="two-col">
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">ZIA</span><h3>Quick diagnostic steps</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Ask: <em>"What URL or service can't you reach?"</em></li>
+          <li><span class="step-num">2</span>Have user visit <span class="code-chip">ip.zscaler.com</span> — confirms ZIA tunnel is active</li>
+          <li><span class="step-num">3</span>ZIA portal → Insights → Web Insights for the blocked transaction</li>
+          <li><span class="step-num">4</span>Note block reason: Policy, SSL error, Sandbox, or Firewall</li>
+          <li><span class="step-num">5</span>Verify user's ZIA policy group/profile is correct</li>
+          <li><span class="step-num">6</span>Check if URL is in a blocked category or custom block list</li>
+          <li><span class="step-num">7</span>Test with ZIA bypass / exclude from SSL inspection if cert issue</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zpa">ZPA</span><h3>Quick diagnostic steps</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Ask: <em>"What internal app or hostname?"</em> Get exact URL/IP</li>
+          <li><span class="step-num">2</span>Confirm ZPA tunnel state in ZCC tray icon (should show connected)</li>
+          <li><span class="step-num">3</span>ZPA portal → Administration → App Connectors — check health</li>
+          <li><span class="step-num">4</span>Verify app segment covers the destination IP/FQDN and port</li>
+          <li><span class="step-num">5</span>Check user entitlement to the access policy for that segment</li>
+          <li><span class="step-num">6</span>Review ZPA logs for access denied vs connector unreachable</li>
+          <li><span class="step-num">7</span>Test connectivity from a second connector in the same group</li>
+        </ul>
+      </div>
+    </div>
+    <p class="sec-title">ZCC tunnel states reference</p>
+    <div class="card-grid">
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-client">Status</span><h3>ZIA tunnel: Not connected</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Check network — is the device online? Can it reach <span class="code-chip">gateway.zscaler.net</span>?</li>
+          <li><span class="step-num">2</span>Firewall allowing TCP 443 outbound to Zscaler IP ranges?</li>
+          <li><span class="step-num">3</span>Re-login to ZCC; re-enroll if needed</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-client">Status</span><h3>ZPA tunnel: Not connected</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Confirm IdP credentials are valid (SSO not expired)</li>
+          <li><span class="step-num">2</span>Check ZCC is enrolled to correct ZPA cloud tenant</li>
+          <li><span class="step-num">3</span>Verify machine tunnel vs user tunnel is configured correctly</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-client">Status</span><h3>Disabled / paused</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Check if user manually disabled — re-enable in ZCC tray</li>
+          <li><span class="step-num">2</span>If bypass is in effect, review forwarding profile</li>
+          <li><span class="step-num">3</span>Check tamper protection if user can't re-enable</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- =================== ZDX =================== -->
+  <div id="tab-zdx" class="panel">
+    <p class="sec-title">ZDX — diagnosing speed and connectivity issues</p>
+    <div class="info-box amber">ZDX provides end-to-end path visibility. Always check ZDX before assuming Zscaler is the problem — the issue may be ISP, cloud provider, or endpoint-side.</div>
+    <div class="two-col">
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">ZDX</span><h3>When to invoke ZDX</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>User reports slowness but site is reachable</li>
+          <li><span class="step-num">2</span>Video/VoIP quality issues during calls</li>
+          <li><span class="step-num">3</span>Intermittent timeouts on a specific application</li>
+          <li><span class="step-num">4</span>Issue affects multiple users at one location</li>
+          <li><span class="step-num">5</span>User says "it was faster before Zscaler"</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">ZDX</span><h3>Initial data to collect</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Username, device name, OS version</li>
+          <li><span class="step-num">2</span>Affected app name and URL/IP</li>
+          <li><span class="step-num">3</span>Time the issue started (exact or approx.)</li>
+          <li><span class="step-num">4</span>Location — office, home, hotel/public WiFi?</li>
+          <li><span class="step-num">5</span>Does issue persist on mobile hotspot?</li>
+        </ul>
+      </div>
+    </div>
+    <p class="sec-title">ZDX diagnostic workflow</p>
+    <div class="card-grid">
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">Step 1</span><h3>Find the user in ZDX</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">A</span>Navigate to ZDX → Users → search by email or username</li>
+          <li><span class="step-num">B</span>Select the affected device and set time range to issue window</li>
+          <li><span class="step-num">C</span>Review ZDX Score — below 70 indicates degradation</li>
+          <li><span class="step-num">D</span>Note if score drop aligns with user's reported time</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">Step 2</span><h3>Path analysis</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">A</span>Open the affected app's path trace in ZDX</li>
+          <li><span class="step-num">B</span>Identify which segment has high latency or packet loss: Device→ZEN, ZEN→App, App response</li>
+          <li><span class="step-num">C</span>If Device→ZEN high: local ISP or endpoint issue</li>
+          <li><span class="step-num">D</span>If ZEN→App high: app hosting / cloud provider issue</li>
+          <li><span class="step-num">E</span>Check if user is hitting optimal ZEN (Zscaler Enforcement Node)</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">Step 3</span><h3>Device health check</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">A</span>ZDX → Device → check CPU, RAM, disk at time of issue</li>
+          <li><span class="step-num">B</span>Check WiFi signal strength and channel congestion</li>
+          <li><span class="step-num">C</span>Verify ZCC version is current</li>
+          <li><span class="step-num">D</span>Check for dual-tunnel conflict (VPN + ZCC simultaneously)</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">Step 4</span><h3>Web probe analysis</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">A</span>Review ZDX web probes for the affected application</li>
+          <li><span class="step-num">B</span>Check DNS resolution time, TCP connect, TLS handshake, TTFB</li>
+          <li><span class="step-num">C</span>High DNS time → check DNS forwarding profile in ZIA</li>
+          <li><span class="step-num">D</span>High TLS time → SSL inspection overhead; consider bypass for app</li>
+          <li><span class="step-num">E</span>High TTFB → origin server or CDN performance issue</li>
+        </ul>
+      </div>
+    </div>
+    <p class="sec-title">Common performance findings and fixes</p>
+    <table class="sym-table">
+      <thead><tr><th>Finding</th><th>Root cause</th><th>Remediation</th></tr></thead>
+      <tbody>
+        <tr><td>High Device→ZEN latency</td><td>Non-optimal ZEN / ISP congestion</td><td>Check ZCC cloud selection; try a different network</td></tr>
+        <tr><td>ZEN correctly assigned but ZEN→App slow</td><td>App hosting / CDN issue</td><td>Advise user; log incident; escalate to app team</td></tr>
+        <tr><td>SSL probe failures or high TLS time</td><td>SSL inspection overhead</td><td>Add app to SSL bypass list if compliant with policy</td></tr>
+        <tr><td>Packet loss on device segment</td><td>WiFi interference or ISP</td><td>Switch to wired; test on hotspot; contact ISP</td></tr>
+        <tr><td>Degraded ZDX score for one user only</td><td>Endpoint resource contention</td><td>Reboot device; check endpoint security scans running concurrently</td></tr>
+        <tr><td>All users at site affected</td><td>Branch gateway/ISP event</td><td>Check branch GRE/IPSec tunnel health in ZIA; engage ISP</td></tr>
+        <tr><td>Video call quality poor</td><td>QoS or bandwidth policy</td><td>Review ZIA bandwidth control rules; enable Office 365/Teams bypass</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- =================== URL & SANDBOX =================== -->
+  <div id="tab-url-sandbox" class="panel">
+    <p class="sec-title">URL filtering and category issues</p>
+    <div class="two-col">
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">ZIA</span><h3>URL blocked — diagnosis</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Confirm block page shown — note the block reason displayed</li>
+          <li><span class="step-num">2</span>ZIA portal → Insights → Web Insights — filter by username + time</li>
+          <li><span class="step-num">3</span>Find the blocked transaction; note category and policy rule name</li>
+          <li><span class="step-num">4</span>Use ZIA URL Lookup tool to confirm current categorization</li>
+          <li><span class="step-num">5</span>If miscategorized → submit re-categorization request</li>
+          <li><span class="step-num">6</span>If correct category but should be allowed → update policy or add URL to allow list</li>
+          <li><span class="step-num">7</span>Check for wildcard conflicts in custom URL categories</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">ZIA</span><h3>SSL inspection issues</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>User sees cert error → Zscaler root CA likely not deployed</li>
+          <li><span class="step-num">2</span>Check if Zscaler root CA is in trusted store: ZCC → About → Certificates</li>
+          <li><span class="step-num">3</span>For pinned-cert apps (banking, HR): add to SSL bypass list</li>
+          <li><span class="step-num">4</span>For custom internal CAs: ensure intermediate chain is uploaded to ZIA</li>
+          <li><span class="step-num">5</span>Mutual TLS (mTLS) sites must always be bypassed from SSL inspection</li>
+          <li><span class="step-num">6</span>Check DoH (DNS over HTTPS) — browsers may bypass ZIA resolver</li>
+        </ul>
+      </div>
+    </div>
+    <p class="sec-title">Sandbox issues</p>
+    <div class="info-box amber">The Zscaler Sandbox analyzes unknown or suspicious files. Users may be blocked downloading a file even from a trusted domain. This is often misidentified as a connectivity issue.</div>
+    <div class="card-grid">
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-sandbox">Sandbox</span><h3>File download blocked</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Ask: <em>"What is the filename and where were you downloading it from?"</em></li>
+          <li><span class="step-num">2</span>ZIA portal → Sandbox → Reports — search by filename or hash</li>
+          <li><span class="step-num">3</span>Check verdict: Malicious, Suspicious, Benign, or Unknown/Pending</li>
+          <li><span class="step-num">4</span>If Malicious: <strong>do not bypass</strong> — escalate to security team</li>
+          <li><span class="step-num">5</span>If Suspicious: review sandbox detonation report; escalate for approval</li>
+          <li><span class="step-num">6</span>If false positive (Benign confirmed): submit hash to allowlist</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-sandbox">Sandbox</span><h3>Pending / hold state</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>File is being analyzed — normal for first-seen files (1–3 min typically)</li>
+          <li><span class="step-num">2</span>Ask user to wait and retry the download after a few minutes</li>
+          <li><span class="step-num">3</span>If still pending: check sandbox quota and cloud connectivity</li>
+          <li><span class="step-num">4</span>If urgent and source is trusted: sandbox bypass can be applied per policy by admin</li>
+          <li><span class="step-num">5</span>Log the file hash for tracking; notify security team</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-sandbox">Sandbox</span><h3>Bypass cautions</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span><strong>Never</strong> bypass for Malicious or Suspicious verdicts without security approval</li>
+          <li><span class="step-num">2</span>Bypass should be scoped: specific hash, not whole domain</li>
+          <li><span class="step-num">3</span>Document every bypass request with justification and approver</li>
+          <li><span class="step-num">4</span>Review bypass list quarterly — remove stale entries</li>
+        </ul>
+      </div>
+    </div>
+    <p class="sec-title">Block reasons quick reference</p>
+    <table class="sym-table">
+      <thead><tr><th>Block reason</th><th>What it means</th><th>L1 action</th></tr></thead>
+      <tbody>
+        <tr><td>Policy Block</td><td>URL category blocked by admin policy</td><td>Verify category in URL Lookup; if legitimate business need, submit exception request</td></tr>
+        <tr><td>SSL Blocked</td><td>SSL inspection failed or cert untrusted</td><td>Check root CA deployment; add to bypass if pinned cert</td></tr>
+        <tr><td>Sandbox Block</td><td>File failed sandbox analysis</td><td>Check sandbox verdict; escalate to security if malicious</td></tr>
+        <tr><td>Firewall Block</td><td>ZIA firewall rule blocking port/protocol</td><td>Check ZIA firewall logs; verify if app uses non-standard port</td></tr>
+        <tr><td>DNS Block</td><td>Domain blocked at DNS layer</td><td>Check DNS control policy; verify domain is not on threat intel blocklist</td></tr>
+        <tr><td>Quota Exceeded</td><td>User hit bandwidth/time quota</td><td>Check ZIA quota policy for user group; adjust if appropriate</td></tr>
+        <tr><td>Caution/Warn page</td><td>Site is allowed but triggers a warning</td><td>Explain expected behavior to user</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- =================== CLIENT CONNECTOR =================== -->
+  <div id="tab-client" class="panel">
+    <p class="sec-title">Zscaler Client Connector (ZCC) — common issues</p>
+    <div class="card-grid">
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-client">ZCC</span><h3>ZCC won't launch / crashes</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Check if ZCC service is running: Task Manager → Services → <span class="code-chip">ZSATunnel</span></li>
+          <li><span class="step-num">2</span>Restart ZCC service or reboot device</li>
+          <li><span class="step-num">3</span>Check Windows Event Log or macOS Console for crash logs</li>
+          <li><span class="step-num">4</span>Verify ZCC version — check against minimum supported version</li>
+          <li><span class="step-num">5</span>Uninstall / reinstall ZCC; use ZCC cleanup tool if residual files remain</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-client">ZCC</span><h3>Shows "Disabled" or can't enable</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Check if tamper protection is set — admin-only re-enable required</li>
+          <li><span class="step-num">2</span>Review forwarding profile — ZCC may be disabled for this network</li>
+          <li><span class="step-num">3</span>Verify user is not in a bypass subnet (trusted network)</li>
+          <li><span class="step-num">4</span>Check MDM/Intune policy — conflicts can cause disable loops</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-client">ZCC</span><h3>Login / enrollment issues</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Confirm user knows their correct IdP credentials (SSO, SAML)</li>
+          <li><span class="step-num">2</span>Check ZCC is enrolled to correct tenant / cloud name</li>
+          <li><span class="step-num">3</span>For SAML: verify IdP redirect URL and assertion is valid</li>
+          <li><span class="step-num">4</span>Clear ZCC cache: <span class="code-chip">ZSATray → Troubleshoot → Clear Cache</span></li>
+          <li><span class="step-num">5</span>Re-enroll via MDM push if self-enrollment is failing</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-client">ZCC</span><h3>Conflict with other security tools</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Check for concurrent VPN client (Cisco AnyConnect, GlobalProtect)</li>
+          <li><span class="step-num">2</span>VPN + ZCC split tunnel: configure VPN to exclude Zscaler destination IPs</li>
+          <li><span class="step-num">3</span>EDR/AV tools: whitelist ZCC processes and network drivers</li>
+          <li><span class="step-num">4</span>Windows Defender Firewall: ensure ZCC is allowed through firewall rules</li>
+          <li><span class="step-num">5</span>Browser extensions: disable any competing proxy extensions</li>
+        </ul>
+      </div>
+    </div>
+    <p class="sec-title">ZCC log collection for escalation</p>
+    <div class="info-box blue">Always collect logs before escalating. Logs expire after 30 minutes — collect immediately after reproducing the problem.</div>
+    <div class="two-col">
+      <div>
+        <p style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text)">Windows</p>
+        <div class="cmd-block"><span class="comment"># ZCC tray → Troubleshoot → Collect Logs<br># Or manually:</span><br>%ProgramData%\Zscaler\ZSATunnel\logs</div>
+      </div>
+      <div>
+        <p style="font-size:13px;font-weight:600;margin-bottom:8px;color:var(--text)">macOS</p>
+        <div class="cmd-block"><span class="comment"># ZCC tray → Troubleshoot → Collect Logs<br># Or manually:</span><br>/Library/Application Support/Zscaler/logs</div>
+      </div>
+    </div>
+    <div class="cmd-block" style="margin-top:12px"><span class="comment"># ZDX diagnostics — run from ZCC tray → Troubleshoot → Run Diagnostics</span><br><span class="comment"># Generates full path trace, device health snapshot, sends to ZDX portal</span></div>
+  </div>
+
+  <!-- =================== URL / FIREWALL / SSL =================== -->
+  <div id="tab-deep-dive" class="panel">
+
+    <!-- ── SECTION NAV ── -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+      <a href="#url-filtering" style="padding:6px 14px;border-radius:6px;font-size:13px;border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);text-decoration:none">URL filtering</a>
+      <a href="#firewall"      style="padding:6px 14px;border-radius:6px;font-size:13px;border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);text-decoration:none">Firewall</a>
+      <a href="#ssl-decrypt"   style="padding:6px 14px;border-radius:6px;font-size:13px;border:0.5px solid var(--border2);background:var(--bg2);color:var(--text);text-decoration:none">SSL decryption</a>
+    </div>
+
+    <!-- ════════════════════════════════════════
+         URL FILTERING
+    ════════════════════════════════════════ -->
+    <a id="url-filtering"></a>
+    <p class="sec-title" style="font-size:16px">URL filtering — detailed troubleshooting</p>
+
+    <div class="info-box blue" style="margin-bottom:16px">URL filtering is the most common ZIA support category. Always begin with Web Insights to identify the exact transaction before touching any policy.</div>
+
+    <!-- Step-by-step diagnostic -->
+    <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">Step-by-step diagnostic workflow</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:20px">
+
+      <div class="ref-card" style="border-left:3px solid #85B7EB">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Step 1</span><h3>Confirm the block in Web Insights</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZIA portal → Analytics → Web Insights</li>
+          <li><span class="step-num">2</span>Filter by username and set time range to when issue occurred</li>
+          <li><span class="step-num">3</span>Locate the specific blocked transaction — note the <strong>Action</strong> column (Block, Allow, Caution)</li>
+          <li><span class="step-num">4</span>Record: URL, category, policy name, rule name, and action applied</li>
+          <li><span class="step-num">5</span>Confirm the transaction matches what the user reported (correct URL, correct time)</li>
+        </ul>
+      </div>
+
+      <div class="ref-card" style="border-left:3px solid #85B7EB">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Step 2</span><h3>Check URL categorization</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZIA portal → Administration → URL Categories → URL Lookup tool</li>
+          <li><span class="step-num">2</span>Enter the full URL (not just domain) — subpaths can have different categories</li>
+          <li><span class="step-num">3</span>Note both the <strong>Zscaler category</strong> and any <strong>custom category</strong> overrides</li>
+          <li><span class="step-num">4</span>If the category is wrong: submit recategorization via the lookup tool or <span class="code-chip">help.zscaler.com</span></li>
+          <li><span class="step-num">5</span>Check if the URL is in any custom allow/block list — custom lists override Zscaler categories</li>
+          <li><span class="step-num">6</span>Watch for wildcard entries (e.g., <span class="code-chip">*.example.com</span>) that may be catching unintended URLs</li>
+        </ul>
+      </div>
+
+      <div class="ref-card" style="border-left:3px solid #85B7EB">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Step 3</span><h3>Identify the policy rule</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZIA portal → Policy → URL &amp; Cloud App Control</li>
+          <li><span class="step-num">2</span>Find the rule name shown in Web Insights — confirm its configuration</li>
+          <li><span class="step-num">3</span>Check which <strong>user groups or departments</strong> are in scope for that rule</li>
+          <li><span class="step-num">4</span>Verify the user is in the correct group — miscategorized AD/LDAP groups are a common cause</li>
+          <li><span class="step-num">5</span>Check rule <strong>order</strong> — higher rules take precedence; an early block rule may be catching the user before a later allow rule</li>
+          <li><span class="step-num">6</span>Check time-based scheduling on the rule — may only apply during certain hours</li>
+        </ul>
+      </div>
+
+      <div class="ref-card" style="border-left:3px solid #85B7EB">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Step 4</span><h3>Apply an exception (Tier 2)</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Determine the correct scope: user-specific, group-level, or org-wide</li>
+          <li><span class="step-num">2</span>Add the URL to a custom allow list scoped to the appropriate group</li>
+          <li><span class="step-num">3</span>Alternatively: create a new rule above the blocking rule for the specific user/group</li>
+          <li><span class="step-num">4</span>For cloud app control blocks (e.g., personal Dropbox): use tenant restrictions rather than full URL bypass</li>
+          <li><span class="step-num">5</span>Test after applying: changes propagate within 5 minutes typically</li>
+          <li><span class="step-num">6</span>Document the exception with business justification and review date</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- Common URL filtering scenarios -->
+    <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">Common URL filtering scenarios</p>
+    <table class="sym-table" style="margin-bottom:20px">
+      <thead><tr><th style="width:22%">Scenario</th><th style="width:28%">Likely cause</th><th>Diagnostic steps</th><th style="width:22%">Resolution</th></tr></thead>
+      <tbody>
+        <tr><td>Legitimate business site blocked</td><td>Miscategorized URL or overly broad policy rule</td><td>URL Lookup → check category; Web Insights → check rule name</td><td>Submit recategorization + add temporary allow-list entry</td></tr>
+        <tr><td>Site allowed but only for some users</td><td>User not in the correct policy group</td><td>Check user's group membership in ZIA; compare with allowed users</td><td>Add user to correct AD/LDAP group; sync groups in ZIA</td></tr>
+        <tr><td>Site was accessible yesterday, blocked today</td><td>Zscaler category feed update changed classification</td><td>URL Lookup → compare with historical logs; check Zscaler category update notes</td><td>Submit recategorization; create temporary custom allow list entry</td></tr>
+        <tr><td>Entire domain blocked but only one URL needed</td><td>Domain-level block in custom list or policy</td><td>Check custom URL categories for the domain; check cloud app control</td><td>Add specific URL path to allow list with higher rule priority</td></tr>
+        <tr><td>Block page not shown — just times out</td><td>DNS-level block or firewall block (not URL policy)</td><td>Check DNS Control policy and ZIA Firewall logs</td><td>See Firewall section; may not be a URL filtering issue</td></tr>
+        <tr><td>Caution/warning page shown but user expects allow</td><td>Site is in a "Caution" action category</td><td>Web Insights → confirm action is Caution not Block; check policy rule</td><td>Change action from Caution to Allow for that category/rule, or add URL to allow list</td></tr>
+        <tr><td>Cloud app works but specific tenant is blocked</td><td>Tenant restriction policy in ZIA</td><td>ZIA → Policy → Tenant Restrictions — check configuration for that app</td><td>Add allowed tenant to the tenant restriction allowlist</td></tr>
+        <tr><td>URL allowed per policy but still blocked</td><td>SSL inspection failing — URL never evaluated</td><td>Check SSL inspection logs; look for cert errors in Web Insights</td><td>See SSL decryption section — resolve SSL issue first</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Advanced URL filtering checks -->
+    <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">Advanced checks for persistent URL issues</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:28px">
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Advanced</span><h3>Custom URL category conflicts</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZIA → Administration → URL Categories — list all custom categories</li>
+          <li><span class="step-num">2</span>Search for the domain across all custom categories — it may appear in multiple</li>
+          <li><span class="step-num">3</span>Custom categories in a block policy always override Zscaler built-in categories</li>
+          <li><span class="step-num">4</span>Check for overly broad wildcards: <span class="code-chip">*.co</span> can inadvertently block country-code TLDs</li>
+          <li><span class="step-num">5</span>Compare custom category rule order — a custom block higher in the policy wins over a custom allow lower down</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Advanced</span><h3>Cloud app control vs URL filtering</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZIA → Policy → Cloud App Control — check if the app has specific block actions (upload block, download block, etc.)</li>
+          <li><span class="step-num">2</span>Cloud app control can block specific <em>functions</em> (e.g., allow Google Drive access but block uploads)</li>
+          <li><span class="step-num">3</span>Web Insights will show "Cloud App Control" as the block reason — distinct from URL policy block</li>
+          <li><span class="step-num">4</span>Check the app's risk score in ZIA — high-risk apps may be auto-blocked by risk-based policy</li>
+          <li><span class="step-num">5</span>For unsanctioned app blocks: confirm with security team before adding exceptions</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Advanced</span><h3>Safe search &amp; social media controls</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZIA → Policy → URL &amp; Cloud App Control → check for Safe Search enforcement rules</li>
+          <li><span class="step-num">2</span>Safe Search enforcement modifies search result URLs — some apps may break if they detect URL modification</li>
+          <li><span class="step-num">3</span>YouTube restricted mode: check if enforced for the user's group; may block educational content</li>
+          <li><span class="step-num">4</span>Social media "read-only" controls: users can view but not post — common source of "site doesn't work" reports</li>
+          <li><span class="step-num">5</span>Check Web Insights action column — "Allow (Read-Only)" indicates social media restriction is active</li>
+        </ul>
+      </div>
+    </div>
+
+    <hr style="border:none;border-top:0.5px solid var(--border);margin:4px 0 24px">
+
+    <!-- ════════════════════════════════════════
+         FIREWALL
+    ════════════════════════════════════════ -->
+    <a id="firewall"></a>
+    <p class="sec-title" style="font-size:16px">ZIA firewall — detailed troubleshooting</p>
+
+    <div class="info-box amber">ZIA Cloud Firewall controls non-web traffic and enforces rules on ports, protocols, and IP addresses. Firewall blocks often appear as connection timeouts rather than block pages — users may not realise Zscaler is involved.</div>
+
+    <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">Step-by-step diagnostic workflow</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:20px">
+
+      <div class="ref-card" style="border-left:3px solid #EF9F27">
+        <div class="ref-card-header"><span class="ref-badge badge-sandbox">Step 1</span><h3>Check ZIA Firewall logs</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZIA portal → Analytics → Firewall Insights (or Firewall Logs)</li>
+          <li><span class="step-num">2</span>Filter by username + time window of the issue</li>
+          <li><span class="step-num">3</span>Look for <strong>Block</strong> entries matching the destination IP, port, or protocol</li>
+          <li><span class="step-num">4</span>Record the firewall rule name that triggered the block</li>
+          <li><span class="step-num">5</span>Note: if no firewall log entry exists, the traffic may not be reaching ZIA at all — check ZCC tunnel state</li>
+        </ul>
+      </div>
+
+      <div class="ref-card" style="border-left:3px solid #EF9F27">
+        <div class="ref-card-header"><span class="ref-badge badge-sandbox">Step 2</span><h3>Identify the protocol and port</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Ask user: what application is failing? Get the app name and vendor if possible</li>
+          <li><span class="step-num">2</span>Identify the destination port(s) and protocol (TCP/UDP) from Firewall logs</li>
+          <li><span class="step-num">3</span>Common non-standard ports blocked by default: <span class="code-chip">8080</span>, <span class="code-chip">8443</span>, <span class="code-chip">9000</span>, <span class="code-chip">1433</span> (SQL), <span class="code-chip">5432</span> (Postgres), custom VoIP ports</li>
+          <li><span class="step-num">4</span>Check if UDP traffic is involved — ZIA firewall handles UDP separately from TCP; DNS (53) and VoIP (RTP) are common UDP issues</li>
+          <li><span class="step-num">5</span>For ICMP (ping) failures: ZIA blocks ICMP by default unless a rule explicitly permits it</li>
+        </ul>
+      </div>
+
+      <div class="ref-card" style="border-left:3px solid #EF9F27">
+        <div class="ref-card-header"><span class="ref-badge badge-sandbox">Step 3</span><h3>Review the firewall policy</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZIA portal → Policy → Firewall Control</li>
+          <li><span class="step-num">2</span>Locate the rule name from Firewall Insights — confirm it is intentionally blocking the traffic</li>
+          <li><span class="step-num">3</span>Check <strong>rule order</strong> — rules are evaluated top-to-bottom; a broad "Block All" rule near the top may override a lower allow rule</li>
+          <li><span class="step-num">4</span>Verify the user's network location (IP/subnet) and whether they fall into the rule's source scope</li>
+          <li><span class="step-num">5</span>Check if the rule is scoped to a specific <strong>location</strong> (branch) vs all locations</li>
+          <li><span class="step-num">6</span>Look for implicit deny at the bottom of the ruleset — all unmatched traffic is dropped</li>
+        </ul>
+      </div>
+
+      <div class="ref-card" style="border-left:3px solid #EF9F27">
+        <div class="ref-card-header"><span class="ref-badge badge-sandbox">Step 4</span><h3>Create or modify a firewall rule (Tier 2)</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Confirm with security team that the traffic is legitimate before creating an allow rule</li>
+          <li><span class="step-num">2</span>Create a new rule <strong>above</strong> the blocking rule — scope it as narrowly as possible (specific user group, destination IP/FQDN, port)</li>
+          <li><span class="step-num">3</span>Use <strong>Application</strong> objects where possible (ZIA has built-in app definitions for common tools) rather than raw port rules</li>
+          <li><span class="step-num">4</span>Avoid creating broad "Allow Any/Any" rules — scope to the minimum required access</li>
+          <li><span class="step-num">5</span>Test and verify in Firewall Insights after applying — changes propagate within ~5 minutes</li>
+          <li><span class="step-num">6</span>Set a review date on the rule — document the business justification</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- Firewall scenarios table -->
+    <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">Common firewall scenarios</p>
+    <table class="sym-table" style="margin-bottom:20px">
+      <thead><tr><th style="width:22%">Scenario</th><th style="width:25%">Likely cause</th><th>Diagnostic steps</th><th>Resolution</th></tr></thead>
+      <tbody>
+        <tr><td>Application times out with no error page</td><td>ZIA firewall dropping traffic silently</td><td>Firewall Insights → filter by user + destination port; look for Block entries</td><td>Add permit rule for the specific port/app scoped to user group</td></tr>
+        <tr><td>VoIP / SIP calls failing or dropping</td><td>SIP and RTP (UDP) blocked by firewall; or NAT traversal issues</td><td>Firewall Insights → filter for UDP/SIP (port 5060/5061) and RTP (16384–32767); check if IPS is inspecting SIP</td><td>Add firewall rule to permit SIP/RTP; consider enabling ZIA SIP application awareness; exclude from IPS if needed</td></tr>
+        <tr><td>Custom internal app fails over ZCC (not ZPA)</td><td>App uses non-HTTP protocol blocked by ZIA firewall</td><td>Confirm traffic is going through ZIA, not ZPA; Firewall Insights → check protocol and port</td><td>Route app traffic through ZPA instead (preferred); or add ZIA firewall rule for the specific ports</td></tr>
+        <tr><td>SSH / RDP blocked for admins</td><td>Ports 22 and 3389 commonly blocked by default ZIA policy</td><td>Firewall Insights → look for TCP 22 or 3389 blocks for the user</td><td>Create a firewall rule scoped to the admin group to permit SSH/RDP to specific destination IPs</td></tr>
+        <tr><td>DNS resolution failing (NXDOMAIN for valid domains)</td><td>DNS Control policy blocking the domain, or DNS traffic itself blocked</td><td>ZIA → Policy → DNS Control — check for domain blocklist entries; also check Firewall Insights for UDP 53 blocks</td><td>Remove domain from DNS blocklist if false positive; ensure UDP 53 is permitted in firewall policy</td></tr>
+        <tr><td>Traffic bypassing ZIA firewall on certain networks</td><td>Location or subnet not configured in ZIA; PAC file issue</td><td>Verify the source IP is in a configured ZIA location; check PAC file configuration for the network</td><td>Add the subnet to the correct ZIA location; update PAC file to redirect traffic through ZIA</td></tr>
+        <tr><td>IPS (Intrusion Prevention) false positive blocking app</td><td>ZIA IPS signature matching legitimate app traffic</td><td>ZIA → Policy → IPS Control — check alerts for the user + time; note signature name</td><td>Submit false positive to Zscaler TAC; consider IPS exception for the specific signature + destination — escalate to Tier 3</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Firewall advanced checks -->
+    <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">Advanced firewall checks</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:28px">
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-sandbox">Advanced</span><h3>DNS control vs URL filtering</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>DNS Control blocks occur before the HTTP request is made — user gets NXDOMAIN, not a block page</li>
+          <li><span class="step-num">2</span>ZIA → Policy → DNS Control — check for domain entries matching the failed destination</li>
+          <li><span class="step-num">3</span>DNS blocks are also used for threat intelligence feeds — domain may be flagged as C2 or phishing</li>
+          <li><span class="step-num">4</span>Test: <span class="code-chip">nslookup domain.com</span> from the affected device — NXDOMAIN confirms DNS-level block</li>
+          <li><span class="step-num">5</span>Check if browser DoH (DNS-over-HTTPS) is bypassing ZIA DNS — disable in browser settings</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-sandbox">Advanced</span><h3>Bandwidth control &amp; QoS</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZIA → Policy → Bandwidth Control — check if a rule is throttling the user's traffic type</li>
+          <li><span class="step-num">2</span>Bandwidth control does not block — it rate-limits; symptoms are slow speeds, not timeouts</li>
+          <li><span class="step-num">3</span>Check which category is being throttled and confirm the user's traffic matches that category</li>
+          <li><span class="step-num">4</span>Priority apps (Teams, Zoom, Office 365) should be in high-priority QoS classes — verify in policy</li>
+          <li><span class="step-num">5</span>Escalate to Tier 2 to adjust bandwidth policy if legitimate business traffic is being throttled</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-sandbox">Advanced</span><h3>Branch / location firewall isolation</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZIA → Administration → Locations — confirm the branch is configured with the correct subnet/IP range</li>
+          <li><span class="step-num">2</span>If a branch IP is not in any location, traffic may be processed under the "Other" default location with different policies</li>
+          <li><span class="step-num">3</span>Check GRE/IPSec tunnel health for the branch — if the tunnel is down, traffic may route directly without ZIA inspection</li>
+          <li><span class="step-num">4</span>Confirm that location-specific firewall rules are applied in the correct location group</li>
+          <li><span class="step-num">5</span>Escalate to Tier 2/3 if branch tunnel is unstable — involves ISP and Zscaler ZEN coordination</li>
+        </ul>
+      </div>
+    </div>
+
+    <hr style="border:none;border-top:0.5px solid var(--border);margin:4px 0 24px">
+
+    <!-- ════════════════════════════════════════
+         SSL DECRYPTION
+    ════════════════════════════════════════ -->
+    <a id="ssl-decrypt"></a>
+    <p class="sec-title" style="font-size:16px">SSL decryption — detailed troubleshooting</p>
+
+    <div class="info-box amber">SSL inspection is the most complex ZIA component and the most common source of application breakage. Zscaler acts as a man-in-the-middle — it terminates the user's TLS session, inspects the content, and re-encrypts it. Any app that validates the certificate chain strictly may fail.</div>
+
+    <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">How SSL inspection works — key concepts</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:20px">
+      <div class="ref-card" style="background:var(--blue-50);border-color:#B5D4F4">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Concept</span><h3>The ZIA root CA</h3></div>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6">When ZIA inspects HTTPS traffic, it re-signs the server certificate using the <strong>Zscaler Root CA</strong>. The device must trust this CA — if it does not, the browser shows a certificate error. The root CA must be deployed to every managed device via MDM/GPO before SSL inspection is enabled.</p>
+      </div>
+      <div class="ref-card" style="background:var(--blue-50);border-color:#B5D4F4">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Concept</span><h3>Certificate pinning</h3></div>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6">Some applications (mobile apps, banking clients, security tools, OS update services) use <strong>certificate pinning</strong> — they only accept a specific certificate or CA, not Zscaler's re-signed cert. These apps will always fail under SSL inspection and <em>must</em> be added to the SSL bypass list.</p>
+      </div>
+      <div class="ref-card" style="background:var(--blue-50);border-color:#B5D4F4">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Concept</span><h3>What bypasses SSL inspection</h3></div>
+        <p style="font-size:13px;color:var(--text2);line-height:1.6">Bypassed traffic is still forwarded through ZIA but is <strong>not inspected</strong> — Zscaler passes the original server certificate through to the client. Bypasses can be scoped by URL category, specific URL, source user/group, destination IP, or application type.</p>
+      </div>
+    </div>
+
+    <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">Step-by-step SSL diagnostic workflow</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:20px">
+
+      <div class="ref-card" style="border-left:3px solid #5DCAA5">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">Step 1</span><h3>Confirm SSL inspection is the cause</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Ask user to click the padlock icon in their browser on the failing site</li>
+          <li><span class="step-num">2</span>If the issuer shows <strong>"Zscaler"</strong> — SSL inspection is active on this site</li>
+          <li><span class="step-num">3</span>If the issuer shows the real server cert — SSL inspection is already bypassed; the issue is elsewhere</li>
+          <li><span class="step-num">4</span>ZIA → Analytics → Web Insights → find the transaction → check the <strong>SSL Inspected</strong> column</li>
+          <li><span class="step-num">5</span>For non-browser apps: check if the app logs show "certificate verification failed" or "untrusted CA"</li>
+        </ul>
+      </div>
+
+      <div class="ref-card" style="border-left:3px solid #5DCAA5">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">Step 2</span><h3>Check root CA deployment</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZCC → About → Certificates — confirm Zscaler root CA is listed as Trusted</li>
+          <li><span class="step-num">2</span>Windows: <span class="code-chip">certmgr.msc</span> → Trusted Root Certification Authorities → verify Zscaler CA is present</li>
+          <li><span class="step-num">3</span>macOS: Keychain Access → System → Certificates → search "Zscaler" → confirm Trust is set to "Always Trust"</li>
+          <li><span class="step-num">4</span>Firefox uses its own certificate store — the root CA must be pushed to Firefox separately via GPO or Firefox policy</li>
+          <li><span class="step-num">5</span>If root CA is missing: escalate to Tier 2 for MDM/GPO re-deployment of the CA cert</li>
+        </ul>
+      </div>
+
+      <div class="ref-card" style="border-left:3px solid #5DCAA5">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">Step 3</span><h3>Identify if site needs a bypass</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Test: does the app/site work if temporarily ZCC is disabled? If yes, SSL inspection is the likely cause</li>
+          <li><span class="step-num">2</span>Look up the domain in ZIA → Policy → SSL Inspection — check if it is already in the bypass list</li>
+          <li><span class="step-num">3</span>Check built-in ZIA bypass categories (Financial, Health, Government) — these are typically pre-bypassed</li>
+          <li><span class="step-num">4</span>Research the app: does the vendor documentation mention certificate pinning? Common examples: Apple services, Windows Update, Okta, Duo, banking apps, many mobile apps</li>
+          <li><span class="step-num">5</span>Check ZIA's built-in "Do Not Decrypt" list — Zscaler maintains a pre-configured list of known pinned-cert services</li>
+        </ul>
+      </div>
+
+      <div class="ref-card" style="border-left:3px solid #5DCAA5">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">Step 4</span><h3>Add SSL bypass (Tier 2)</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZIA → Policy → SSL Inspection → Do Not Decrypt rules</li>
+          <li><span class="step-num">2</span>Add a "Do Not Decrypt" rule for the specific URL, domain, or URL category</li>
+          <li><span class="step-num">3</span>Scope the bypass as narrowly as possible — by user group and/or destination domain</li>
+          <li><span class="step-num">4</span>Avoid bypassing entire URL categories unless necessary (e.g., do not bypass all "Financial Services" — bypass only the specific domain)</li>
+          <li><span class="step-num">5</span>Verify the bypass is working: browser padlock should now show the real server certificate, not Zscaler's</li>
+          <li><span class="step-num">6</span>Document the bypass with reason and review date — SSL bypasses reduce inspection coverage</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- SSL scenarios -->
+    <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">Common SSL decryption scenarios</p>
+    <table class="sym-table" style="margin-bottom:20px">
+      <thead><tr><th style="width:22%">Scenario</th><th style="width:25%">Likely cause</th><th>Diagnostic steps</th><th>Resolution</th></tr></thead>
+      <tbody>
+        <tr><td>Browser shows "Your connection is not private" (ERR_CERT_AUTHORITY_INVALID)</td><td>Zscaler root CA not in the OS/browser trusted store</td><td>Check certmgr.msc / Keychain for Zscaler root CA; check ZCC → About → Certificates</td><td>Deploy root CA via MDM/GPO; for Firefox push via browser policy</td></tr>
+        <tr><td>App silently fails — no error to user</td><td>App performing certificate pinning; rejects Zscaler re-signed cert without surfacing an error</td><td>Check app logs for "SSL handshake failed" or "cert validation error"; check if app vendor docs mention pinning</td><td>Add domain to SSL bypass list (Do Not Decrypt)</td></tr>
+        <tr><td>Specific HTTPS site fails but others work</td><td>Site uses an uncommon TLS feature (e.g., ESNI, ECH, or client cert mutual TLS)</td><td>Browser DevTools → Security tab → check TLS details; check if site uses mTLS or ECH</td><td>Add site to SSL bypass list; for mTLS sites bypass is mandatory</td></tr>
+        <tr><td>Windows Update / Apple Update failing</td><td>Update services use certificate pinning</td><td>Check ZIA SSL Inspection policy — Windows Update and Apple domains should be in the Do Not Decrypt list</td><td>Add Microsoft/Apple update domains to Do Not Decrypt; ZIA's built-in list should cover these — verify it's enabled</td></tr>
+        <tr><td>O365 / Google Workspace performance slow</td><td>SSL inspection adding latency to high-volume SaaS traffic</td><td>ZDX → check TLS handshake time for O365/Google; compare with ZIA SSL inspection logs</td><td>Enable O365 and Google Workspace SSL bypass (pre-built in ZIA); this is a best-practice configuration</td></tr>
+        <tr><td>Internal HTTPS site breaks after ZCC install</td><td>Internal CA certificate chain not uploaded to ZIA</td><td>ZIA → Administration → Certificates — check if internal CA is present; browser shows internal CA or error about unknown CA</td><td>Upload the full internal CA chain (root + intermediates) to ZIA under Administration → Certificates</td></tr>
+        <tr><td>Certificate error only in one browser</td><td>Browser-specific certificate store not updated (Firefox)</td><td>Test in Chrome and Firefox — if one works, it's a browser cert store issue, not OS</td><td>Push Zscaler root CA via browser management policy (Firefox: security.enterprise_roots.enabled via GPO or Firefox policy JSON)</td></tr>
+        <tr><td>TLS 1.0 / 1.1 app breaks after ZIA SSL inspection enabled</td><td>ZIA enforces a minimum TLS version — older TLS versions are downgraded or blocked</td><td>Check app's TLS version in browser DevTools or app logs; ZIA → Policy → SSL Inspection → check minimum TLS version setting</td><td>If app cannot be upgraded: add to SSL bypass; engage vendor to update TLS support; escalate to Tier 2/3</td></tr>
+      </tbody>
+    </table>
+
+    <!-- SSL advanced / escalation notes -->
+    <p style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:10px">SSL inspection escalation criteria</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;margin-bottom:8px">
+      <div class="ref-card" style="background:var(--red-50);border-color:#F7C1C1">
+        <div class="ref-card-header"><span class="ref-badge" style="background:var(--red-50);color:#A32D2D;border:0.5px solid #F09595">Escalate to Tier 3</span><h3>When to involve Zscaler TAC</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">!</span>Persistent SSL inspection failures affecting multiple users after CA deployment verified</li>
+          <li><span class="step-num">!</span>ZIA re-signing with incorrect intermediate chain causing widespread cert errors</li>
+          <li><span class="step-num">!</span>ECH (Encrypted Client Hello) or TLS 1.3 edge cases that bypass inspection unexpectedly</li>
+          <li><span class="step-num">!</span>HPKP (HTTP Public Key Pinning) violations causing browser trust failures</li>
+          <li><span class="step-num">!</span>Zscaler CA certificate itself approaching expiry (check ZIA → Administration → Certificates)</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">Best practice</span><h3>SSL bypass governance</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Maintain a bypass register — every Do Not Decrypt entry should have: owner, date added, reason, review date</li>
+          <li><span class="step-num">2</span>Review bypass list quarterly — remove entries for apps that have been decommissioned or updated</li>
+          <li><span class="step-num">3</span>Use ZIA's pre-built "Do Not Decrypt" categories (Financial, Health, Government) rather than manual entries where possible</li>
+          <li><span class="step-num">4</span>Never bypass entire broad categories like "Business and Economy" — always scope to the minimum required domain</li>
+          <li><span class="step-num">5</span>After adding a bypass, verify in Web Insights that the site now shows "Not Inspected" — confirm the bypass applied</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Reference</span><h3>Always-bypass domains (examples)</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">—</span><span class="code-chip">*.windowsupdate.com</span> — Windows Update</li>
+          <li><span class="step-num">—</span><span class="code-chip">*.apple.com</span> — Apple services &amp; updates</li>
+          <li><span class="step-num">—</span><span class="code-chip">*.digicert.com</span> — Certificate revocation</li>
+          <li><span class="step-num">—</span><span class="code-chip">*.ocsp.*.com</span> — OCSP stapling endpoints</li>
+          <li><span class="step-num">—</span><span class="code-chip">*.duo.com</span>, <span class="code-chip">*.okta.com</span> — MFA/IdP services</li>
+          <li><span class="step-num">—</span><span class="code-chip">*.zscaler.net</span> — ZIA/ZPA infrastructure itself</li>
+          <li><span class="step-num">—</span>Financial institution and government domains (use built-in ZIA categories)</li>
+        </ul>
+      </div>
+    </div>
+
+  </div><!-- end tab-deep-dive -->
+
+  <!-- =================== ESCALATION =================== -->
+  <div id="tab-escalation" class="panel">
+    <p class="sec-title">Escalation framework</p>
+    <div class="esc-grid">
+      <div class="esc-card tier1">
+        <h4>Tier 1 — Service desk</h4>
+        <p>Handle: ZCC restart, login help, log collection, URL category lookups, confirming ZIA/ZPA tunnel state, relaying block reasons, ZDX score check. Escalate after 15 min if unresolved.</p>
+      </div>
+      <div class="esc-card tier2">
+        <h4>Tier 2 — Network/security admin</h4>
+        <p>Handle: Policy changes (URL allow/block, SSL bypass), ZPA app segment creation/editing, connector health issues, sandbox verdict disputes, ZCC enrollment fixes, ZDX path analysis.</p>
+      </div>
+      <div class="esc-card tier3">
+        <h4>Tier 3 — Zscaler TAC / architect</h4>
+        <p>Handle: ZEN-level issues, cloud-side outages, complex policy conflicts, ZPA connector cluster failures, persistent ZDX anomalies, sandbox false positive submissions, IdP/MDM integration issues.</p>
+      </div>
+    </div>
+    <p class="sec-title">Mandatory info before escalating</p>
+    <div class="two-col">
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-client">All tickets</span><h3>Base information</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>Full username (UPN / email), device hostname, OS + version</li>
+          <li><span class="step-num">2</span>ZCC version (from About screen in tray)</li>
+          <li><span class="step-num">3</span>Issue start time (exact or estimated) and timezone</li>
+          <li><span class="step-num">4</span>Network type: corporate LAN, home broadband, hotel/public WiFi, cellular</li>
+          <li><span class="step-num">5</span>Steps already attempted</li>
+          <li><span class="step-num">6</span>ZCC log bundle</li>
+        </ul>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zdx">Performance tickets</span><h3>Additional for perf/ZDX</h3></div>
+        <ul class="ref-steps">
+          <li><span class="step-num">1</span>ZDX score screenshot for affected device + time range</li>
+          <li><span class="step-num">2</span>Path analysis screenshot showing latency per segment</li>
+          <li><span class="step-num">3</span>Output of ZDX diagnostics run from ZCC tray</li>
+          <li><span class="step-num">4</span>ISP speed test result from <span class="code-chip">fast.com</span> or <span class="code-chip">speedtest.net</span></li>
+          <li><span class="step-num">5</span>Whether issue reproduces on mobile hotspot (yes/no)</li>
+        </ul>
+      </div>
+    </div>
+    <p class="sec-title">Quick status checks</p>
+    <div class="card-grid">
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Status</span><h3>Zscaler cloud status</h3></div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px">Before logging a Tier 3 ticket, check for known Zscaler cloud issues:</p>
+        <span class="code-chip">status.zscaler.com</span>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zia">Test</span><h3>Verify ZIA is active</h3></div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px">Have user visit this URL — confirms traffic is tunneled through ZIA:</p>
+        <span class="code-chip">ip.zscaler.com</span>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-header"><span class="ref-badge badge-zpa">Test</span><h3>ZPA connectivity test</h3></div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:8px">Validate ZPA tunnel and app reachability:</p>
+        <span class="code-chip">ZCC → Troubleshoot → Diagnostics</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end .page -->
+
+<script>
+const TREE = {
+  id:'q0',type:'question',
+  q:'Is ZCC (Zscaler Client Connector) installed and showing as connected?',
+  answers:[
+    {label:'Yes — ZCC shows connected',next:{
+      id:'q1',type:'question',q:'What is the primary symptom?',
+      answers:[
+        {label:'Cannot reach a site or service',next:{
+          id:'q1a',type:'question',q:'Is the destination an internal app (intranet, dev server) or an internet/SaaS site?',
+          answers:[
+            {label:'Internal app / intranet',next:{
+              id:'q1a1',type:'question',q:'Is the ZPA tunnel shown as "Connected" in ZCC?',
+              answers:[
+                {label:'Yes — ZPA connected',next:{id:'r1',type:'result',variant:'warning',title:'ZPA policy or app connector issue',steps:['Check ZPA portal → App Connectors — is the connector for this app healthy?','Verify the app segment covers the exact hostname/IP and port','Confirm user has an access policy granting access to this segment','Review ZPA access logs: look for "access denied" vs "connector unreachable"','Test from a second connector group if available','Escalate to Tier 2 with ZCC logs if connector is down or policy looks correct but still blocked']}},
+                {label:'No / Unknown / Connecting…',next:{id:'r2',type:'result',variant:'danger',title:'ZPA tunnel not established',steps:["Confirm user's IdP/SSO credentials are valid and not expired","Check ZCC is enrolled to the correct ZPA cloud tenant name","Try ZCC logout → re-login to re-authenticate the ZPA tunnel","Check whether machine tunnel or user tunnel is required for this app","Review ZCC logs (ZCC tray → Troubleshoot → Collect Logs) for auth errors","Escalate to Tier 2 if re-login or re-enrollment fails"]}}
+              ]
+            }},
+            {label:'Internet / SaaS site',next:{
+              id:'q1a2',type:'question',q:'What does the user see when trying to access the site?',
+              answers:[
+                {label:'Zscaler block page shown',next:{
+                  id:'q1a2a',type:'question',q:'What block reason is shown on the Zscaler block page?',
+                  answers:[
+                    {label:'Policy / URL category block',next:{id:'r3',type:'result',variant:'info',title:'ZIA URL / category policy block',steps:['Note the exact block reason and policy name shown on the page','ZIA portal → Insights → Web Insights — filter by username and time','Find the blocked transaction and note the category assigned','Use ZIA URL Lookup tool to verify current categorization','If miscategorized: submit re-categorization request to Zscaler','If correct category but exception needed: submit allow-list request to Tier 2 admin','Check for wildcard conflicts in custom URL categories']}},
+                    {label:'Sandbox block',next:{id:'r4',type:'result',variant:'danger',title:'ZIA sandbox verdict — caution required',steps:['ZIA portal → Sandbox → Reports — search by filename or file hash','Check verdict: Malicious, Suspicious, Benign, or Pending','If Malicious: DO NOT bypass — escalate to security team immediately','If Suspicious: review detonation report; escalate for security approval before any bypass','If Pending: ask user to wait 2–3 min and retry the download','If confirmed false positive (Benign): Tier 2 to submit hash to allowlist','Document all bypass requests with justification and approver name']}},
+                    {label:'Quota exceeded',next:{id:'r5',type:'result',variant:'warning',title:'ZIA bandwidth or time quota exceeded',steps:["ZIA portal → Policy → Bandwidth Control — find the user's group quota rule","Confirm the quota is intentional and applied to the correct group","If the limit is too restrictive for the role: submit Tier 2 request to adjust quota","Advise user that quota resets on the configured schedule (daily/weekly/monthly)","Check if quota applies to specific categories only (e.g., streaming) vs all traffic"]}},
+                    {label:'Firewall / DNS block',next:{id:'r6',type:'result',variant:'warning',title:'ZIA firewall or DNS control block',steps:['ZIA portal → Firewall Logs — filter by user + time to find the dropped session','Note the destination IP, port, and protocol that was blocked','Check if the app uses a non-standard port blocked by ZIA firewall rules','For DNS blocks: check DNS Control policy — is the domain on a threat intel feed?','If legitimate business need: escalate to Tier 2 to create a firewall exception','Collect full ZCC logs before escalating']}},
+                    {label:'Not sure / other',next:{id:'r7',type:'result',variant:'info',title:'Check ZIA Web Insights for exact reason',steps:['ZIA portal → Insights → Web Insights — filter by username + time window','Find the transaction and note the exact block action and policy name','Cross-reference with the URL Lookup tool for categorization','If block reason is unclear, escalate to Tier 2 with the transaction ID and ZCC logs']}}
+                  ]
+                }},
+                {label:'Certificate / SSL error in browser',next:{id:'r8',type:'result',variant:'warning',title:'SSL inspection certificate issue',steps:['Check if Zscaler root CA is installed in the OS trusted store and browser','In ZCC → About → Certificates: confirm root CA is listed','If root CA missing: deploy via MDM (GPO/Intune/JAMF) — escalate to Tier 2','For apps with certificate pinning (banking, payroll): add domain to SSL bypass list','For internal HTTPS apps: verify internal CA chain is uploaded to ZIA','Mutual TLS (mTLS) endpoints must always be excluded from SSL inspection','Ensure Chrome/Firefox system CA integration is configured']}},
+                {label:'Page times out / no response',next:{
+                  id:'q1a2c',type:'question',q:'Does the same site work when ZCC is temporarily disabled (for diagnosis only)?',
+                  answers:[
+                    {label:'Yes — works without ZCC',next:{id:'r9',type:'result',variant:'warning',title:'ZIA routing or firewall blocking the connection',steps:['ZIA portal → Firewall Logs — check for blocked sessions to the destination','Check if the domain is in a DNS blocklist in the DNS Control policy','Verify ZIA forwarding profile — is this network on a bypass list that is not applying?','Collect traceroute from user device to the destination','Check status.zscaler.com for ZEN issues in the user\'s region','Escalate to Tier 2 with logs, traceroute, and destination details']}},
+                    {label:'No — also broken without ZCC',next:{id:'r10',type:'result',variant:'success',title:'Issue is not Zscaler — check local network',steps:['Zscaler is not the cause — re-enable ZCC immediately','Check local network: WiFi/LAN connectivity, DNS resolution','Run a basic connectivity test: can they reach google.com directly?','Check if a local proxy or firewall is blocking the destination','Test on mobile hotspot to isolate ISP vs local network','Check the destination service status page — may be a vendor outage','Log as a network/ISP ticket if local connectivity is confirmed broken']}}
+                  ]
+                }},
+                {label:'Site loads partially (images/API fail)',next:{id:'r11',type:'result',variant:'info',title:'Partial load — SSL bypass or CDN category issue',steps:['Open browser DevTools (F12) → Network tab — identify which requests are failing','Note the blocked domains (often CDN, API, or analytics subdomains)','ZIA portal → Web Insights — check if those subdomains are being blocked separately','Check if CDN/API domains fall into a blocked URL category','If SSL inspection is causing API failures: add CDN/API domains to SSL bypass','Check for mixed-content issues caused by Zscaler re-signing the parent domain cert','Escalate to Tier 2 with the list of failing domains from DevTools']}}
+              ]
+            }}
+          ]
+        }},
+        {label:'Slow performance / high latency',next:{
+          id:'q1b',type:'question',q:'Is this affecting one individual user or multiple users at the same location?',
+          answers:[
+            {label:'One user only',next:{
+              id:'q1b1',type:'question',q:'Does the slowness affect all sites or only one specific app?',
+              answers:[
+                {label:'All sites are slow',next:{id:'r12',type:'result',variant:'warning',title:'Global slowness — check device and local network',steps:['ZDX portal → find user by email → select device → set time range to issue window','Check ZDX Score — below 70 indicates degradation','Check Device→ZEN segment latency in path analysis','If Device→ZEN is high: local ISP or WiFi issue — try wired or mobile hotspot','Check device health in ZDX: CPU, RAM, WiFi signal strength','Verify ZCC version is current — old versions can cause performance regression','Run ZDX diagnostics: ZCC tray → Troubleshoot → Run Diagnostics','Check for concurrent VPN client conflicting with ZCC tunnel']}},
+                {label:'Only one specific app',next:{id:'r13',type:'result',variant:'info',title:'App-specific slowness — check ZDX path and ZEN',steps:['ZDX portal → find user → select the affected app → open path trace','Identify which segment is slow: Device→ZEN, ZEN→App, or App response time','If Device→ZEN high: local/ISP issue (see global slowness steps)','If ZEN→App high: app hosting or CDN performance — check vendor status page','Check if SSL inspection is adding overhead (high TLS handshake time in ZDX)','Check DNS resolution time — high DNS may indicate ZIA DNS forwarding misconfiguration','For video/voice apps (Teams, Zoom): verify Office 365 / media bypass is enabled in ZIA','Escalate to Tier 2 with ZDX path screenshot if ZEN→App latency is consistently high']}}
+              ]
+            }},
+            {label:'Multiple users at same office/site',next:{id:'r14',type:'result',variant:'danger',title:'Site-wide issue — check branch tunnel and ZEN',steps:['ZIA portal → check GRE/IPSec tunnel health for the affected branch','If tunnel is down or flapping: contact ISP and escalate to Tier 2 immediately','ZDX → compare ZDX scores across affected users — identify common ZEN node','Check status.zscaler.com for regional ZEN degradation in the branch region','Collect traceroute from a device at the site to gateway.zscaler.net','Compare ZDX scores between affected site and unaffected site to isolate cause','Engage Zscaler TAC (Tier 3) if ZEN or cloud-side issue is confirmed']}}
+          ]
+        }},
+        {label:'File download blocked or quarantined',next:{
+          id:'q1c',type:'question',q:'Does the block page or ZIA log indicate a Sandbox verdict?',
+          answers:[
+            {label:'Yes — Sandbox/file analysis block',next:{
+              id:'q1c1',type:'question',q:'What is the sandbox verdict?',
+              answers:[
+                {label:'Malicious',next:{id:'r15',type:'result',variant:'danger',title:'Malicious file — do not bypass',steps:['DO NOT bypass this block under any circumstances','Escalate to the security team immediately with file name, source URL, and user details','Document the incident: username, device, timestamp, file hash, source URL','Security team to investigate if the file was already downloaded or executed','Advise user not to attempt to re-download or access the source again','Open a security incident ticket per your IR process']}},
+                {label:'Suspicious',next:{id:'r16',type:'result',variant:'danger',title:'Suspicious verdict — escalate for approval',steps:['Do not bypass without explicit security team approval','ZIA portal → Sandbox → open the detonation report for the file','Send the report to the security team for review','If security approves bypass: Tier 2 to add specific file hash to allowlist (not whole domain)','Document approver name, justification, and date in the ticket','Set a review reminder to re-evaluate the allowlist entry within 30 days']}},
+                {label:'Pending / still analyzing',next:{id:'r17',type:'result',variant:'warning',title:'Sandbox analysis in progress',steps:['Normal for first-seen files — analysis typically completes in 1–3 minutes','Ask user to wait and retry the download after a few minutes','If still pending after 5+ min: check ZIA → Sandbox quota and cloud connectivity','If urgent and source is highly trusted: Tier 2 can apply a sandbox bypass scoped to the file hash','Log the file hash and source URL for security tracking','Notify security team of the pending file regardless of urgency']}},
+                {label:'Benign — but still blocked',next:{id:'r18',type:'result',variant:'info',title:'Sandbox false positive — add to allowlist',steps:['Confirm the Benign verdict in ZIA → Sandbox → Reports','Tier 2 to submit the file hash to the sandbox allowlist','Alternatively: submit feedback to Zscaler via the portal for improved classification','Advise user to retry the download after the allowlist entry propagates (up to 5 min)','Document the false positive for quarterly bypass list review']}}
+              ]
+            }},
+            {label:'No — different block reason',next:{id:'r19',type:'result',variant:'info',title:'File type or content policy block',steps:['ZIA portal → Web Insights — find the transaction and note the block rule name','Check if the file type (.exe, .zip, .iso, etc.) is blocked for the user policy group','Check DLP rules — file content may be triggering a data loss prevention policy','Verify the source domain category is not in a blocked category','If legitimate business need: Tier 2 to add a file type exception for the user group or a URL exception for the source','Ensure exception is scoped narrowly and documented']}}
+          ]
+        }},
+        {label:'ZCC crashed, frozen, or won\'t open',next:{
+          id:'q1d',type:'question',q:'Does ZCC fail to open on launch, or crash after running for a while?',
+          answers:[
+            {label:"Won't launch at all",next:{id:'r20',type:'result',variant:'warning',title:'ZCC will not launch — service or install issue',steps:['Open Task Manager → Services tab — check if ZSATunnel service exists and is running','If service is stopped: right-click → Start; if it fails, note the error code','Check Windows Event Viewer (Application + System logs) for ZSATunnel errors','Verify ZCC version against the minimum supported version in your org policy','Try: ZCC tray → Troubleshoot → Clear Cache, then restart','If still failing: uninstall using the official ZCC cleanup tool, then reinstall from MDM or ZCC portal','Escalate to Tier 2 with Event Viewer export and ZCC version if reinstall fails']}},
+            {label:'Crashes after running / intermittent',next:{id:'r21',type:'result',variant:'warning',title:'ZCC instability — collect crash logs',steps:['Reproduce the crash if possible, then immediately collect logs via ZCC tray → Troubleshoot → Collect Logs','Windows logs: %ProgramData%\\Zscaler\\ZSATunnel\\logs','macOS logs: /Library/Application Support/Zscaler/logs','Check for conflicting security tools: concurrent VPN, EDR/AV interference, proxy extensions','Check if crash correlates with a specific network change (WiFi switch, VPN connect)','Ensure ZCC is on latest version — many crash bugs are fixed in updates','Escalate to Tier 2 with crash log bundle; may need Zscaler TAC involvement']}}
+          ]
+        }},
+        {label:'Auth loop / redirect / SSO issue',next:{id:'r22',type:'result',variant:'warning',title:'Authentication or SSO redirect loop',steps:["Confirm the user's IdP credentials are valid — test logging into the IdP portal directly","Check ZCC enrollment tenant name matches the correct Zscaler cloud","For ZPA SAML issues: ZPA portal → IdP Configuration — verify assertion mapping and redirect URLs","Check for expired SAML certificates on either the IdP or ZPA side","Clear ZCC cache: ZCC tray → Troubleshoot → Clear Cache","Try in a private/incognito browser window to rule out cookie/session conflicts","Escalate to Tier 2 with ZCC logs and IdP error details if the loop persists"]}},
+        {label:'DLP / data policy block',next:{id:'r23',type:'result',variant:'info',title:'ZIA data loss prevention (DLP) policy block',steps:['Ask: what was the user trying to upload/send and to which destination?','ZIA portal → Insights → DLP Incidents — find the triggered incident by user + time','Note the DLP rule name and the content type that triggered it','If the action was legitimate: escalate to Tier 2 / security team for a policy exception review','DLP bypasses require security team approval — document the justification','Advise user of acceptable use: DLP policies are intentional and should not be routinely bypassed','Provide user with an approved alternative method if available']}}
+      ]
+    }},
+    {label:'No — ZCC is not connected or not installed',next:{
+      id:'q2',type:'question',q:'Is ZCC installed on the device?',
+      answers:[
+        {label:'Installed but not connecting',next:{
+          id:'q2a',type:'question',q:'What does ZCC show as the connection status?',
+          answers:[
+            {label:'Disabled / paused by user',next:{id:'r24',type:'result',variant:'info',title:'ZCC manually disabled — re-enable',steps:['Ask user to click the ZCC tray icon and select "Enable"','If user cannot enable: check if tamper protection is set (admin re-enable required)','Check the forwarding profile — ZCC may be set to disabled for the current network SSID/IP range','If on a trusted network bypass: this may be expected behavior — explain to user','If tamper protection is blocking re-enable: Tier 2 admin to re-enable via ZCC portal or MDM push']}},
+            {label:'Connecting / stuck connecting',next:{id:'r25',type:'result',variant:'warning',title:'ZCC stuck in connecting — network or auth issue',steps:['Check basic internet: can the device reach any site at all?','Test connectivity to gateway.zscaler.net on TCP 443 — firewall may be blocking it','Check if a local firewall is blocking ZSATunnel.exe outbound','Check if another VPN or proxy is intercepting ZCC traffic','Try: ZCC tray → Troubleshoot → Clear Cache, then wait 60 seconds','Log out of ZCC completely and log back in to force re-auth','If on a restricted network (hotel, conference): try mobile hotspot to confirm it is network-specific','Escalate to Tier 2 with ZCC logs and network details if still stuck']}},
+            {label:'Error message shown',next:{id:'r26',type:'result',variant:'warning',title:'ZCC showing error — identify error code',steps:['Note the exact error message or code displayed in ZCC','Common errors: enrollment token invalid → re-enroll via MDM; cloud unreachable → firewall/port 443 issue; auth failed → IdP credential problem','ZCC tray → Troubleshoot → Collect Logs and review for the error timestamp','Check status.zscaler.com for any ongoing cloud issues','Escalate to Tier 2 with the error message text and ZCC log bundle','For enrollment failures: Tier 2 to verify enrollment token and cloud name configuration in MDM']}}
+          ]
+        }},
+        {label:'Not installed — needs deployment',next:{id:'r27',type:'result',variant:'info',title:'ZCC not installed — deploy to device',steps:['Confirm the device is in scope for ZCC deployment per org policy','Check MDM (Intune/JAMF/etc.) to see if a ZCC deployment profile is assigned to this device','If MDM deployment failed: check MDM portal for error details and re-push','For manual install: provide user with installer from ZCC portal + enrollment token','For BYOD/personal devices: check if ZCC is required or if a web proxy config is the approved alternative','Verify device OS meets minimum requirements for the ZCC version being deployed','Escalate to Tier 2 / MDM team if MDM deployment is consistently failing']}}
+      ]
+    }}
+  ]
+};
+
+let path = [];
+
+function renderFlow() {
+  const root = document.getElementById('flow-root');
+  const crumbs = [];
+  const parts = [];
+  let node = TREE;
+
+  for (let step = 0; step <= path.length; step++) {
+    if (!node) break;
+    if (node.type === 'result') { parts.push(renderResult(node)); break; }
+    if (node.type === 'question') {
+      const sel = step < path.length ? path[step] : -1;
+      if (parts.length > 0) parts.push('<div class="connector"></div>');
+      parts.push(renderQ(node, step, sel));
+      if (sel === -1) break;
+      crumbs.push(node.answers[sel].label);
+      node = node.answers[sel].next;
+    }
+  }
+
+  root.innerHTML = parts.join('');
+  document.getElementById('breadcrumb').textContent = crumbs.length ? crumbs.join(' › ') : '';
+}
+
+function renderQ(node, step, sel) {
+  let btns = node.answers.map((a,i) =>
+    `<button class="dt-ans${sel===i?' selected':''}" onclick="choose(${step},${i})">${a.label}</button>`
+  ).join('');
+  return `<div class="dt-node"><div class="dt-question"><div class="dt-q-text"><span class="q-num">${step+1}</span><span>${node.q}</span></div><div class="dt-answers">${btns}</div></div></div>`;
+}
+
+function renderResult(r) {
+  const steps = (r.steps||[]).map((s,i)=>`<li data-n="${i+1}">${s}</li>`).join('');
+  return `<div class="dt-result ${r.variant}"><div class="result-title">${r.title}</div><ul class="result-steps">${steps}</ul></div>`;
+}
+
+function choose(step, idx) {
+  path = path.slice(0, step);
+  path.push(idx);
+  renderFlow();
+}
+
+function resetFlow() { path = []; renderFlow(); }
+
+function showTab(id, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  el.classList.add('active');
+}
+
+renderFlow();
+</script>
+</body>
+</html>
