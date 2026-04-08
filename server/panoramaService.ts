@@ -221,6 +221,44 @@ async function fetchDeviceHostnameMap(panoramaUrl: string, apiKey: string): Prom
   return hostnameMap;
 }
 
+/**
+ * Auto-detect the Panorama device name by fetching the devices list.
+ * Falls back to 'localhost.localdomain' if detection fails.
+ */
+export async function detectPanoramaDeviceName(
+  panoramaUrl: string,
+  apiKey: string
+): Promise<string> {
+  try {
+    const xpath = '/config/devices';
+    const apiUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=${encodeURIComponent(xpath)}&key=${apiKey}`;
+    const res = await fetch(apiUrl);
+    if (!res.ok) {
+      console.warn(`Device name detection failed: ${res.status} ${res.statusText}`);
+      return 'localhost.localdomain';
+    }
+    const xml = await res.text();
+    
+    if (!xml.includes('status="success"')) {
+      console.warn('Device name detection: API returned error');
+      return 'localhost.localdomain';
+    }
+    
+    // Extract first device entry name
+    const match = xml.match(/<entry\s+name="([^"]+)"/);
+    if (match && match[1]) {
+      console.log(`Detected Panorama device name: ${match[1]}`);
+      return match[1];
+    }
+    
+    console.warn('Device name detection: no device entry found, using default');
+    return 'localhost.localdomain';
+  } catch (error) {
+    console.error('Error detecting Panorama device name:', error);
+    return 'localhost.localdomain';
+  }
+}
+
 export async function fetchDeviceGroupNames(
   panoramaUrl: string,
   apiKey: string,
