@@ -133,11 +133,41 @@ const App: React.FC = () => {
 
   // Load config
   useEffect(() => {
-    fetch(apiBase + '/config').then(r => r.json()).then(d => {
-      if (d.panoramaUrl || d.apiKey) {
-        setConfig(p => ({ ...p, url: d.panoramaUrl || p.url, apiKey: d.apiKey || p.apiKey }));
+    const loadConfig = async () => {
+      try {
+        console.log('Fetching configuration from server...');
+        const response = await fetch(apiBase + '/config');
+        
+        // Even if we get a non-200 response, try to parse it as JSON
+        // This helps with error responses that might contain useful information
+        const text = await response.text();
+        
+        try {
+          const data = JSON.parse(text);
+          
+          // If we have configuration data, update the state
+          if (data.panoramaUrl || data.apiKey) {
+            console.log('Configuration loaded successfully');
+            setConfig(prev => ({
+              ...prev,
+              url: data.panoramaUrl || prev.url,
+              apiKey: data.apiKey || prev.apiKey
+            }));
+          } else {
+            console.log('Configuration loaded but empty');
+          }
+        } catch (parseError) {
+          console.error('Error parsing config response:', parseError);
+          console.error('Response text:', text);
+          showToast('Error loading configuration: Invalid server response', 'error');
+        }
+      } catch (err) {
+        console.error('Error fetching config:', err);
+        showToast('Error loading configuration: ' + (err instanceof Error ? err.message : 'Network error'), 'error');
       }
-    }).catch(() => {});
+    };
+    
+    loadConfig();
   }, []);
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
@@ -200,17 +230,52 @@ const App: React.FC = () => {
     if (!config.url || !config.apiKey) { showToast('Enter Panorama URL and API key first', 'warning'); return; }
     setPanoramaStatus('testing'); setPanoramaStatusMsg('');
     try {
+      // Use the server as a proxy to avoid CORS issues
+      console.log('Testing connection to Panorama via server proxy');
+      
+      // Use a relative path to avoid CORS issues with different origins
       const res = await fetch(apiBase + '/test/panorama', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: config.url, apiKey: config.apiKey }),
       });
-      const data = await res.json();
-      setPanoramaStatus(data.ok ? 'ok' : 'error');
-      setPanoramaStatusMsg(data.message);
-      showToast(data.message, data.ok ? 'success' : 'error');
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}: ${res.statusText}`);
+      }
+      
+      // Get the response as text
+      const text = await res.text();
+      let data;
+      
+      try {
+        // Try to parse the response as JSON
+        data = JSON.parse(text);
+        
+        setPanoramaStatus(data.ok ? 'ok' : 'error');
+        setPanoramaStatusMsg(data.message || 'Connection test completed');
+        showToast(data.message || 'Connection test completed', data.ok ? 'success' : 'error');
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        console.error('Response text:', text);
+        
+        // If we can't parse as JSON, check if it's XML
+        if (text.includes('status="success"')) {
+          const hostnameMatch = text.match(/<hostname>(.*?)<\/hostname>/);
+          const hostname = hostnameMatch ? hostnameMatch[1] : 'Panorama';
+          const message = `Connected to ${hostname}`;
+          
+          setPanoramaStatus('ok');
+          setPanoramaStatusMsg(message);
+          showToast(message, 'success');
+        } else {
+          throw new Error('Invalid response format');
+        }
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Connection failed';
       setPanoramaStatus('error'); setPanoramaStatusMsg(msg); showToast(msg, 'error');
+      console.error('Connection test error:', err);
     }
   };
 
@@ -300,7 +365,8 @@ const App: React.FC = () => {
 
   const handleApplyRemediation = () => {
     if (!isProductionMode) { showToast('Enable Production Mode to apply remediation', 'warning'); return; }
-    const toProcess = rules.filter(r =>
+    // Only process rules that are both selected AND currently visible in the filtered view
+    const toProcess = filteredRules.filter(r =>
       selectedRuleIds.has(r.id) &&
       (auditMode === 'disabled' ? r.action === 'DISABLE' : r.action === 'DISABLE' || r.action === 'UNTARGET')
     );
@@ -328,14 +394,40 @@ const App: React.FC = () => {
           tag: getDisabledDateTag(), auditMode,
         }),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error || res.statusText); }
-      const result = await res.json();
+      
+      // First get the response as text
+      const responseText = await res.text();
+      
+      // Handle non-OK responses
+      if (!res.ok) { 
+        let errorMessage = res.statusText;
+        try {
+          const errorData = JSON.parse(responseText);
+          if (errorData.error) errorMessage = errorData.error;
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+          console.error('Error response text:', responseText);
+        }
+        throw new Error(errorMessage); 
+      }
+      
+      // Parse the successful response
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        console.error('Response text:', responseText);
+        throw new Error('Invalid JSON response from server');
+      }
+      
       showToast(auditMode === 'disabled'
         ? `Deleted ${result.deletedCount ?? result.disabledCount} rule(s)`
         : `Applied: ${result.disabledCount} disabled, ${result.untargetedCount ?? 0} untargeted`,
       'success');
       if (result.errors?.length) showToast(`${result.errors.length} error(s) — check server logs`, 'warning');
     } catch (err) {
+      console.error('Remediation error:', err);
       showToast(`Remediation failed: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error');
     } finally { setIsApplyingRemediation(false); }
   };
@@ -393,6 +485,117 @@ const App: React.FC = () => {
       doc.save(`panorama-audit-${auditMode}-${new Date().toISOString().split('T')[0]}.pdf`);
       showToast('PDF exported', 'success');
     } catch (err) { showToast(`PDF failed: ${err instanceof Error ? err.message : 'error'}`, 'error'); }
+  };
+
+  const handleExportDisablePDF = async () => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+      const disableRules = rules.filter(r => r.action === 'DISABLE');
+      
+      if (disableRules.length === 0) {
+        showToast('No rules to disable', 'warning');
+        return;
+      }
+
+      const doc = new jsPDF({ orientation: 'landscape' });
+      
+      doc.setFontSize(18);
+      doc.text('Rules Proposed for DISABLE', 14, 20);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+      doc.text(`URL: ${config.url}`, 14, 33);
+      doc.text(`Total Rules: ${disableRules.length}`, 14, 38);
+      
+      const tableData = disableRules.map(rule => [
+        rule.name,
+        rule.deviceGroup,
+        rule.totalHits.toString(),
+        rule.lastHitDate.startsWith('1970') ? 'Never' : new Date(rule.lastHitDate).toLocaleDateString(),
+        rule.createdDate ? new Date(rule.createdDate).toLocaleDateString() : '—',
+        rule.targets.map(t => t.displayName || t.name).join(', ')
+      ]);
+
+      autoTable(doc, {
+        startY: 45,
+        head: [['Rule Name', 'Device Group', 'Total Hits', 'Last Hit', 'Created', 'Targets']],
+        body: tableData,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [0, 212, 200], textColor: [255, 255, 255] },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        columnStyles: {
+          0: { cellWidth: 70 },
+          1: { cellWidth: 40 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 30 },
+          5: { cellWidth: 80 }
+        }
+      });
+
+      doc.save(`panorama-disable-rules-${new Date().toISOString().split('T')[0]}.pdf`);
+      showToast(`Exported ${disableRules.length} DISABLE rules to PDF`, 'success');
+    } catch (err) { 
+      showToast(`PDF export failed: ${err instanceof Error ? err.message : 'error'}`, 'error'); 
+    }
+  };
+
+  const handleExportUntargetPDF = async () => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+      const untargetRules = rules.filter(r => r.action === 'UNTARGET');
+      
+      if (untargetRules.length === 0) {
+        showToast('No rules to untarget', 'warning');
+        return;
+      }
+
+      const doc = new jsPDF({ orientation: 'landscape' });
+      
+      doc.setFontSize(18);
+      doc.text('Rules Proposed for UNTARGET', 14, 20);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+      doc.text(`URL: ${config.url}`, 14, 33);
+      doc.text(`Total Rules: ${untargetRules.length}`, 14, 38);
+      
+      const tableData = untargetRules.map(rule => {
+        const targetsToRemove = rule.targets.filter(t => t.toBeRemoved).map(t => t.displayName || t.name).join(', ');
+        return [
+          rule.name,
+          rule.deviceGroup,
+          rule.totalHits.toString(),
+          targetsToRemove || 'N/A',
+          rule.targets.length.toString()
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 45,
+        head: [['Rule Name', 'Device Group', 'Total Hits', 'Targets to Remove', 'Total Targets']],
+        body: tableData,
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [255, 193, 7], textColor: [0, 0, 0] },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        columnStyles: {
+          0: { cellWidth: 80 },
+          1: { cellWidth: 50 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 90 },
+          4: { cellWidth: 30 }
+        }
+      });
+
+      doc.save(`panorama-untarget-rules-${new Date().toISOString().split('T')[0]}.pdf`);
+      showToast(`Exported ${untargetRules.length} UNTARGET rules to PDF`, 'success');
+    } catch (err) { 
+      showToast(`PDF export failed: ${err instanceof Error ? err.message : 'error'}`, 'error'); 
+    }
   };
 
   // ── Styles ─────────────────────────────────────────────────────────────────
@@ -709,7 +912,9 @@ const App: React.FC = () => {
                       <SortableTh field="name" label="Rule Name" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                       <SortableTh field="deviceGroup" label="Device Group" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                       <SortableTh field="totalHits" label="Hits" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
-                      <th className="px-5 py-3.5 text-left text-[10px] font-semibold text-[#475569] uppercase tracking-widest whitespace-nowrap">Last Hit</th>
+                      {filterAction !== 'UNTARGET' && (
+                        <th className="px-5 py-3.5 text-left text-[10px] font-semibold text-[#475569] uppercase tracking-widest whitespace-nowrap">Last Hit</th>
+                      )}
                       <th className="px-5 py-3.5 text-left text-[10px] font-semibold text-[#475569] uppercase tracking-widest whitespace-nowrap">Created</th>
                       <th className="px-5 py-3.5 text-left text-[10px] font-semibold text-[#475569] uppercase tracking-widest whitespace-nowrap">
                         {auditMode === 'disabled' ? 'Disabled Date' : 'Targets'}
@@ -723,11 +928,12 @@ const App: React.FC = () => {
                         <RuleRow key={rule.id} rule={rule} auditMode={auditMode}
                           isSelected={selectedRuleIds.has(rule.id)}
                           onSelectionChange={checked => handleRuleSelection(rule.id, checked)}
-                          rowIndex={idx} />
+                          rowIndex={idx}
+                          hideLastHit={filterAction === 'UNTARGET'} />
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={7} className="px-5 py-16 text-center text-sm text-[#374151]">
+                        <td colSpan={filterAction === 'UNTARGET' ? 6 : 7} className="px-5 py-16 text-center text-sm text-[#374151]">
                           {searchQuery || filterDeviceGroup !== 'all' || filterAction !== 'all'
                             ? 'No rules match the current filters'
                             : 'No rules returned by audit'}
@@ -784,7 +990,25 @@ const App: React.FC = () => {
             <div className="flex items-center gap-3">
               <button onClick={handleExportPDF}
                 className="px-4 py-2 text-xs font-semibold text-[#475569] hover:text-[#e2e8f0] bg-[#131e30] border border-[#1d2e45] hover:border-[#2a4060] rounded-lg transition-colors">
-                ↓ Export PDF
+                ↓ Full Report
+              </button>
+              <button onClick={handleExportDisablePDF}
+                disabled={summary.toDisable === 0}
+                className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors ${
+                  summary.toDisable === 0
+                    ? 'text-[#374151] bg-[#0c1322] border border-[#1d2e45] cursor-not-allowed'
+                    : 'text-[#00d4c8] hover:text-[#e2e8f0] bg-[#131e30] border border-[#00d4c8]/30 hover:border-[#00d4c8]/50'
+                }`}>
+                ↓ DISABLE ({summary.toDisable})
+              </button>
+              <button onClick={handleExportUntargetPDF}
+                disabled={summary.toUntarget === 0}
+                className={`px-4 py-2 text-xs font-semibold rounded-lg transition-colors ${
+                  summary.toUntarget === 0
+                    ? 'text-[#374151] bg-[#0c1322] border border-[#1d2e45] cursor-not-allowed'
+                    : 'text-[#ffc107] hover:text-[#e2e8f0] bg-[#131e30] border border-[#ffc107]/30 hover:border-[#ffc107]/50'
+                }`}>
+                ↓ UNTARGET ({summary.toUntarget})
               </button>
               <button onClick={handleApplyRemediation}
                 disabled={!isProductionMode || isApplyingRemediation || selectedCount === 0}
