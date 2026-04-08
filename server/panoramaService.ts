@@ -264,8 +264,9 @@ export async function fetchDeviceGroupNames(
   apiKey: string,
   panoramaDeviceName: string = 'localhost.localdomain'
 ): Promise<string[]> {
-  const xpath = `/config/devices/entry[@name='${panoramaDeviceName}']/device-group`;
-  const apiUrl = `${panoramaUrl}/api/?type=config&action=get&xpath=${encodeURIComponent(xpath)}&key=${apiKey}`;
+  // Use operational command instead of config API - config API doesn't return device groups
+  const cmd = '<show><devicegroups></devicegroups></show>';
+  const apiUrl = `${panoramaUrl}/api/?type=op&cmd=${encodeURIComponent(cmd)}&key=${apiKey}`;
   const res = await fetch(apiUrl);
   if (!res.ok) throw new Error(`Device group fetch failed: ${res.status} ${res.statusText}`);
   const xml = await res.text();
@@ -275,15 +276,21 @@ export async function fetchDeviceGroupNames(
     throw new Error(`Panorama API error: ${errMatch ? errMatch[1].trim() : xml.substring(0, 200)}`);
   }
 
-  // Locate the <device-group>...</device-group> block in the raw XML response.
-  const dgStart = xml.indexOf('<device-group>');
-  const dgEnd = xml.lastIndexOf('</device-group>');
-  if (dgStart === -1 || dgEnd === -1) {
-    console.warn('fetchDeviceGroupNames: no <device-group> section found in response');
-    return [];
+  // Parse device group names from operational command response
+  // Extract all entry names, filtering out device serial numbers
+  const dgMatches = xml.matchAll(/<entry name="([^"]+)">/g);
+  const names: string[] = [];
+  const seen = new Set<string>();
+  
+  for (const match of dgMatches) {
+    const name = match[1];
+    // Skip device serial numbers (they're numeric or hex) and duplicates
+    if (!/^[0-9A-F]+$/i.test(name) && !seen.has(name)) {
+      names.push(name);
+      seen.add(name);
+    }
   }
-  const dgContent = xml.substring(dgStart + '<device-group>'.length, dgEnd);
-  const names = extractTopLevelEntryNames(dgContent);
+  
   console.log(`fetchDeviceGroupNames: ${names.length} device groups:`, names);
   return names;
 }
