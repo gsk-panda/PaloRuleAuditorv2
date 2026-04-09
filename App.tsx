@@ -215,7 +215,7 @@ const App: React.FC = () => {
 
   const selectableRules = useMemo(() =>
     filteredRules.filter(r =>
-      auditMode === 'disabled' ? r.action === 'DISABLE' : r.action === 'DISABLE' || r.action === 'UNTARGET'
+      auditMode === 'disabled' ? (r.action === 'DISABLE' || r.action === 'DELETE') : r.action === 'DISABLE' || r.action === 'UNTARGET'
     ), [filteredRules, auditMode]);
 
   const selectedCount = useMemo(() =>
@@ -368,7 +368,7 @@ const App: React.FC = () => {
     // Only process rules that are both selected AND currently visible in the filtered view
     const toProcess = filteredRules.filter(r =>
       selectedRuleIds.has(r.id) &&
-      (auditMode === 'disabled' ? r.action === 'DISABLE' : r.action === 'DISABLE' || r.action === 'UNTARGET')
+      (auditMode === 'disabled' ? (r.action === 'DISABLE' || r.action === 'DELETE') : r.action === 'DISABLE' || r.action === 'UNTARGET')
     );
     if (!toProcess.length) { showToast('No rules selected', 'warning'); return; }
     // Count only the selected rules that will be processed

@@ -64,7 +64,7 @@ export const RuleRow: React.FC<RuleRowProps> = ({
 }) => {
   const badge = getBadge(rule.action);
   const isSelectable =
-    (auditMode === 'disabled' && rule.action === 'DISABLE') ||
+    (auditMode === 'disabled' && (rule.action === 'DISABLE' || rule.action === 'DELETE')) ||
     (auditMode === 'unused' && (rule.action === 'DISABLE' || rule.action === 'UNTARGET'));
 
   const rowBg = isSelected
